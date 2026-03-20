@@ -1,43 +1,38 @@
+import com.mascill.keutrack.buildplugin.convention.utils.BuildAndroidConfig
+import com.mascill.keutrack.buildplugin.convention.utils.BuildTypeDebug
+import com.mascill.keutrack.buildplugin.convention.utils.BuildTypeRelease
+
 plugins {
-    alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
-    alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.keutrack.application)
+    alias(libs.plugins.keutrack.app.compose)
+    alias(libs.plugins.keutrack.app.flavor)
 }
+
 
 android {
     namespace = "com.mascill.keutrack"
-    compileSdk {
-        version = release(36)
-    }
+    compileSdk = BuildAndroidConfig.COMPILE_SDK_VERSION
 
     defaultConfig {
-        applicationId = "com.mascill.keutrack"
-        minSdk = 28
-        targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
-
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        applicationId = BuildAndroidConfig.APPLICATION_ID
+        targetSdk = BuildAndroidConfig.TARGET_SDK_VERSION
+        versionCode = BuildAndroidConfig.VERSION_CODE
+        versionName = BuildAndroidConfig.VERSION_NAME
     }
 
     buildTypes {
-        release {
-            isMinifyEnabled = false
+        getByName(BuildTypeRelease.type) {
+            isMinifyEnabled = BuildTypeRelease.isMinifyEnabled
+            isDebuggable = BuildTypeRelease.isDebuggable
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
         }
-    }
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
-    }
-    kotlinOptions {
-        jvmTarget = "11"
-    }
-    buildFeatures {
-        compose = true
+        getByName(BuildTypeDebug.type) {
+            versionNameSuffix = BuildTypeDebug.VERSION_NAME_SUFFIX
+            isMinifyEnabled = BuildTypeDebug.isMinifyEnabled
+        }
     }
 }
 
@@ -46,15 +41,15 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(platform(libs.androidx.compose.bom))
-    implementation(libs.androidx.compose.ui)
-    implementation(libs.androidx.compose.ui.graphics)
-    implementation(libs.androidx.compose.ui.tooling.preview)
-    implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.ui)
+    implementation(libs.androidx.ui.graphics)
+    implementation(libs.androidx.ui.tooling.preview)
+    implementation(libs.androidx.material3)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
-    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
-    debugImplementation(libs.androidx.compose.ui.tooling)
-    debugImplementation(libs.androidx.compose.ui.test.manifest)
+    androidTestImplementation(libs.androidx.ui.test.junit4)
+    debugImplementation(libs.androidx.ui.tooling)
+    debugImplementation(libs.androidx.ui.test.manifest)
 }
