@@ -26,50 +26,56 @@ dependencies {
 
 gradlePlugin {
     /**
-     * KeuTrack Mikrotrans application plugin
+     * KeuTrack application plugin
      */
     plugins.register("keutrackAppPlugin") {
         id = libs.plugins.keutrack.application.get().pluginId
-        implementationClass = "com.mascill.keutrack.buildplugin.convention.plugins.KeuTrackAppPlugin"
+        implementationClass =
+            "com.mascill.keutrack.buildplugin.convention.plugins.KeuTrackAppPlugin"
     }
 
     /**
-     * KeuTrack Mikrotrans application compose plugin
+     * KeuTrack application compose plugin
      */
     plugins.register("keutrackAppComposePlugin") {
         id = libs.plugins.keutrack.app.compose.get().pluginId
-        implementationClass = "com.mascill.keutrack.buildplugin.convention.plugins.KeuTrackAppComposePlugin"
+        implementationClass =
+            "com.mascill.keutrack.buildplugin.convention.plugins.KeuTrackAppComposePlugin"
     }
 
     /**
-     * KeuTrack Mikrotrans application flavor plugin
+     * KeuTrack application flavor plugin
      */
     plugins.register("keutrackAppFlavorPlugin") {
         id = libs.plugins.keutrack.app.flavor.get().pluginId
-        implementationClass = "com.mascill.keutrack.buildplugin.convention.plugins.KeuTrackAppFlavorPlugin"
+        implementationClass =
+            "com.mascill.keutrack.buildplugin.convention.plugins.KeuTrackAppFlavorPlugin"
     }
 
     /**
-     * KeuTrack Mikrotrans feature plugin
+     * KeuTrack feature plugin
      */
     plugins.register("keutrackFeaturePlugin") {
         id = libs.plugins.keutrack.feature.get().pluginId
-        implementationClass = "com.mascill.keutrack.buildplugin.convention.plugins.KeuTrackFeaturePlugin"
+        implementationClass =
+            "com.mascill.keutrack.buildplugin.convention.plugins.KeuTrackFeaturePlugin"
     }
 
     /**
-     * KeuTrack Mikrotrans library plugin
+     * KeuTrack library plugin
      */
     plugins.register("keutrackLibPlugin") {
         id = libs.plugins.keutrack.library.get().pluginId
-        implementationClass = "com.mascill.keutrack.buildplugin.convention.plugins.KeuTrackLibPlugin"
+        implementationClass =
+            "com.mascill.keutrack.buildplugin.convention.plugins.KeuTrackLibPlugin"
     }
 
     /**
-     * KeuTrack Mikrotrans library compose plugin
+     * KeuTrack library compose plugin
      */
     plugins.register("keutrackLibComposePlugin") {
         id = libs.plugins.keutrack.lib.compose.get().pluginId
-        implementationClass = "com.mascill.keutrack.buildplugin.convention.plugins.KeuTrackLibComposePlugin"
+        implementationClass =
+            "com.mascill.keutrack.buildplugin.convention.plugins.KeuTrackLibComposePlugin"
     }
 }

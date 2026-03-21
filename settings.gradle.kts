@@ -28,5 +28,9 @@ dependencyResolutionManagement {
 
 
 rootProject.name = "KeuTrack"
+
+// to enable project accessors (the projects. syntax) when calling module path like
+// project(":core:designsystem")
+enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 include(":app")
- 
+include(":core:designsystem")
