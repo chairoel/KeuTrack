@@ -78,4 +78,12 @@ gradlePlugin {
         implementationClass =
             "com.mascill.keutrack.buildplugin.convention.plugins.KeuTrackLibComposePlugin"
     }
+
+    /**
+     * KeuTrack hilt plugin
+     */
+    plugins.register("keutrackHiltPlugin") {
+        id = libs.plugins.keutrack.hilt.get().pluginId
+        implementationClass = "com.mascill.keutrack.buildplugin.convention.plugins.KeuTrackHiltPlugin"
+    }
 }

@@ -6,6 +6,7 @@ plugins {
     alias(libs.plugins.keutrack.application)
     alias(libs.plugins.keutrack.app.compose)
     alias(libs.plugins.keutrack.app.flavor)
+    alias(libs.plugins.keutrack.hilt)
 }
 
 
