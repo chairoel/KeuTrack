@@ -64,6 +64,14 @@ fun configureFlavors(
                             versionNameSuffix = flavor.versionNameSuffix
                         }
                     }
+
+                    // Native C NDK configuration
+                    externalNativeBuild {
+                        cmake {
+                            // argument used to get data from C
+                            arguments("-DTYPE=${flavor.name}")
+                        }
+                    }
                 }
             }
         }

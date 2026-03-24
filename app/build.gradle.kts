@@ -40,6 +40,8 @@ android {
 dependencies {
     // internal modules ---------------------------------------------------------------------------
     implementation(projects.core.designsystem)
+    implementation(projects.core.common)
+    implementation(projects.core.network)
     implementation(projects.features.splashscreen)
     // --------------------------------------------------------------------------------------------
 
