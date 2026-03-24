@@ -63,11 +63,11 @@ private val warningDarkColors =
 
 private val dangerDarkColors =
     KeuTrackDangerColors(
-        w900 = Blood,
-        w700 = FireEngineRed,
-        w500 = CarminePink,
-        w300 = Begonia,
-        w100 = MistyRose,
+        d900 = Blood,
+        d700 = FireEngineRed,
+        d500 = CarminePink,
+        d300 = Begonia,
+        d100 = MistyRose,
     )
 
 private val darkColorScheme = darkColors()

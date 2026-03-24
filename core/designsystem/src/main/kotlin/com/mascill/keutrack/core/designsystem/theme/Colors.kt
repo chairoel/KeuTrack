@@ -164,11 +164,11 @@ data class KeuTrackWarningColors(
  */
 @Immutable
 data class KeuTrackDangerColors(
-    val w900: Color = Color.Unspecified,
-    val w700: Color = Color.Unspecified,
-    val w500: Color = Color.Unspecified,
-    val w300: Color = Color.Unspecified,
-    val w100: Color = Color.Unspecified,
+    val d900: Color = Color.Unspecified,
+    val d700: Color = Color.Unspecified,
+    val d500: Color = Color.Unspecified,
+    val d300: Color = Color.Unspecified,
+    val d100: Color = Color.Unspecified,
 )
 
 val LocalCustomPrimaryColors = staticCompositionLocalOf { KeuTrackPrimaryColors() }

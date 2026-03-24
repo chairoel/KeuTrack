@@ -1,5 +1,6 @@
 package com.mascill.keutrack.buildplugin.convention.plugins
 
+import com.mascill.keutrack.buildplugin.convention.utils.libs
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.kotlin.dsl.apply
@@ -26,7 +27,10 @@ class KeuTrackFeaturePlugin : Plugin<Project> {
 
     private fun Project.setFeatureDependencies() {
         dependencies {
+            add("implementation", project(":core:designsystem"))
 
+            add("implementation", libs.findLibrary("androidx.compose.material").get())
+            add("implementation", libs.findLibrary("androidx.navigation").get())
         }
     }
 }

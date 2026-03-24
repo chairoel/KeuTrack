@@ -1,7 +1,10 @@
 [versions]
+accompanist = "0.37.3"
 activityCompose = "1.10.1"
 agp = "8.11.1"
 androidxHiltNavigationCompose = "1.2.0"
+androidxNavigation = "2.9.3"
+appcompat = "1.7.1"
 composeBom = "2024.09.00"
 coreKtx = "1.17.0"
 espressoCore = "3.7.0"
@@ -11,10 +14,10 @@ junitVersion = "1.3.0"
 kotlin = "2.1.10"
 ksp = "2.1.0-1.0.29"
 lifecycleRuntimeKtx = "2.9.3"
-appcompat = "1.7.1"
 material = "1.12.0"
 
 [libraries]
+accompanist-permissions = { group = "com.google.accompanist", name = "accompanist-permissions", version.ref = "accompanist" }
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
 androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
 androidx-compose-material = { group = "androidx.compose.material", name = "material" }
@@ -25,6 +28,7 @@ androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-co
 androidx-hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "androidxHiltNavigationCompose" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycleRuntimeKtx" }
+androidx-navigation = { group = "androidx.navigation", name = "navigation-compose", version.ref = "androidxNavigation" }
 androidx-ui = { group = "androidx.compose.ui", name = "ui" }
 androidx-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
 androidx-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }

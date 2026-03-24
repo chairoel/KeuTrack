@@ -40,6 +40,7 @@ android {
 dependencies {
     // internal modules ---------------------------------------------------------------------------
     implementation(projects.core.designsystem)
+    implementation(projects.features.splashscreen)
     // --------------------------------------------------------------------------------------------
 
     implementation(libs.androidx.core.ktx)
@@ -49,6 +50,7 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material)
+    implementation(libs.androidx.navigation)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
