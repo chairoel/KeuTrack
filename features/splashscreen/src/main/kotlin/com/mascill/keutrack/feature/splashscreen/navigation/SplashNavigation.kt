@@ -2,7 +2,7 @@ package com.mascill.keutrack.feature.splashscreen.navigation
 
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
-import com.mascill.keutrack.feature.splashscreen.SplashRouting
+import com.mascill.keutrack.feature.splashscreen.presentation.SplashRouting
 import kotlinx.serialization.Serializable
 
 @Serializable object SplashRoute

@@ -1,4 +1,4 @@
-package com.mascill.keutrack.feature.splashscreen
+package com.mascill.keutrack.feature.splashscreen.presentation
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
 
 /**
@@ -17,7 +18,7 @@ import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
  * collection in case multiple screen with different condition need to show
  */
 @Composable
-fun SplashRouting() {
+fun SplashRouting(viewModel: SplashViewModel = hiltViewModel()) {
     SplashScreen()
 }
 
@@ -51,6 +52,6 @@ private fun Greeting(name: String, modifier: Modifier = Modifier) {
 @Composable
 private fun GreetingPreview() {
     KeuTrackTheme {
-        Greeting("Insan Transjakarta")
+        SplashScreen()
     }
 }

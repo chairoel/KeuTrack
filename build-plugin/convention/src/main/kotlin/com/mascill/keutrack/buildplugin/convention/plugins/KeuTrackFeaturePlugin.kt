@@ -27,7 +27,11 @@ class KeuTrackFeaturePlugin : Plugin<Project> {
 
     private fun Project.setFeatureDependencies() {
         dependencies {
+            // KeuTrack local module
+            add("implementation", project(":core:common"))
             add("implementation", project(":core:designsystem"))
+            add("implementation", project(":core:domain"))
+            add("implementation", project(":core:network"))
 
             add("implementation", libs.findLibrary("androidx.compose.material").get())
             add("implementation", libs.findLibrary("androidx.navigation").get())
