@@ -19,8 +19,9 @@ android {
 }
 
 dependencies {
-    implementation(libs.retrofit.core)
-    implementation(libs.retrofit.gson)
+    api(libs.retrofit.core)
+    api(libs.retrofit.moshi)
+    implementation(libs.moshi.kotlin)
 
     // http network logger
     debugImplementation(libs.chucker.debug)

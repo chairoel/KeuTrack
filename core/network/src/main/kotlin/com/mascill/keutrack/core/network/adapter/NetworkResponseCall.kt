@@ -1,10 +1,10 @@
 package com.mascill.keutrack.core.network.adapter
 
 import com.mascill.keutrack.core.network.model.NetworkResponse
+import com.squareup.moshi.JsonEncodingException
 import okhttp3.Request
 import okhttp3.ResponseBody
 import okio.Timeout
-import org.json.JSONException
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Converter
@@ -28,6 +28,7 @@ class NetworkResponseCall<S : Any, E : Any>(
                 val body = response.body()
                 val code = response.code()
                 val error = response.errorBody()
+
                 if (response.isSuccessful) {
                     if (body != null) {
                         callback.onResponse(
@@ -52,6 +53,7 @@ class NetworkResponseCall<S : Any, E : Any>(
                                 null
                             }
                     }
+
                     if (errorBody != null) {
                         callback.onResponse(
                             this@NetworkResponseCall,
@@ -68,7 +70,7 @@ class NetworkResponseCall<S : Any, E : Any>(
 
             override fun onFailure(call: Call<S>, throwable: Throwable) {
                 val networkResponse = when (throwable) {
-                    is JSONException -> {
+                    is JsonEncodingException -> {
                         val throwJson = Throwable("Response is not valid json")
                         NetworkResponse.UnknownError(throwJson)
                     }
