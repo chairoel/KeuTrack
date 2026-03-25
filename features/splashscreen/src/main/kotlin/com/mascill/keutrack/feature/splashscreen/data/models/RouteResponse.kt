@@ -1,10 +1,12 @@
 package com.mascill.keutrack.feature.splashscreen.data.models
 
 import com.squareup.moshi.Json
+import com.squareup.moshi.JsonClass
 
 /**
  * data class to defined Route Response from api
  */
+@JsonClass(generateAdapter = true)
 data class RouteResponse(
     @Json(name = "count_trip")
     val countTrip: Int?,

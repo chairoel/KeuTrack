@@ -12,14 +12,14 @@ class RoutesMapper {
     /**
      * Mapping listOf [RouteResponse] data model to listOf [RouteDomain] domain model
      */
-    fun mapRoutesToDomain(routes: List<RouteResponse>?): List<RouteDomain> = routes?.map {
+    fun mapRoutesToDomain(routes: List<RouteResponse?>?): List<RouteDomain> = routes?.map {
         RouteDomain(
-            countTrip = it.countTrip.orZero(),
-            maxSpeed = it.maxSpeed.orZero(),
-            routeCode = it.routeCode,
-            routeColor = it.routeColor?.toHexColor().orEmpty(),
-            routeName = it.routeName.orEmpty(),
-            routeTextColor = it.routeTextColor?.toHexColor().orEmpty()
+            countTrip = it?.countTrip.orZero(),
+            maxSpeed = it?.maxSpeed.orZero(),
+            routeCode = it?.routeCode.orEmpty(),
+            routeColor = it?.routeColor?.toHexColor().orEmpty(),
+            routeName = it?.routeName.orEmpty(),
+            routeTextColor = it?.routeTextColor?.toHexColor().orEmpty()
         )
     }.orEmpty()
 }

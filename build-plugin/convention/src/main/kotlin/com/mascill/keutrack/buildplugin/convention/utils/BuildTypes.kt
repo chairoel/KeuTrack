@@ -16,8 +16,6 @@ object BuildTypeDebug : BuildType {
     override val type: String = "debug"
     override val isMinifyEnabled = false
     override val isDebuggable = true
-
-    const val APPLICATION_ID_SUFFIX = ".debug"
     const val VERSION_NAME_SUFFIX = "-DEBUG"
 }
 
@@ -26,6 +24,6 @@ object BuildTypeDebug : BuildType {
  */
 object BuildTypeRelease : BuildType {
     override val type: String = "release"
-    override val isMinifyEnabled = false
+    override val isMinifyEnabled = true
     override val isDebuggable = false
 }

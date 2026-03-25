@@ -24,6 +24,6 @@ dependencies {
     implementation(libs.moshi.kotlin)
 
     // http network logger
-    debugImplementation(libs.chucker.debug)
-    releaseImplementation(libs.chucker.release)
+    devImplementation(libs.chucker.debug)
+    prodImplementation(libs.chucker.release)
 }

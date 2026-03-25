@@ -1,5 +1,6 @@
 package com.mascill.keutrack.core.network.model
 
+import androidx.annotation.Keep
 import java.io.IOException
 
 /**
@@ -7,6 +8,7 @@ import java.io.IOException
  * @param T success body response
  * @param U failure body response
  */
+@Keep
 sealed class NetworkResponse<out T : Any, out U : Any> {
     /**
      * Success response with body
