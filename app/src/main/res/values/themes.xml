@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <style name="SplashTheme" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenAnimatedIcon">@drawable/animated_splash</item>
+        <item name="windowSplashScreenBackground">@color/dark_jungle_green</item>
+        <item name="postSplashScreenTheme">@style/Theme.KeuTrack</item>
+    </style>
 
     <style name="Theme.KeuTrack" parent="android:Theme.Material.Light.NoActionBar" />
 </resources>

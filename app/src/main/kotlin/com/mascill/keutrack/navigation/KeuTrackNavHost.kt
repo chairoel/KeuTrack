@@ -3,6 +3,8 @@ package com.mascill.keutrack.navigation
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
+import com.mascill.keutrack.feature.home.navigation.homeGraph
+import com.mascill.keutrack.feature.home.navigation.navigateToHome
 import com.mascill.keutrack.feature.splashscreen.navigation.SplashRoute
 import com.mascill.keutrack.feature.splashscreen.navigation.splashGraph
 
@@ -26,6 +28,14 @@ fun KeuTrackNavHost(
         startDestination = SplashRoute,
         modifier = modifier,
     ) {
-        splashGraph()
+        splashGraph(
+            navToHome = {
+                appState.navigateAndResetStack { navOpt ->
+                    navController.navigateToHome(navOptions = navOpt)
+                }
+            }
+        )
+
+        homeGraph()
     }
 }

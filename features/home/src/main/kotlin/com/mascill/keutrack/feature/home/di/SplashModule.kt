@@ -1,9 +1,9 @@
-package com.mascill.keutrack.feature.splashscreen.di
+package com.mascill.keutrack.feature.home.di
 
-import com.mascill.keutrack.feature.splashscreen.data.mapper.RoutesMapper
-import com.mascill.keutrack.feature.splashscreen.data.repositories.RouteRepositoryImpl
-import com.mascill.keutrack.feature.splashscreen.data.service.RouteServices
-import com.mascill.keutrack.feature.splashscreen.domain.repository.RouteRepository
+import com.mascill.keutrack.feature.home.data.mapper.RoutesMapper
+import com.mascill.keutrack.feature.home.data.repositories.RouteRepositoryImpl
+import com.mascill.keutrack.feature.home.data.service.RouteServices
+import com.mascill.keutrack.feature.home.domain.repository.RouteRepository
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -13,9 +13,9 @@ import retrofit2.Retrofit
 
 /**
  * Hilt Module that represent splash screen component and contributes to the object
- * graph [ViewModelComponent].
+ * graph [dagger.hilt.android.components.ViewModelComponent].
  *
- * @see Module
+ * @see dagger.Module
  */
 @Module
 @InstallIn(ViewModelComponent::class)
@@ -25,8 +25,8 @@ class SplashModule {
      * Create a provider method binding for [RouteServices] API.
      *
      * @return Instance of service.
-     * @see Provides
-     * @see ViewModelScoped
+     * @see dagger.Provides
+     * @see dagger.hilt.android.scopes.ViewModelScoped
      */
     @ViewModelScoped
     @Provides

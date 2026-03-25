@@ -10,8 +10,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
+import androidx.navigation.NavOptions
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navOptions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -47,6 +50,25 @@ class KeuTrackAppState(
 ) {
 
     private var snackBarJob: Job? = null
+
+    /**
+     * Method that handle backstack clearance after navigating
+     */
+    fun navigateAndResetStack(saveState: Boolean = false, navigateTo: (NavOptions) -> Unit) {
+        val navOptions = navOptions {
+            // Pop up to the start destination of the graph to
+            // make sure this screen opened without backstack
+            popUpTo(navController.graph.findStartDestination().id) {
+                this.saveState = saveState
+
+                inclusive = true // to pop the startDestination
+            }
+            // Avoid multiple copies of the same destination when
+            // re-selecting the same item
+            launchSingleTop = true
+        }
+        navigateTo(navOptions)
+    }
 
     /**
      * Method to handle back

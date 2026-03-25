@@ -1,7 +1,7 @@
-package com.mascill.keutrack.feature.splashscreen.data.service
+package com.mascill.keutrack.feature.home.data.service
 
 import com.mascill.keutrack.core.network.model.GenericListResponse
-import com.mascill.keutrack.feature.splashscreen.data.models.RouteResponse
+import com.mascill.keutrack.feature.home.data.models.RouteResponse
 import retrofit2.http.GET
 import retrofit2.http.Query
 

@@ -1,4 +1,4 @@
-package com.mascill.keutrack.feature.splashscreen.data.models
+package com.mascill.keutrack.feature.home.data.models
 
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass

@@ -1,9 +1,9 @@
-package com.mascill.keutrack.feature.splashscreen.data.mapper
+package com.mascill.keutrack.feature.home.data.mapper
 
 import com.mascill.keutrack.core.common.utils.orZero
 import com.mascill.keutrack.core.common.utils.toHexColor
-import com.mascill.keutrack.feature.splashscreen.data.models.RouteResponse
-import com.mascill.keutrack.feature.splashscreen.domain.models.RouteDomain
+import com.mascill.keutrack.feature.home.data.models.RouteResponse
+import com.mascill.keutrack.feature.home.domain.models.RouteDomain
 
 /**
  * Mapper class to map data model to domain model or vise versa

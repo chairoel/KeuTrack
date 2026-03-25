@@ -1,11 +1,11 @@
-package com.mascill.keutrack.feature.splashscreen.data.repositories
+package com.mascill.keutrack.feature.home.data.repositories
 
 import com.mascill.keutrack.core.network.model.DomainResult
 import com.mascill.keutrack.core.network.utils.processResponse
-import com.mascill.keutrack.feature.splashscreen.data.mapper.RoutesMapper
-import com.mascill.keutrack.feature.splashscreen.data.service.RouteServices
-import com.mascill.keutrack.feature.splashscreen.domain.models.RouteDomain
-import com.mascill.keutrack.feature.splashscreen.domain.repository.RouteRepository
+import com.mascill.keutrack.feature.home.data.mapper.RoutesMapper
+import com.mascill.keutrack.feature.home.data.service.RouteServices
+import com.mascill.keutrack.feature.home.domain.models.RouteDomain
+import com.mascill.keutrack.feature.home.domain.repository.RouteRepository
 
 class RouteRepositoryImpl(
     private val service: RouteServices,

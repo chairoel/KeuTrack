@@ -16,17 +16,20 @@ enum class FlavorDimension {
 @Suppress("EnumEntryName")
 enum class KeuTrackFlavor(
     val dimension: FlavorDimension,
-    val appNamePrefix: String = "",
+    val appName: String,
     val applicationIdSuffix: String? = null,
     val versionNameSuffix: String? = null
 ) {
     dev(
-        FlavorDimension.contentType,
-        appNamePrefix = "Dev ",
+        dimension = FlavorDimension.contentType,
+        appName = "Dev KeuTrack",
         applicationIdSuffix = ".dev",
         versionNameSuffix = "-dev"
     ),
-    prod(FlavorDimension.contentType),
+    prod(
+        dimension = FlavorDimension.contentType,
+        appName = "KeuTrack"
+    ),
 }
 
 /**
@@ -51,7 +54,7 @@ fun configureFlavors(
                     flavorConfigurationBlock(this, flavor)
 
                     val manifestPlaceholders = mapOf(
-                        Pair("appNamePrefix", flavor.appNamePrefix)
+                        Pair("appName", flavor.appName)
                     )
                     addManifestPlaceholders(manifestPlaceholders)
 

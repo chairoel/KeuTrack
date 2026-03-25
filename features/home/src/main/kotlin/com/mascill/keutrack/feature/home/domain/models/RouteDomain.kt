@@ -1,4 +1,4 @@
-package com.mascill.keutrack.feature.splashscreen.domain.models
+package com.mascill.keutrack.feature.home.domain.models
 
 /**
  * data class to defined Route Domain

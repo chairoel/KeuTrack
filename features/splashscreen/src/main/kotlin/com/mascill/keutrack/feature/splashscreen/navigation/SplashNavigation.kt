@@ -10,8 +10,8 @@ import kotlinx.serialization.Serializable
 /**
  * Main screen navigation graph extension to simplify navigation graph builder
  */
-fun NavGraphBuilder.splashGraph() {
+fun NavGraphBuilder.splashGraph(navToHome: () -> Unit) {
     composable<SplashRoute> {
-        SplashRouting()
+        SplashRouting(navToHome = navToHome)
     }
 }
