@@ -1,17 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:drawable="@drawable/ic_launcher">
-
     <target
-        android:animation="@animator/splash_rotate_animator"
-        android:name="groupLogo" />
-
-    <target
-        android:animation="@animator/splash_scale_animator"
-        android:name="groupTrans" />
-
-    <target
-        android:animation="@animator/splash_scale_animator"
-        android:name="groupJakarta" />
+        android:animation="@animator/splash_icon_animator"
+        android:name="logoGroup" />
 
 </animated-vector>

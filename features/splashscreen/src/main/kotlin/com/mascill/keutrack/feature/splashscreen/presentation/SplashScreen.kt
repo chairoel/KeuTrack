@@ -45,9 +45,9 @@ private fun SplashScreen() {
                 .padding(innerPadding)
         ) {
             Image(
-                painter = painterResource(id = R.drawable.ic_logo_horizontal),
+                painter = painterResource(id = R.drawable.icon_launcher),
                 contentDescription = "",
-                contentScale = ContentScale.FillBounds,
+                contentScale = ContentScale.FillWidth,
                 alignment = Alignment.Center,
             )
         }
