@@ -22,6 +22,14 @@
           }
         },
         {
+          "client_id": "100547827166-97ve7p12kb0bve51u6p208f362tha42l.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.mascill.keutrack.dev",
+            "certificate_hash": "469c5dba2d9e967f8faf6653b4d986d82d8e943c"
+          }
+        },
+        {
           "client_id": "100547827166-uqtn9is2df1k931808lm6ff8i79ns988.apps.googleusercontent.com",
           "client_type": 3
         }

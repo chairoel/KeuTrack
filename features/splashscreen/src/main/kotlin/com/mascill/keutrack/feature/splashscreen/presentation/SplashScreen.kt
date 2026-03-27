@@ -7,7 +7,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
@@ -17,6 +20,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
 import com.mascill.keutrack.feature.splashscreen.R
+import com.mascill.keutrack.feature.splashscreen.presentation.model.NavigationState
 
 /**
  * Splash routing to handle screen that will be showing and to handle view model flow / live data
@@ -25,13 +29,42 @@ import com.mascill.keutrack.feature.splashscreen.R
 @Composable
 fun SplashRouting(
     navToHome: () -> Unit,
+    navToAuth: () -> Unit,
     viewModel: SplashViewModel = hiltViewModel()
 ) {
-    val isFetchConfig by viewModel.isFetchConfig.collectAsStateWithLifecycle(true)
+    val splashUIState by viewModel.splashUIState.collectAsStateWithLifecycle()
+    val isInit = rememberSaveable { mutableStateOf(false) }
 
-    if (!isFetchConfig) navToHome.invoke()
+    LaunchedEffect(isInit) {
+        if (!isInit.value) {
+            isInit.value = true
+            viewModel.checkOnGoingNavigation()
+        }
+    }
+
+    HandleStartingScreen(
+        navigationState = splashUIState.navigationState,
+        navToHome = navToHome,
+        navToAuth = navToAuth
+    )
 
     SplashScreen()
+}
+
+/**
+ * Consumes a [NavigationState] and invokes the appropriate navigation callback.
+ */
+@Composable
+private fun HandleStartingScreen(
+    navigationState: NavigationState,
+    navToHome: () -> Unit,
+    navToAuth: () -> Unit,
+) {
+    when (navigationState) {
+        is NavigationState.NavigateToHome -> navToHome()
+        is NavigationState.NavigateToAuth -> navToAuth()
+        is NavigationState.Idle -> { /* Do nothing, wait for user observation */ }
+    }
 }
 
 @Composable
@@ -55,9 +88,7 @@ private fun SplashScreen() {
 }
 
 @Preview(
-    name = "Landscape",
-    widthDp = 640,
-    heightDp = 360,
+    name = "Portrait",
     showBackground = true
 )
 @Composable
