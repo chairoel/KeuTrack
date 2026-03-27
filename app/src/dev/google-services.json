@@ -12,7 +12,20 @@
           "package_name": "com.mascill.keutrack.dev"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "100547827166-4kft7sqkfrd2eom0vj7os309qf9acbt3.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.mascill.keutrack.dev",
+            "certificate_hash": "b2ba275b70e24d3367fd46dcff1dcd3d38c995ee"
+          }
+        },
+        {
+          "client_id": "100547827166-uqtn9is2df1k931808lm6ff8i79ns988.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyChun_K-jOYX3nEjn09kmaqyV2rNJYJNcA"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "100547827166-uqtn9is2df1k931808lm6ff8i79ns988.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

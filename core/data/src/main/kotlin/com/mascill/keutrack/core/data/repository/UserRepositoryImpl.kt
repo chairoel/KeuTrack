@@ -27,6 +27,22 @@ class UserRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun signInWithGoogle(idToken: String): User? {
+        val dto = authDataSource.signInWithGoogle(idToken)
+        return dto?.let {
+            User(
+                uid = it.uid,
+                displayName = it.displayName,
+                email = it.email,
+                photoUrl = it.photoUrl
+            )
+        }
+    }
+
+    override suspend fun signOut() {
+        authDataSource.signOut()
+    }
+
     override suspend fun syncUserProfile() {
         // TODO: Implement user profile sync to Firestore
     }

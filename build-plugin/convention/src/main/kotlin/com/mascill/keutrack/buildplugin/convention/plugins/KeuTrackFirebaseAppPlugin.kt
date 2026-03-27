@@ -7,17 +7,25 @@ import org.gradle.kotlin.dsl.apply
 import org.gradle.kotlin.dsl.dependencies
 
 /**
- * A subclass of [Plugin] to handle Firebase dependencies for library modules.
- * Does NOT apply the Google Services plugin — use [KeuTrackFirebaseAppPlugin] for the :app module instead.
+ * A subclass of [Plugin] to handle Firebase configuration for the :app module only.
+ * This plugin applies the Google Services plugin (required to process google-services.json)
+ * alongside all Firebase dependencies and Credentials API for Google Sign-In.
+ *
+ * Use [KeuTrackFirebasePlugin] for library modules that only need Firebase SDK dependencies.
  */
-class KeuTrackFirebasePlugin : Plugin<Project> {
+class KeuTrackFirebaseAppPlugin : Plugin<Project> {
     override fun apply(target: Project) {
         with(target) {
+            apply(plugin = "com.google.gms.google-services")
+
             dependencies {
                 add("implementation", platform(libs.findLibrary("firebase-bom").get()))
                 add("implementation", libs.findLibrary("firebase-auth").get())
                 add("implementation", libs.findLibrary("firebase-firestore").get())
                 add("implementation", libs.findLibrary("kotlinx-coroutines-play-services").get())
+                add("implementation", libs.findLibrary("androidx-credentials").get())
+                add("implementation", libs.findLibrary("androidx-credentials-play-services-auth").get())
+                add("implementation", libs.findLibrary("googleid").get())
             }
         }
     }

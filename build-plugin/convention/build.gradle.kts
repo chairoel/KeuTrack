@@ -89,11 +89,20 @@ gradlePlugin {
     }
 
     /**
-     * KeuTrack firebase plugin
+     * KeuTrack firebase plugin (for library modules — no google-services plugin)
      */
     plugins.register("keutrackFirebasePlugin") {
-        id = libs.plugins.keutrack.firebase.get().pluginId
+        id = libs.plugins.keutrack.firebase.lib.get().pluginId
         implementationClass =
             "com.mascill.keutrack.buildplugin.convention.plugins.KeuTrackFirebasePlugin"
+    }
+
+    /**
+     * KeuTrack firebase app plugin (for :app module — includes google-services plugin + credentials)
+     */
+    plugins.register("keutrackFirebaseAppPlugin") {
+        id = libs.plugins.keutrack.firebase.app.get().pluginId
+        implementationClass =
+            "com.mascill.keutrack.buildplugin.convention.plugins.KeuTrackFirebaseAppPlugin"
     }
 }
