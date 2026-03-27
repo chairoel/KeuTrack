@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "100547827166",
+    "project_id": "keutrack-dev",
+    "storage_bucket": "keutrack-dev.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:100547827166:android:df2cdd09ce4ed08bdb794f",
+        "android_client_info": {
+          "package_name": "com.mascill.keutrack.dev"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyChun_K-jOYX3nEjn09kmaqyV2rNJYJNcA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
