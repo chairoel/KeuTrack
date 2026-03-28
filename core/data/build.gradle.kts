@@ -10,4 +10,8 @@ android {
 dependencies {
     implementation(projects.core.domain)
     implementation(projects.core.network)
+
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services.auth)
+    implementation(libs.googleid)
 }

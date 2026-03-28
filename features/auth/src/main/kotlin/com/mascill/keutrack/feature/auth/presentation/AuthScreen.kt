@@ -36,7 +36,6 @@ fun AuthRouting(
     navigateToHome: () -> Unit
 ) {
     val authUIState by viewModel.authUIState.collectAsStateWithLifecycle()
-    val context = LocalContext.current
 
     HandleAuthState(
         authState = authUIState.authState,
@@ -45,7 +44,7 @@ fun AuthRouting(
 
     AuthScreen(
         authState = authUIState.authState,
-        onSignInClick = { viewModel.signInWithGoogle(context) }
+        onSignInClick = { viewModel.signInWithGoogle() }
     )
 }
 

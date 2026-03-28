@@ -1,4 +1,4 @@
-package com.mascill.keutrack.feature.auth.data.client
+package com.mascill.keutrack.core.data.datasource
 
 import android.content.Context
 import android.util.Log
@@ -10,13 +10,15 @@ import androidx.credentials.exceptions.GetCredentialException
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.android.libraries.identity.googleid.GoogleIdTokenParsingException
-import com.mascill.keutrack.feature.auth.domain.client.GoogleAuthClient
-import com.mascill.keutrack.feature.auth.domain.client.GoogleSignInResult
+import com.mascill.keutrack.core.domain.model.GoogleSignInResult
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import javax.inject.Inject
 
-class GoogleAuthClientImpl @Inject constructor() : GoogleAuthClient {
-    override suspend fun signIn(context: Context): GoogleSignInResult {
+class GoogleAuthDataSourceImpl @Inject constructor(
+    @ApplicationContext private val context: Context
+) : GoogleAuthDataSource {
+    override suspend fun getGoogleIdToken(): GoogleSignInResult {
         return try {
             val credentialManager = CredentialManager.create(context)
 
@@ -42,22 +44,22 @@ class GoogleAuthClientImpl @Inject constructor() : GoogleAuthClient {
                     val idToken = googleIdTokenCredential.idToken
                     GoogleSignInResult(idToken = idToken, error = null)
                 } catch (e: GoogleIdTokenParsingException) {
-                    Log.e("GoogleAuthClient", "Received an invalid google id token response", e)
+                    Log.e("GoogleAuthDataSource", "Received an invalid google id token response", e)
                     GoogleSignInResult(idToken = null, error = "Invalid token response")
                 }
             } else {
-                Log.e("GoogleAuthClient", "Unexpected type of credential")
+                Log.e("GoogleAuthDataSource", "Unexpected type of credential")
                 GoogleSignInResult(idToken = null, error = "Unexpected credential type")
             }
         } catch (e: GetCredentialCancellationException) {
             GoogleSignInResult(idToken = null, error = null) // Map cancellation to null/null
         } catch (e: GetCredentialException) {
-            Log.e("GoogleAuthClient", "GetCredentialException: ", e)
+            Log.e("GoogleAuthDataSource", "GetCredentialException: ", e)
             GoogleSignInResult(idToken = null, error = e.message ?: "Sign in failed")
         } catch (e: CancellationException) {
             throw e // Propagate coroutine cancellation
         } catch (e: Exception) {
-            Log.e("GoogleAuthClient", "General Exception: ", e)
+            Log.e("GoogleAuthDataSource", "General Exception: ", e)
             GoogleSignInResult(idToken = null, error = e.message ?: "An unexpected error occurred")
         }
     }

@@ -1,18 +1,33 @@
 package com.mascill.keutrack.core.common.di
 
+import com.mascill.keutrack.core.common.BuildConfig
 import com.mascill.keutrack.core.common.utils.CommonDispatcher
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import javax.inject.Qualifier
 import javax.inject.Singleton
 
 @Retention(AnnotationRetention.BINARY)
 @Qualifier
 annotation class Dispatcher(val keuTrackDispatcher: KeuTrackDispatcher)
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class ApplicationScope
+
+@Retention(AnnotationRetention.BINARY)
+@Qualifier
+annotation class Environment
+
+@Retention(AnnotationRetention.BINARY)
+@Qualifier
+annotation class BuildTypeDebug
 
 enum class KeuTrackDispatcher {
     IO,
@@ -25,7 +40,7 @@ enum class KeuTrackDispatcher {
  */
 @Module
 @InstallIn(SingletonComponent::class)
-object DispatcherModule {
+object CommonGlobalModule {
     @Dispatcher(KeuTrackDispatcher.IO)
     @Provides
     fun provideIoDispatcher(): CoroutineDispatcher = Dispatchers.IO
@@ -52,4 +67,32 @@ object DispatcherModule {
         main = mainDispatcher,
         computation = computationDispatcher
     )
+
+    /**
+     * Create a provider method binding for Application Scope, used for fire and forget background
+     * task
+     *
+     * @see Provides
+     */
+    @Singleton
+    @Provides
+    @ApplicationScope
+    fun provideApplicationScope(
+        dispatcher: CommonDispatcher
+    ): CoroutineScope = CoroutineScope(SupervisorJob() + dispatcher.io)
+
+    /**
+     * Create a provider method binding for keutrack environment
+     */
+    @Environment
+    @Provides
+    fun provideEnvironment(): String = BuildConfig.FLAVOR
+
+    /**
+     * Create a provider method binding for keutrack to check if BuildType isDebug or not
+     */
+    @BuildTypeDebug
+    @Provides
+    fun provideBuildTypeDebug(): Boolean = BuildConfig.DEBUG
+
 }
