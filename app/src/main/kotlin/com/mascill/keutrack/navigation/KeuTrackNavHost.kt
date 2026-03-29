@@ -51,6 +51,12 @@ fun KeuTrackNavHost(
             }
         )
 
-        homeGraph()
+        homeGraph(
+            navToAuth = {
+                appState.navigateAndResetStack { navOpt ->
+                    navController.navigateToAuth(navOptions = navOpt)
+                }
+            }
+        )
     }
 }

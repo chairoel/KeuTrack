@@ -1,4 +1,4 @@
-package com.mascill.keutrack.core.network.firebase
+package com.mascill.keutrack.core.data.datasource
 
 import com.google.firebase.firestore.FirebaseFirestore
 import javax.inject.Inject

@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.keutrack.library)
     alias(libs.plugins.keutrack.hilt)
+    alias(libs.plugins.keutrack.firebase.lib)
 }
 
 android {

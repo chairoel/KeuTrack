@@ -11,7 +11,7 @@ import org.gradle.kotlin.dsl.dependencies
  * This plugin applies the Google Services plugin (required to process google-services.json)
  * alongside all Firebase dependencies and Credentials API for Google Sign-In.
  *
- * Use [KeuTrackFirebasePlugin] for library modules that only need Firebase SDK dependencies.
+ * Use [KeuTrackFirebaseAppPlugin] for library modules that only need Firebase SDK dependencies.
  */
 class KeuTrackFirebaseAppPlugin : Plugin<Project> {
     override fun apply(target: Project) {

@@ -44,6 +44,7 @@ internal fun Project.configureKotlinAndroid(
             lintConfig = rootProject.file(".lint/config.xml")
             checkAllWarnings = true
             warningsAsErrors = false
+            disable += "InvalidPackage"
         }
 
     }

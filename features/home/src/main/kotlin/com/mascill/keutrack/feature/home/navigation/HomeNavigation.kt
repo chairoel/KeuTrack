@@ -19,8 +19,10 @@ fun NavController.navigateToHome(
 /**
  * Home screen navigation graph extension to simplify navigation graph builder
  */
-fun NavGraphBuilder.homeGraph() {
+fun NavGraphBuilder.homeGraph(
+    navToAuth: () -> Unit
+) {
     composable<HomeRoute> {
-        HomeRouting()
+        HomeRouting(onSignOutSuccess = navToAuth)
     }
 }
