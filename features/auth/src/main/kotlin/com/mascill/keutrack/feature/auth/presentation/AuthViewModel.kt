@@ -3,6 +3,7 @@ package com.mascill.keutrack.feature.auth.presentation
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mascill.keutrack.core.common.utils.CommonDispatcher
+import com.mascill.keutrack.core.domain.model.AuthResult
 import com.mascill.keutrack.core.domain.usecase.SignInWithGoogleUseCase
 import com.mascill.keutrack.feature.auth.presentation.model.AuthState
 import com.mascill.keutrack.feature.auth.presentation.model.AuthUIState
@@ -37,16 +38,14 @@ class AuthViewModel @Inject constructor(
     fun signInWithGoogle() {
         viewModelScope.launch(dispatcher.io) {
             _authState.value = AuthState.Loading
-            
-            val result = signInWithGoogleUseCase()
-            
-            val error = result.error
-            if (result.idToken != null) {
-                _authState.value = AuthState.Success
-            } else if (error != null) {
-                _authState.value = AuthState.Error(error)
-            } else {
-                _authState.value = AuthState.Idle
+
+            _authState.value = when (signInWithGoogleUseCase()) {
+                is AuthResult.Success -> AuthState.Success
+                is AuthResult.Cancelled -> AuthState.Idle
+                is AuthResult.Error.Network -> AuthState.Error("No internet connection. Please try again.")
+                is AuthResult.Error.InvalidCredential -> AuthState.Error("Invalid credential. Please try again.")
+                is AuthResult.Error.UserNotFound -> AuthState.Error("Account not found. Please try again.")
+                is AuthResult.Error.Unknown -> AuthState.Error("An unexpected error occurred.")
             }
         }
     }
