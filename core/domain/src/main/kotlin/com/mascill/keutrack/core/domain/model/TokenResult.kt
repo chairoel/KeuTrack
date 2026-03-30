@@ -6,6 +6,7 @@ sealed class TokenResult {
 
     sealed class Error : TokenResult() {
         data object Network : Error()
+        data object NoCredential : Error()
         data class Unknown(val message: String?, val cause: Throwable? = null) : Error()
     }
 }

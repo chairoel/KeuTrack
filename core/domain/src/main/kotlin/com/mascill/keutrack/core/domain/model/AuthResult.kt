@@ -6,6 +6,7 @@ sealed class AuthResult {
 
     sealed class Error : AuthResult() {
         data object Network : Error()
+        data object NoCredential : Error()
         data object InvalidCredential : Error()
         data object UserNotFound : Error()
         data class Unknown(val message: String?) : Error()

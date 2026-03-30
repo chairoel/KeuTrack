@@ -5,23 +5,22 @@ import android.util.Log
 import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
-import androidx.credentials.exceptions.GetCredentialCancellationException
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import com.mascill.keutrack.core.data.BuildConfig
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.CancellationException
+import java.util.concurrent.CancellationException
 import javax.inject.Inject
 
 class GoogleAuthDataSourceImpl @Inject constructor(
     @ApplicationContext private val context: Context
 ) : GoogleAuthDataSource {
+    private val credentialManager = CredentialManager.create(context)
 
     override suspend fun getGoogleIdToken(): String {
-        val credentialManager = CredentialManager.create(context)
-
         val googleIdOption = GetGoogleIdOption.Builder()
             .setFilterByAuthorizedAccounts(false)
-            .setServerClientId("100547827166-uqtn9is2df1k931808lm6ff8i79ns988.apps.googleusercontent.com")
+            .setServerClientId(BuildConfig.GOOGLE_SERVER_CLIENT_ID)
             .setAutoSelectEnabled(false)
             .build()
 
@@ -40,8 +39,6 @@ class GoogleAuthDataSourceImpl @Inject constructor(
             } else {
                 throw IllegalStateException("Unexpected credential type")
             }
-        } catch (e: GetCredentialCancellationException) {
-            throw CancellationException("User cancelled Google Sign-In")
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

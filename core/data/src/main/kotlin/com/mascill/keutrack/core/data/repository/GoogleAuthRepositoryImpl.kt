@@ -1,11 +1,12 @@
 package com.mascill.keutrack.core.data.repository
 
 import androidx.credentials.exceptions.GetCredentialException
+import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.NoCredentialException
 import com.mascill.keutrack.core.data.datasource.GoogleAuthDataSource
 import com.mascill.keutrack.core.domain.model.TokenResult
 import com.mascill.keutrack.core.domain.repository.GoogleAuthRepository
-import kotlinx.coroutines.CancellationException
+import java.util.concurrent.CancellationException
 import javax.inject.Inject
 
 class GoogleAuthRepositoryImpl @Inject constructor(
@@ -16,18 +17,18 @@ class GoogleAuthRepositoryImpl @Inject constructor(
         return try {
             val idToken = googleAuthDataSource.getGoogleIdToken()
             TokenResult.Success(idToken)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: GetCredentialCancellationException) {
+            TokenResult.Cancelled
         } catch (e: NoCredentialException) {
-            TokenResult.Error.Network
+            TokenResult.Error.NoCredential
         } catch (e: GetCredentialException) {
-            if (e.message?.contains("type_user_canceled", ignoreCase = true) == true) {
-                TokenResult.Cancelled
-            } else if (e.message?.contains("network", ignoreCase = true) == true) {
+            if (e.message?.contains("network", ignoreCase = true) == true) {
                 TokenResult.Error.Network
             } else {
                 TokenResult.Error.Unknown(e.message, e)
             }
-        } catch (e: CancellationException) {
-            TokenResult.Cancelled
         } catch (e: Exception) {
             TokenResult.Error.Unknown(e.message, e)
         }

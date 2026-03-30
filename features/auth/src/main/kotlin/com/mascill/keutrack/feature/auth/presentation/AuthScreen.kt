@@ -18,10 +18,10 @@ import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -39,7 +39,8 @@ fun AuthRouting(
 
     HandleAuthState(
         authState = authUIState.authState,
-        navigateToHome = navigateToHome
+        navigateToHome = navigateToHome,
+        onStateConsumed = viewModel::resetState
     )
 
     AuthScreen(
@@ -54,10 +55,14 @@ fun AuthRouting(
 @Composable
 private fun HandleAuthState(
     authState: AuthState,
-    navigateToHome: () -> Unit
+    navigateToHome: () -> Unit,
+    onStateConsumed: () -> Unit
 ) {
-    if (authState is AuthState.Success) {
-        navigateToHome()
+    LaunchedEffect(authState) {
+        if (authState is AuthState.Success) {
+            navigateToHome()
+            onStateConsumed()
+        }
     }
 }
 

@@ -36,6 +36,8 @@ class AuthViewModel @Inject constructor(
     )
 
     fun signInWithGoogle() {
+        if (_authState.value == AuthState.Loading) return
+
         viewModelScope.launch(dispatcher.io) {
             _authState.value = AuthState.Loading
 
@@ -43,10 +45,15 @@ class AuthViewModel @Inject constructor(
                 is AuthResult.Success -> AuthState.Success
                 is AuthResult.Cancelled -> AuthState.Idle
                 is AuthResult.Error.Network -> AuthState.Error("No internet connection. Please try again.")
+                is AuthResult.Error.NoCredential -> AuthState.Error("No Google account found on this device.")
                 is AuthResult.Error.InvalidCredential -> AuthState.Error("Invalid credential. Please try again.")
                 is AuthResult.Error.UserNotFound -> AuthState.Error("Account not found. Please try again.")
                 is AuthResult.Error.Unknown -> AuthState.Error("An unexpected error occurred.")
             }
         }
+    }
+
+    fun resetState() {
+        _authState.value = AuthState.Idle
     }
 }

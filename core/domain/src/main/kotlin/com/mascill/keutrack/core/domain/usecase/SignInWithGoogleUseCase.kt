@@ -16,6 +16,7 @@ class SignInWithGoogleUseCase @Inject constructor(
             is TokenResult.Success -> userRepository.signInWithGoogle(tokenResult.idToken)
             is TokenResult.Cancelled -> AuthResult.Cancelled
             is TokenResult.Error.Network -> AuthResult.Error.Network
+            is TokenResult.Error.NoCredential -> AuthResult.Error.NoCredential
             is TokenResult.Error.Unknown -> AuthResult.Error.Unknown(tokenResult.message)
         }
     }
