@@ -9,4 +9,6 @@ class NetworkNativeWrapper {
     }
 
     external fun getBaseUrl():String
+
+    external fun getGoogleServerClientId(): String
 }

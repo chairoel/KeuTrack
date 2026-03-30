@@ -7,20 +7,21 @@ import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
-import com.mascill.keutrack.core.data.BuildConfig
+import com.mascill.keutrack.core.network.utils.NetworkNativeWrapper
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.concurrent.CancellationException
 import javax.inject.Inject
 
 class GoogleAuthDataSourceImpl @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val nativeWrapper: NetworkNativeWrapper
 ) : GoogleAuthDataSource {
     private val credentialManager = CredentialManager.create(context)
 
     override suspend fun getGoogleIdToken(): String {
         val googleIdOption = GetGoogleIdOption.Builder()
             .setFilterByAuthorizedAccounts(false)
-            .setServerClientId(BuildConfig.GOOGLE_SERVER_CLIENT_ID)
+            .setServerClientId(nativeWrapper.getGoogleServerClientId())
             .setAutoSelectEnabled(false)
             .build()
 

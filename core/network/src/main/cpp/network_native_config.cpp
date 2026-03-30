@@ -21,4 +21,20 @@ Java_com_mascill_keutrack_core_network_utils_NetworkNativeWrapper_getBaseUrl(
 
     return env->NewStringUTF(baseUrl.c_str());
 }
+
+jstring
+Java_com_mascill_keutrack_core_network_utils_NetworkNativeWrapper_getGoogleServerClientId(
+        JNIEnv *env, jobject thi) {
+    std::string type = TYPE;
+    std::string clientId;
+
+    if (type == "dev") {
+        clientId = "100547827166-uqtn9is2df1k931808lm6ff8i79ns988.apps.googleusercontent.com";
+    } else {
+        // TODO: replace with prod client id once it's available/configured in Firebase
+        clientId = "100547827166-uqtn9is2df1k931808lm6ff8i79ns988.apps.googleusercontent.com";
+    }
+
+    return env->NewStringUTF(clientId.c_str());
+}
 }

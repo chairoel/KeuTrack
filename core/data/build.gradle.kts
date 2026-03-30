@@ -6,19 +6,6 @@ plugins {
 
 android {
     namespace = "com.mascill.keutrack.core.data"
-
-    buildFeatures {
-        buildConfig = true
-    }
-
-    defaultConfig {
-        val googleServerClientId = providers
-            .gradleProperty("GOOGLE_SERVER_CLIENT_ID")
-            .orElse("100547827166-uqtn9is2df1k931808lm6ff8i79ns988.apps.googleusercontent.com")
-            .get()
-
-        buildConfigField("String", "GOOGLE_SERVER_CLIENT_ID", "\"$googleServerClientId\"")
-    }
 }
 
 dependencies {
