@@ -7,12 +7,16 @@ import org.gradle.kotlin.dsl.apply
 import org.gradle.kotlin.dsl.dependencies
 
 /**
- * A subclass of [Plugin] to handle Firebase dependencies for library modules.
- * Does NOT apply the Google Services plugin — use [KeuTrackFirebaseAppPlugin] for the :app module instead.
+ * A subclass of [Plugin] to handle Firebase dependencies for both app and library modules.
+ * Applies Google Services only when the Android application plugin is present.
  */
 class KeuTrackFirebasePlugin : Plugin<Project> {
     override fun apply(target: Project) {
         with(target) {
+            pluginManager.withPlugin("com.android.application") {
+                apply(plugin = "com.google.gms.google-services")
+            }
+
             dependencies {
                 add("implementation", platform(libs.findLibrary("firebase-bom").get()))
                 add("implementation", libs.findLibrary("firebase-auth").get())

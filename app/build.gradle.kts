@@ -8,7 +8,7 @@ plugins {
     alias(libs.plugins.keutrack.app.compose)
     alias(libs.plugins.keutrack.app.flavor)
     alias(libs.plugins.keutrack.hilt)
-    alias(libs.plugins.keutrack.firebase.app)
+    alias(libs.plugins.keutrack.firebase)
 }
 
 

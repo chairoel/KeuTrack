@@ -86,8 +86,7 @@ keutrack-application = { id = "keutrack.application" }
 keutrack-app-compose = { id = "keutrack.app.compose" }
 keutrack-app-flavor = { id = "keutrack.app.flavor" }
 keutrack-feature = { id = "keutrack.feature" }
-keutrack-firebase-app = { id = "keutrack.firebase.app" }
-keutrack-firebase-lib = { id = "keutrack.firebase.lib" }
+keutrack-firebase = { id = "keutrack.firebase" }
 keutrack-library = { id = "keutrack.library" }
 keutrack-lib-compose = { id = "keutrack.lib.compose" }
 keutrack-hilt = { id = "keutrack.hilt" }
