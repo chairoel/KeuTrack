@@ -61,6 +61,35 @@ val CarminePink = Color(0xFFEF4444)
 val FireEngineRed = Color(0xFFCF2424)
 val MistyRose = Color(0xFFFFDFDF)
 
+// Atelier palette - dark (Midnight)
+val MidnightPrimary = Color(0xFF7986CB)
+val MidnightPrimaryTint = Color(0xFFB9C3FF)
+val MidnightPrimaryContainer = Color(0xFF808DD2)
+val MidnightBackground = Color(0xFF0B1326)
+val MidnightSurfaceLowest = Color(0xFF060E20)
+val MidnightSurfaceLow = Color(0xFF131B2E)
+val MidnightSurfaceHigh = Color(0xFF222A3D)
+val MidnightSurfaceHighest = Color(0xFF2D3449)
+val MidnightOnSurface = Color(0xFFE6EBF3)
+val MidnightOnSurfaceVariant = Color(0xFFC6C5D2)
+val MidnightOutlineVariant = Color(0xFF454650)
+val MidnightSuccess = Color(0xFF4ADE80)
+val MidnightError = Color(0xFFFB7185)
+
+// Atelier palette - light (Financial)
+val FinancialPrimary = Color(0xFF0B1A7D)
+val FinancialPrimaryContainer = Color(0xFF283593)
+val FinancialSecondary = Color(0xFF27EFD3)
+val FinancialTertiary = Color(0xFFC62828)
+val FinancialBackground = Color(0xFFF9F9FB)
+val FinancialSurfaceLowest = Color(0xFFFFFFFF)
+val FinancialSurfaceLow = Color(0xFFF3F3F5)
+val FinancialSurfaceHigh = Color(0xFFECECF0)
+val FinancialSurfaceHighest = Color(0xFFE2E2E4)
+val FinancialOnSurface = Color(0xFF1A1C1D)
+val FinancialOnSurfaceVariant = Color(0xFF4E5565)
+val FinancialOutlineVariant = Color(0xFF7A8090)
+
 /**
  * -----------------------------------------------------------------------------------------------
  */
@@ -171,6 +200,27 @@ data class KeuTrackDangerColors(
     val d100: Color = Color.Unspecified,
 )
 
+@Immutable
+data class KeuTrackSemanticColors(
+    val background: Color = Color.Unspecified,
+    val surface: Color = Color.Unspecified,
+    val surfaceContainerLowest: Color = Color.Unspecified,
+    val surfaceContainerLow: Color = Color.Unspecified,
+    val surfaceContainerHigh: Color = Color.Unspecified,
+    val surfaceContainerHighest: Color = Color.Unspecified,
+    val onSurface: Color = Color.Unspecified,
+    val onSurfaceVariant: Color = Color.Unspecified,
+    val outlineVariantGhost: Color = Color.Unspecified,
+    val primary: Color = Color.Unspecified,
+    val primaryContainer: Color = Color.Unspecified,
+    val primaryGradientStart: Color = Color.Unspecified,
+    val primaryGradientEnd: Color = Color.Unspecified,
+    val secondary: Color = Color.Unspecified,
+    val tertiary: Color = Color.Unspecified,
+    val success: Color = Color.Unspecified,
+    val error: Color = Color.Unspecified,
+)
+
 val LocalCustomPrimaryColors = staticCompositionLocalOf { KeuTrackPrimaryColors() }
 val LocalCustomNeutralColors = staticCompositionLocalOf { KeuTrackNeutralColors() }
 val LocalCustomTextColors = staticCompositionLocalOf { KeuTrackTextColors() }
@@ -178,3 +228,4 @@ val LocalCustomContentColors = staticCompositionLocalOf { KeuTrackContentColors(
 val LocalCustomSuccessColors = staticCompositionLocalOf { KeuTrackSuccessColors() }
 val LocalCustomWarningColors = staticCompositionLocalOf { KeuTrackWarningColors() }
 val LocalCustomDangerColors = staticCompositionLocalOf { KeuTrackDangerColors() }
+val LocalCustomSemanticColors = staticCompositionLocalOf { KeuTrackSemanticColors() }
