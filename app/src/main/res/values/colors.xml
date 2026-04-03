@@ -1,4 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Shared / base (Colors.kt) -->
     <color name="dark_jungle_green">#0F172A</color>
+    <color name="white">#FFFFFFFF</color>
+
+    <!-- Financial (light) — Theme.kt semanticLightColors / lightColorScheme -->
+    <color name="financial_primary">#0B1A7D</color>
+    <color name="financial_primary_container">#283593</color>
+    <color name="financial_secondary">#27EFD3</color>
+    <color name="financial_background">#F9F9FB</color>
+    <!-- Splash animated icon window — Financial page (Theme.kt contentLight pageColor) -->
+    <color name="splash_screen_background">@color/financial_background</color>
+    <color name="financial_surface_lowest">#FFFFFFFF</color>
+    <color name="financial_on_surface">#1A1C1D</color>
+    <color name="carmine_pink">#EF4444</color>
+
+    <!-- Midnight (dark) — Theme.kt semanticDarkColors / darkColorScheme -->
+    <color name="midnight_primary">#7986CB</color>
+    <color name="midnight_primary_container">#808DD2</color>
+    <color name="midnight_primary_tint">#B9C3FF</color>
+    <color name="midnight_background">#0B1326</color>
+    <color name="midnight_surface_lowest">#060E20</color>
+    <color name="midnight_surface_low">#131B2E</color>
+    <color name="midnight_on_surface">#E6EBF3</color>
+    <color name="midnight_error">#FB7185</color>
 </resources>

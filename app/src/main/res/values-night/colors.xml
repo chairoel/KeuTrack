@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Splash animated icon window — Midnight page (Theme.kt contentDark pageColor) -->
+    <color name="splash_screen_background">@color/midnight_background</color>
+</resources>

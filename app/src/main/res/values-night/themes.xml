@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Midnight dark — aligned with KeuTrackTheme darkColorScheme -->
+    <style name="SplashTheme" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenAnimatedIcon">@drawable/animated_splash</item>
+        <item name="windowSplashScreenBackground">@color/splash_screen_background</item>
+        <item name="postSplashScreenTheme">@style/Theme.KeuTrack</item>
+    </style>
+
+    <style name="Theme.KeuTrack" parent="android:Theme.Material.NoActionBar">
+        <item name="android:colorPrimary">@color/midnight_primary</item>
+        <item name="android:colorPrimaryDark">@color/midnight_surface_lowest</item>
+        <item name="android:colorAccent">@color/midnight_primary_tint</item>
+        <item name="android:windowBackground">@color/midnight_background</item>
+        <item name="android:textColorPrimary">@color/midnight_on_surface</item>
+        <item name="android:statusBarColor">@color/midnight_surface_lowest</item>
+        <item name="android:navigationBarColor">@color/midnight_surface_low</item>
+    </style>
+</resources>
