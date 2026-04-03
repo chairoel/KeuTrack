@@ -1,24 +1,23 @@
-package com.mascill.keutrack.core.data.datasource
+package com.mascill.keutrack.feature.auth.data
 
 import android.content.Context
-import android.util.Log
 import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
+import androidx.credentials.exceptions.GetCredentialCancellationException
+import androidx.credentials.exceptions.GetCredentialException
+import androidx.credentials.exceptions.NoCredentialException
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import com.mascill.keutrack.core.domain.model.TokenResult
 import com.mascill.keutrack.core.network.utils.NetworkNativeWrapper
-import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.concurrent.CancellationException
 import javax.inject.Inject
 
-class GoogleAuthDataSourceImpl @Inject constructor(
-    @ApplicationContext private val context: Context,
+class GoogleSignInTokenProvider @Inject constructor(
     private val nativeWrapper: NetworkNativeWrapper
-) : GoogleAuthDataSource {
-    private val credentialManager = CredentialManager.create(context)
-
-    override suspend fun getGoogleIdToken(): String {
+) {
+    suspend fun getGoogleIdToken(context: Context): TokenResult {
         val googleIdOption = GetGoogleIdOption.Builder()
             .setFilterByAuthorizedAccounts(false)
             .setServerClientId(nativeWrapper.getGoogleServerClientId())
@@ -30,21 +29,31 @@ class GoogleAuthDataSourceImpl @Inject constructor(
             .build()
 
         return try {
-            val result = credentialManager.getCredential(request = request, context = context)
+            val result = CredentialManager.create(context)
+                .getCredential(request = request, context = context)
             val credential = result.credential
 
             if (credential is CustomCredential &&
                 credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
             ) {
-                GoogleIdTokenCredential.createFrom(credential.data).idToken
+                TokenResult.Success(GoogleIdTokenCredential.createFrom(credential.data).idToken)
             } else {
-                throw IllegalStateException("Unexpected credential type")
+                TokenResult.Error.Unknown("Unexpected credential type")
             }
         } catch (e: CancellationException) {
             throw e
+        } catch (e: GetCredentialCancellationException) {
+            TokenResult.Cancelled
+        } catch (e: NoCredentialException) {
+            TokenResult.Error.NoCredential
+        } catch (e: GetCredentialException) {
+            if (e.message?.contains("network", ignoreCase = true) == true) {
+                TokenResult.Error.Network
+            } else {
+                TokenResult.Error.Unknown(e.message, e)
+            }
         } catch (e: Exception) {
-            Log.e("GoogleAuthDataSource", "getGoogleIdToken failed", e)
-            throw e
+            TokenResult.Error.Unknown(e.message, e)
         }
     }
 }

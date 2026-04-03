@@ -1,8 +1,6 @@
 package com.mascill.keutrack.core.data.di
 
-import com.mascill.keutrack.core.data.repository.GoogleAuthRepositoryImpl
 import com.mascill.keutrack.core.data.repository.UserRepositoryImpl
-import com.mascill.keutrack.core.domain.repository.GoogleAuthRepository
 import com.mascill.keutrack.core.domain.repository.UserRepository
 import dagger.Binds
 import dagger.Module
@@ -17,9 +15,4 @@ interface CommonRepositoryModule {
     fun bindUserRepository(
         userRepositoryImpl: UserRepositoryImpl
     ): UserRepository
-
-    @Binds
-    fun bindGoogleAuthRepository(
-        googleAuthRepositoryImpl: GoogleAuthRepositoryImpl
-    ): GoogleAuthRepository
 }

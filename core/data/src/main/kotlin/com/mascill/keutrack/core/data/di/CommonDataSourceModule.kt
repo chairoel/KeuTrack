@@ -2,8 +2,6 @@ package com.mascill.keutrack.core.data.di
 
 import com.mascill.keutrack.core.data.datasource.AuthNetworkDataSource
 import com.mascill.keutrack.core.data.datasource.AuthNetworkDataSourceImpl
-import com.mascill.keutrack.core.data.datasource.GoogleAuthDataSource
-import com.mascill.keutrack.core.data.datasource.GoogleAuthDataSourceImpl
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -19,11 +17,6 @@ import dagger.hilt.components.SingletonComponent
 @Module
 @InstallIn(SingletonComponent::class)
 interface CommonDataSourceModule {
-
-    @Binds
-    fun bindGoogleAuthDataSource(
-        googleAuthDataSourceImpl: GoogleAuthDataSourceImpl
-    ): GoogleAuthDataSource
 
     @Binds
     fun bindAuthNetworkDataSource(
