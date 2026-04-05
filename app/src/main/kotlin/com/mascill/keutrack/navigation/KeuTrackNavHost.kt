@@ -3,12 +3,12 @@ package com.mascill.keutrack.navigation
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
 import com.mascill.keutrack.feature.auth.navigation.authGraph
 import com.mascill.keutrack.feature.auth.navigation.navigateToAuth
-import com.mascill.keutrack.feature.home.navigation.homeGraph
-import com.mascill.keutrack.feature.home.navigation.navigateToHome
 import com.mascill.keutrack.feature.splashscreen.navigation.SplashRoute
 import com.mascill.keutrack.feature.splashscreen.navigation.splashGraph
+import com.mascill.keutrack.feature.transaction.navigation.transactionGraph
 
 /**
  * Top-level navigation graph. Navigation is organized as explained at
@@ -51,12 +51,18 @@ fun KeuTrackNavHost(
             }
         )
 
-        homeGraph(
-            navToAuth = {
-                appState.navigateAndResetStack { navOpt ->
-                    navController.navigateToAuth(navOptions = navOpt)
+        composable<HomeRoute> {
+            HomeShell(
+                onSignOutSuccess = {
+                    appState.navigateAndResetStack { navOpt ->
+                        navController.navigateToAuth(navOptions = navOpt)
+                    }
                 }
-            }
+            )
+        }
+
+        transactionGraph(
+            onBack = { navController.popBackStack() }
         )
     }
 }

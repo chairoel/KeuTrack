@@ -9,6 +9,7 @@ plugins {
     alias(libs.plugins.keutrack.app.flavor)
     alias(libs.plugins.keutrack.hilt)
     alias(libs.plugins.keutrack.firebase)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 
@@ -56,8 +57,11 @@ dependencies {
     implementation(projects.core.data)
     implementation(projects.core.network)
     implementation(projects.features.auth)
-    implementation(projects.features.home)
+    implementation(projects.features.dashboard)
+    implementation(projects.features.family)
+    implementation(projects.features.settings)
     implementation(projects.features.splashscreen)
+    implementation(projects.features.transaction)
     // --------------------------------------------------------------------------------------------
 
     implementation(libs.androidx.core.ktx)
