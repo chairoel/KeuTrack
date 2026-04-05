@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.TextFieldColors
 import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
 
 @Composable
@@ -27,8 +28,6 @@ fun KeuTrackTextField(
     leadingIcon: (@Composable () -> Unit)? = null,
     trailingIcon: (@Composable () -> Unit)? = null,
 ) {
-    val semantic = KeuTrackTheme.semanticColors
-    val textColor = if (isError) semantic.error else semantic.onSurface
     val shape = RoundedCornerShape(KeuTrackTheme.shapeTokens.radiusMd)
 
     TextField(
@@ -39,26 +38,65 @@ fun KeuTrackTextField(
         keyboardOptions = keyboardOptions,
         leadingIcon = leadingIcon,
         trailingIcon = trailingIcon,
-        label = label?.let { { Text(text = it, style = KeuTrackTheme.typography.bodyRegular12) } },
-        placeholder = placeholder?.let {
-            { Text(text = it, style = KeuTrackTheme.typography.bodyRegular14) }
+        label = label?.let { text ->
+            { KeuTrackTextFieldLabel(text) }
+        },
+        placeholder = placeholder?.let { text ->
+            { KeuTrackTextFieldPlaceholder(text) }
         },
         isError = isError,
         shape = shape,
-        colors = TextFieldDefaults.textFieldColors(
-            backgroundColor = semantic.surfaceContainerHighest,
-            textColor = textColor,
-            cursorColor = semantic.primary,
-            focusedIndicatorColor = semantic.primary,
-            unfocusedIndicatorColor = Color.Transparent,
-            disabledIndicatorColor = Color.Transparent,
-            errorIndicatorColor = semantic.error,
-            focusedLabelColor = semantic.primary,
-            unfocusedLabelColor = semantic.onSurfaceVariant,
-            placeholderColor = semantic.onSurfaceVariant,
-        ),
+        colors = keuTrackTextFieldColors(isError),
         modifier = modifier
             .fillMaxWidth()
             .clip(shape),
+    )
+}
+
+/**
+ * Sub-komponen untuk Label
+ */
+@Composable
+private fun KeuTrackTextFieldLabel(text: String) {
+    Text(
+        text = text,
+        style = KeuTrackTheme.typography.bodyRegular12
+    )
+}
+
+/**
+ * Sub-komponen untuk Placeholder
+ */
+@Composable
+private fun KeuTrackTextFieldPlaceholder(text: String) {
+    Text(
+        text = text,
+        style = KeuTrackTheme.typography.bodyRegular14
+    )
+}
+
+/**
+ * Fungsi pembantu (Helper) untuk mendefinisikan warna secara terpisah
+ */
+@Composable
+private fun keuTrackTextFieldColors(isError: Boolean): TextFieldColors {
+    val semantic = KeuTrackTheme.semanticColors
+
+    return TextFieldDefaults.textFieldColors(
+        // Background & Text
+        backgroundColor = semantic.surfaceContainerHighest,
+        textColor = if (isError) semantic.error else semantic.onSurface,
+        cursorColor = semantic.primary,
+
+        // Indicators (Garis bawah)
+        focusedIndicatorColor = semantic.primary,
+        unfocusedIndicatorColor = Color.Transparent,
+        disabledIndicatorColor = Color.Transparent,
+        errorIndicatorColor = semantic.error,
+
+        // Label & Placeholder Colors
+        focusedLabelColor = semantic.primary,
+        unfocusedLabelColor = semantic.onSurfaceVariant,
+        placeholderColor = semantic.onSurfaceVariant,
     )
 }

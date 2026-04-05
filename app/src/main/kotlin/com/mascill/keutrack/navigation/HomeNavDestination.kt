@@ -4,7 +4,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Settings
-import com.mascill.keutrack.core.designsystem.component.KeuTrackBottomNavItem
+import com.mascill.keutrack.core.designsystem.model.KeuTrackBottomNavItem
 import com.mascill.keutrack.feature.family.navigation.FamilyRoute
 import com.mascill.keutrack.feature.dashboard.navigation.DashboardRoute
 import com.mascill.keutrack.feature.settings.navigation.SettingsRoute

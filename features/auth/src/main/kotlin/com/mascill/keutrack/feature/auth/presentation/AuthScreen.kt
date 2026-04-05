@@ -39,9 +39,9 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mascill.keutrack.core.designsystem.component.KeuTrackButton
-import com.mascill.keutrack.core.designsystem.component.KeuTrackButtonStyle
 import com.mascill.keutrack.core.designsystem.component.KeuTrackCard
 import com.mascill.keutrack.core.designsystem.component.KeuTrackTextField
+import com.mascill.keutrack.core.designsystem.model.KeuTrackButtonStyle
 import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
 import com.mascill.keutrack.feature.auth.R
 import com.mascill.keutrack.feature.auth.presentation.model.AuthState

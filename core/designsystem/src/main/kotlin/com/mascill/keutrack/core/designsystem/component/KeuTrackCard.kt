@@ -28,7 +28,11 @@ fun KeuTrackCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(shapes.radiusLg))
             .background(
-                if (highlighted) semantic.surfaceContainerHigh else semantic.surfaceContainerLowest
+                if (highlighted) {
+                    semantic.surfaceContainerHigh
+                } else {
+                    semantic.surfaceContainerLowest
+                }
             )
             .border(
                 width = KeuTrackTheme.effectTokens.ghostBorderWidth,
