@@ -3,31 +3,20 @@ package com.mascill.keutrack.feature.dashboard.presentation
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.material.Icon
 import androidx.compose.material.Scaffold
 import androidx.compose.material.Text
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.mascill.keutrack.core.designsystem.component.KeuTrackButton
 import com.mascill.keutrack.core.designsystem.component.KeuTrackCard
-import com.mascill.keutrack.core.designsystem.model.KeuTrackButtonStyle
 import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
-import com.mascill.keutrack.feature.dashboard.presentation.model.SignOutState
+import android.content.res.Configuration.UI_MODE_NIGHT_YES
 
 /**
  * Home routing to handle screen that will be showing and to handle view model flow /
@@ -36,22 +25,9 @@ import com.mascill.keutrack.feature.dashboard.presentation.model.SignOutState
 @Composable
 fun DashboardRouting(
     viewModel: DashboardViewModel = hiltViewModel(),
-    onSignOutSuccess: () -> Unit = {}
 ) {
 
-    val signOutState by viewModel.signOutState.collectAsStateWithLifecycle()
-
-    // Handle navigasi saat sign out sukses
-    LaunchedEffect(signOutState) {
-        if (signOutState is SignOutState.Success) {
-            onSignOutSuccess()
-        }
-    }
-
-    DashboardScreen(
-        signOutState = signOutState,
-        onSignOutClick = { viewModel.signOut() }
-    )
+    DashboardScreen()
 }
 
 /**
@@ -59,12 +35,7 @@ fun DashboardRouting(
  * income/expense overview, and recent transactions.
  */
 @Composable
-private fun DashboardScreen(
-    signOutState: SignOutState = SignOutState.Idle,
-    onSignOutClick: () -> Unit
-) {
-    val isLoading = signOutState is SignOutState.Loading
-    val errorMessage = (signOutState as? SignOutState.Error)?.message
+private fun DashboardScreen() {
 
     Scaffold { innerPadding ->
         Box(
@@ -85,32 +56,7 @@ private fun DashboardScreen(
                         style = KeuTrackTheme.typography.bodyRegular16,
                         color = KeuTrackTheme.textColors.body
                     )
-                    if (errorMessage != null) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = errorMessage,
-                            color = KeuTrackTheme.dangerColors.d500,
-                            style = KeuTrackTheme.typography.bodyRegular14
-                        )
-                    }
                 }
-
-                Spacer(modifier = Modifier.height(32.dp))
-
-                KeuTrackButton(
-                    text = "Sign Out",
-                    onClick = onSignOutClick,
-                    enabled = !isLoading,
-                    style = KeuTrackButtonStyle.Secondary,
-                    isLoading = isLoading,
-                    leading = {
-                        Icon(
-                            imageVector = Icons.Filled.AccountCircle,
-                            contentDescription = "Sign Out Icon",
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                )
             }
         }
     }
@@ -120,18 +66,18 @@ private fun DashboardScreen(
 @Composable
 private fun DashboardScreenPreview() {
     KeuTrackTheme {
-        DashboardScreen(onSignOutClick = {})
+        DashboardScreen()
     }
 }
 
 @Preview(
     name = "Dashboard — Dark mode",
     showBackground = true,
-    uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES,
+    uiMode = UI_MODE_NIGHT_YES,
 )
 @Composable
 private fun DashboardScreenDarkPreview() {
     KeuTrackTheme {
-        DashboardScreen(onSignOutClick = {})
+        DashboardScreen()
     }
 }

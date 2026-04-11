@@ -15,9 +15,9 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.mascill.keutrack.core.designsystem.component.KeuTrackBottomNav
 import com.mascill.keutrack.feature.family.navigation.familyGraph
-import com.mascill.keutrack.feature.dashboard.navigation.DashboardRoute
-import com.mascill.keutrack.feature.dashboard.navigation.dashboardGraph
-import com.mascill.keutrack.feature.settings.navigation.settingsGraph
+import com.mascill.keutrack.feature.dashboard.presentation.navigation.DashboardRoute
+import com.mascill.keutrack.feature.dashboard.presentation.navigation.dashboardGraph
+import com.mascill.keutrack.feature.settings.presentation.navigation.settingsGraph
 
 /**
  * Home shell — the authenticated root screen that hosts:
@@ -100,8 +100,8 @@ private fun HomeNavHost(
         startDestination = DashboardRoute,
         modifier = modifier,
     ) {
-        dashboardGraph(onSignOutSuccess = onSignOutSuccess)
+        dashboardGraph()
         familyGraph()
-        settingsGraph()
+        settingsGraph(onSignOutSuccess = onSignOutSuccess)
     }
 }

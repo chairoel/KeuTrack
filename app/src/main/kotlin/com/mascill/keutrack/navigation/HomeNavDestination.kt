@@ -6,8 +6,8 @@ import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Settings
 import com.mascill.keutrack.core.designsystem.model.KeuTrackBottomNavItem
 import com.mascill.keutrack.feature.family.navigation.FamilyRoute
-import com.mascill.keutrack.feature.dashboard.navigation.DashboardRoute
-import com.mascill.keutrack.feature.settings.navigation.SettingsRoute
+import com.mascill.keutrack.feature.dashboard.presentation.navigation.DashboardRoute
+import com.mascill.keutrack.feature.settings.presentation.navigation.SettingsRoute
 
 /**
  * Enum that maps each bottom-nav tab to its route and UI item (icon + label).
