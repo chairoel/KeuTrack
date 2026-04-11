@@ -6,4 +6,6 @@ android {
     namespace = "com.mascill.keutrack.feature.dashboard"
 }
 
-dependencies { }
+dependencies {
+    implementation(libs.androidx.compose.material.icon.extended)
+}
