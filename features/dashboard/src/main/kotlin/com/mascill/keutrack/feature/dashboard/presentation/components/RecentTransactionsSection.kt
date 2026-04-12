@@ -54,24 +54,24 @@ fun RecentTransactionsSection(
     }
 }
 
-@Preview(showBackground = true, name = "Light Mode")
-@Composable
-private fun RecentTransactionsSectionPreview() {
-    KeuTrackTheme(darkTheme = false) {
-        RecentTransactionsSection(
-            transactions = DefaultDashboardMockContent.transactions,
-            onViewAllClick = {}
-        )
-    }
-}
-
-@Preview(showBackground = true, name = "Dark Mode")
-@Composable
-private fun RecentTransactionsSectionDarkPreview() {
-    KeuTrackTheme(darkTheme = true) {
-        RecentTransactionsSection(
-            transactions = DefaultDashboardMockContent.transactions,
-            onViewAllClick = {}
-        )
-    }
-}
+//@Preview(showBackground = true, name = "Light Mode")
+//@Composable
+//private fun RecentTransactionsSectionPreview() {
+//    KeuTrackTheme(darkTheme = false) {
+//        RecentTransactionsSection(
+//            transactions = DefaultDashboardMockContent.transactions,
+//            onViewAllClick = {}
+//        )
+//    }
+//}
+//
+//@Preview(showBackground = true, name = "Dark Mode")
+//@Composable
+//private fun RecentTransactionsSectionDarkPreview() {
+//    KeuTrackTheme(darkTheme = true) {
+//        RecentTransactionsSection(
+//            transactions = DefaultDashboardMockContent.transactions,
+//            onViewAllClick = {}
+//        )
+//    }
+//}

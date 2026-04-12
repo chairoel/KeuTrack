@@ -133,10 +133,10 @@ fun TransactionRowCard(
     }
 }
 
-@Preview(name = "Transaction row")
-@Composable
-private fun TransactionRowCardPreview() {
-    KeuTrackTheme(darkTheme = false) {
-        TransactionRowCard(row = DefaultDashboardMockContent.transactions.first())
-    }
-}
+//@Preview(name = "Transaction row")
+//@Composable
+//private fun TransactionRowCardPreview() {
+//    KeuTrackTheme(darkTheme = false) {
+//        TransactionRowCard(row = DefaultDashboardMockContent.transactions.first())
+//    }
+//}
