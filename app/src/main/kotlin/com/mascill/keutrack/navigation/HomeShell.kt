@@ -102,6 +102,8 @@ private fun HomeNavHost(
     ) {
         dashboardGraph()
         familyGraph()
-        settingsGraph(onSignOutSuccess = onSignOutSuccess)
+        settingsGraph(
+            onSignOutSuccess = onSignOutSuccess,
+        )
     }
 }
