@@ -6,4 +6,6 @@ android {
     namespace = "com.mascill.keutrack.feature.family"
 }
 
-dependencies { }
+dependencies {
+    implementation(libs.androidx.compose.material.icon.extended)
+}

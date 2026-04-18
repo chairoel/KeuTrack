@@ -14,7 +14,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.mascill.keutrack.core.designsystem.component.KeuTrackBottomNav
-import com.mascill.keutrack.feature.family.navigation.familyGraph
+import com.mascill.keutrack.feature.family.presentation.navigation.familyGraph
 import com.mascill.keutrack.feature.dashboard.presentation.navigation.DashboardRoute
 import com.mascill.keutrack.feature.dashboard.presentation.navigation.dashboardGraph
 import com.mascill.keutrack.feature.settings.presentation.navigation.settingsGraph

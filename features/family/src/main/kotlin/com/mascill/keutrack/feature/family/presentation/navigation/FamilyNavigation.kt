@@ -1,17 +1,18 @@
-package com.mascill.keutrack.feature.family.navigation
+package com.mascill.keutrack.feature.family.presentation.navigation
 
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
-import com.mascill.keutrack.feature.family.presentation.FamilyScreen
+import com.mascill.keutrack.feature.family.presentation.FamilyRouting
 import kotlinx.serialization.Serializable
 
-@Serializable object FamilyRoute
+@Serializable
+object FamilyRoute
 
 /**
  * Family screen navigation graph extension
  */
 fun NavGraphBuilder.familyGraph() {
     composable<FamilyRoute> {
-        FamilyScreen()
+        FamilyRouting()
     }
 }
