@@ -52,6 +52,11 @@ private const val WALLET_MONTH_CHIP_PH = 10
 private const val WALLET_MONTH_CHIP_PV = 6
 private const val WALLET_FAMILY_FOOTER_ROW_PT = 14
 private const val WALLET_FAMILY_FOOTER_AVATAR_END = 10
+private const val WALLET_HEADER_PERSONAL_TITLE = "PERSONAL WALLET"
+private const val WALLET_HEADER_FAMILY_TITLE = "FAMILY WALLET"
+private const val WALLET_HEADER_TITLE_WEIGHT = 1f
+
+private val WALLET_AVATAR_MOCK_INITIALS = listOf("A", "B", "C", "D")
 
 enum class WalletSummaryCardKind {
     Personal,
@@ -142,7 +147,7 @@ private fun ColumnScope.WalletSummaryCardBody(
             WalletSummaryCardKind.Personal ->
                 Quadruple(
                     first = Icons.Filled.AccountBalanceWallet,
-                    second = "PERSONAL WALLET",
+                    second = WALLET_HEADER_PERSONAL_TITLE,
                     third = neutral.white.copy(alpha = WALLET_LABEL_ON_GRADIENT_ALPHA),
                     fourth = neutral.white,
                 )
@@ -150,7 +155,7 @@ private fun ColumnScope.WalletSummaryCardBody(
             WalletSummaryCardKind.Family ->
                 Quadruple(
                     first = Icons.Filled.Groups,
-                    second = "FAMILY WALLET",
+                    second = WALLET_HEADER_FAMILY_TITLE,
                     third = textColors.body,
                     fourth = textColors.title,
                 )
@@ -179,7 +184,7 @@ private fun ColumnScope.WalletSummaryCardBody(
             overflow = TextOverflow.Ellipsis,
             modifier =
                 Modifier
-                    .weight(1f)
+                    .weight(WALLET_HEADER_TITLE_WEIGHT)
                     .padding(end = WALLET_HEADER_TITLE_END_PAD.dp),
         )
         Icon(
@@ -219,7 +224,7 @@ private data class Quadruple<A, B, C, D>(
 @Composable
 private fun FamilyWalletAvatarStack(modifier: Modifier = Modifier) {
     val semantic = KeuTrackTheme.semanticColors
-    val initials = listOf("A", "B", "C", "D")
+    val initials = WALLET_AVATAR_MOCK_INITIALS
     val accents =
         listOf(
             semantic.primary,

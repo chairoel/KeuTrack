@@ -36,6 +36,7 @@ private const val DASH_STAT_ICON_BOX = 40
 private const val DASH_STAT_ICON_SIZE = 22
 private const val DASH_STAT_TEXT_LEADING = 12
 private const val DASH_STAT_VALUE_PT = 4
+private const val DASH_STAT_CARD_WEIGHT = 1f
 
 @Composable
 fun DashboardStatCardsRow(
@@ -54,7 +55,7 @@ fun DashboardStatCardsRow(
         horizontalArrangement = Arrangement.spacedBy(DASH_STAT_ROW_SPACING.dp),
     ) {
         StatMiniCard(
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(DASH_STAT_CARD_WEIGHT),
             containerColor = success.s100,
             borderColor = success.s300.copy(alpha = DASH_STAT_BORDER_ALPHA),
             iconContainerColor = success.s300.copy(alpha = DASH_STAT_ICON_BG_ALPHA),
@@ -68,7 +69,7 @@ fun DashboardStatCardsRow(
             valueStyle = typography.headingBold20,
         )
         StatMiniCard(
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(DASH_STAT_CARD_WEIGHT),
             containerColor = danger.d100,
             borderColor = danger.d300.copy(alpha = DASH_STAT_BORDER_ALPHA),
             iconContainerColor = danger.d300.copy(alpha = DASH_STAT_ICON_BG_ALPHA),
@@ -132,7 +133,7 @@ private fun StatMiniCard(
             modifier =
                 Modifier
                     .padding(start = DASH_STAT_TEXT_LEADING.dp)
-                    .weight(1f),
+                    .weight(DASH_STAT_CARD_WEIGHT),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.Start,
         ) {

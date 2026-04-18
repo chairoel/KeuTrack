@@ -25,6 +25,8 @@ import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
 private const val DASH_TOP_BRAND_SPACING = 8
 private const val DASH_TOP_AVATAR_BOX = 44
 private const val DASH_TOP_AVATAR_ICON = 28
+private const val DASH_TOP_BAR_TITLE = "KeuTrack"
+private const val DASH_TOP_BAR_TRAILING_CD = "Settings"
 
 @Composable
 fun DashboardTopBar(
@@ -60,7 +62,7 @@ fun DashboardTopBar(
                 }
 
                 Text(
-                    text = "KeuTrack",
+                    text = DASH_TOP_BAR_TITLE,
                     style = typography.headingBold20,
                     color = textColors.title,
                 )
@@ -71,7 +73,7 @@ fun DashboardTopBar(
             IconButton(onClick = onSettingsClick) {
                 Icon(
                     imageVector = Icons.Filled.Notifications,
-                    contentDescription = "Settings",
+                    contentDescription = DASH_TOP_BAR_TRAILING_CD,
                     tint = semantic.onSurface,
                 )
             }

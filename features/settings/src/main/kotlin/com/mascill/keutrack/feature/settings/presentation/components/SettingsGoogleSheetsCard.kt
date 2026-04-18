@@ -31,11 +31,14 @@ import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
 
 private const val SETTINGS_SHEETS_ICON_BOX = 44
 private const val SETTINGS_SHEETS_ICON_INNER = 26
-private const val SETTINGS_SHEETS_CONTENT_WIGHT = 1f
+private const val SETTINGS_SHEETS_CONTENT_WEIGHT = 1f
 private const val SETTINGS_SHEETS_CONTENT_PADDING = 16
 private const val SETTINGS_SHEETS_CONTENT_DESC_PADDING = 2
 private const val SETTINGS_SHEETS_EXPORT_PT = 12
 private const val SETTINGS_SHEETS_EXPORT_ICON = 20
+private const val SETTINGS_SHEETS_TITLE = "Google Sheets"
+private const val SETTINGS_SHEETS_SUBTITLE = "Real-time sync enabled"
+private const val SETTINGS_SHEETS_EXPORT_CTA = "Export Now"
 
 @Composable
 fun SettingsGoogleSheetsCard(
@@ -73,16 +76,16 @@ fun SettingsGoogleSheetsCard(
                 Column(
                     modifier =
                         Modifier
-                            .weight(SETTINGS_SHEETS_CONTENT_WIGHT)
+                            .weight(SETTINGS_SHEETS_CONTENT_WEIGHT)
                             .padding(horizontal = SETTINGS_SHEETS_CONTENT_PADDING.dp),
                 ) {
                     Text(
-                        text = "Google Sheets",
+                        text = SETTINGS_SHEETS_TITLE,
                         style = typography.bodyBold16,
                         color = textColors.title,
                     )
                     Text(
-                        text = "Real-time sync enabled",
+                        text = SETTINGS_SHEETS_SUBTITLE,
                         style = typography.bodyRegular14,
                         color = textColors.body,
                         modifier = Modifier.padding(top = SETTINGS_SHEETS_CONTENT_DESC_PADDING.dp),
@@ -102,7 +105,7 @@ fun SettingsGoogleSheetsCard(
             }
             Spacer(modifier = Modifier.height(SETTINGS_SHEETS_EXPORT_PT.dp))
             KeuTrackButton(
-                text = "Export Now",
+                text = SETTINGS_SHEETS_EXPORT_CTA,
                 onClick = onExportClick,
                 style = KeuTrackButtonStyle.Primary,
                 modifier = Modifier.fillMaxWidth(),

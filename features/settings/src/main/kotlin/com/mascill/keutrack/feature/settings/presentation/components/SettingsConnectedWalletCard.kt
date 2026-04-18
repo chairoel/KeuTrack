@@ -30,6 +30,7 @@ private const val SETTINGS_WALLET_LEADING_ACCENT = 4
 private const val SETTINGS_WALLET_CONTENT_PADDING = 16
 private const val SETTINGS_WALLET_TITLE_PS = 16
 private const val SETTINGS_WALLET_TITLE_WEIGHT = 1f
+private const val SETTINGS_WALLET_MAIN_WEIGHT = 1f
 private const val SETTINGS_WALLET_DESC_PT = 2
 
 @Composable
@@ -62,7 +63,7 @@ fun SettingsConnectedWalletCard(
             }
             Row(
                 modifier = Modifier
-                    .weight(1f)
+                    .weight(SETTINGS_WALLET_MAIN_WEIGHT)
                     .fillMaxWidth()
                     .padding(SETTINGS_WALLET_CONTENT_PADDING.dp),
                 verticalAlignment = Alignment.CenterVertically,

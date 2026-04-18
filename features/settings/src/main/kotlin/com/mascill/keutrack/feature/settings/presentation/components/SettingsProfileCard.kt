@@ -33,6 +33,8 @@ private const val SETTINGS_PROFILE_EDIT_ICON = 14
 private const val SETTINGS_PROFILE_EDIT_ICON_OFFSET = 4
 private const val SETTINGS_PROFILE_NAME_PT = 4
 private const val SETTINGS_PROFILE_ROW_SPACING = 16
+private const val SETTINGS_PROFILE_TEXT_COLUMN_WEIGHT = 1f
+private const val SETTINGS_PROFILE_EDIT_CD = "Edit profile"
 
 @Composable
 fun SettingsProfileCard(
@@ -79,7 +81,7 @@ fun SettingsProfileCard(
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.Edit,
-                        contentDescription = "Edit profile",
+                        contentDescription = SETTINGS_PROFILE_EDIT_CD,
                         tint = KeuTrackTheme.neutralColors.white,
                         modifier = Modifier.size(SETTINGS_PROFILE_EDIT_ICON.dp),
                     )
@@ -90,7 +92,7 @@ fun SettingsProfileCard(
                 modifier =
                     Modifier
                         .padding(start = SETTINGS_PROFILE_ROW_SPACING.dp)
-                        .weight(1f),
+                        .weight(SETTINGS_PROFILE_TEXT_COLUMN_WEIGHT),
             ) {
                 Text(
                     text = profile.displayName,

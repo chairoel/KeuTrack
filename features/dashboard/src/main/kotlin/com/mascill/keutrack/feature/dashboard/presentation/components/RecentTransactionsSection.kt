@@ -16,6 +16,9 @@ import com.mascill.keutrack.feature.dashboard.presentation.model.DefaultDashboar
 import com.mascill.keutrack.feature.dashboard.presentation.model.TransactionRowUi
 
 private const val DASH_TXN_SECTION_ROW_SPACING = 10
+private const val DASH_RECENT_SECTION_TITLE = "Recent Transactions"
+private const val DASH_RECENT_VIEW_ALL = "View All"
+private const val DASH_RECENT_TITLE_WEIGHT = 1f
 
 @Composable
 fun RecentTransactionsSection(
@@ -32,14 +35,14 @@ fun RecentTransactionsSection(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "Recent Transactions",
+                text = DASH_RECENT_SECTION_TITLE,
                 style = typography.headingBold20,
                 color = textColors.title,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(DASH_RECENT_TITLE_WEIGHT),
             )
             TextButton(onClick = onViewAllClick) {
                 Text(
-                    text = "View All",
+                    text = DASH_RECENT_VIEW_ALL,
                     style = typography.bodyBold14,
                     color = textColors.link,
                 )

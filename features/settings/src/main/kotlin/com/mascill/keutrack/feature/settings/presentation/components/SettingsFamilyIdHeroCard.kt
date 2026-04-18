@@ -29,6 +29,8 @@ private const val SETTINGS_FAMILY_ID_LABEL_PT = 8
 private const val SETTINGS_FAMILY_COPY_PT = 16
 private const val SETTINGS_FAMILY_COPY_PV = 4
 private const val SETTINGS_FAMILY_COPY_ICON_PS = 6
+private const val SETTINGS_FAMILY_ID_LABEL = "Family ID"
+private const val SETTINGS_FAMILY_COPY_LABEL = "Copy"
 
 @Composable
 fun SettingsFamilyIdHeroCard(
@@ -62,7 +64,7 @@ fun SettingsFamilyIdHeroCard(
                 ),
     ) {
         Text(
-            text = "Family ID",
+            text = SETTINGS_FAMILY_ID_LABEL,
             style = typography.bodyBold10,
             color = neutral.white
         )
@@ -88,7 +90,7 @@ fun SettingsFamilyIdHeroCard(
             )
             Spacer(modifier = Modifier.width(SETTINGS_FAMILY_COPY_ICON_PS.dp))
             Text(
-                text = "Copy",
+                text = SETTINGS_FAMILY_COPY_LABEL,
                 style = typography.bodyBold14,
                 color = neutral.white,
             )

@@ -35,6 +35,10 @@ private const val DASH_TXN_WALLET_CHIP_PT = 4
 private const val DASH_TXN_CHIP_PH = 8
 private const val DASH_TXN_CHIP_PV = 2
 private const val DASH_TXN_CHIP_BG_ALPHA = 0.7f
+private const val DASH_TXN_TEXT_COLUMN_WEIGHT = 1f
+private const val DASH_TXN_EXPENSE_PREFIX = "- "
+private const val DASH_TXN_INCOME_PREFIX = "+ "
+private const val DASH_TXN_SUBTITLE_SEPARATOR = " • "
 
 @Composable
 fun TransactionRowCard(
@@ -49,7 +53,7 @@ fun TransactionRowCard(
     val danger = KeuTrackTheme.dangerColors
 
     val amountColor = if (row.isExpense) danger.d500 else success.s500
-    val amountPrefix = if (row.isExpense) "- " else "+ "
+    val amountPrefix = if (row.isExpense) DASH_TXN_EXPENSE_PREFIX else DASH_TXN_INCOME_PREFIX
 
     KeuTrackCard(
         modifier = modifier,
@@ -82,7 +86,7 @@ fun TransactionRowCard(
             Column(
                 modifier =
                     Modifier
-                        .weight(1f)
+                        .weight(DASH_TXN_TEXT_COLUMN_WEIGHT)
                         .padding(horizontal = DASH_TXN_MIDDLE_PH.dp),
             ) {
                 Text(
@@ -93,7 +97,7 @@ fun TransactionRowCard(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = "${row.categoryLabel} • ${row.timeLabel}",
+                    text = row.categoryLabel + DASH_TXN_SUBTITLE_SEPARATOR + row.timeLabel,
                     style = typography.bodyRegular12,
                     color = textColors.body,
                     maxLines = 1,
