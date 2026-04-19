@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.FloatingActionButton
 import androidx.compose.material.Icon
-import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Scaffold
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
@@ -88,6 +87,8 @@ private fun DashboardScreen(
     onNewEntrySheetDismiss: () -> Unit,
 ) {
     val pageBg = KeuTrackTheme.contentColors.pageColor
+    val semantic = KeuTrackTheme.semanticColors
+    val neutral = KeuTrackTheme.neutralColors
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
@@ -114,8 +115,8 @@ private fun DashboardScreen(
             FloatingActionButton(
                 onClick = onFabClick,
                 shape = RoundedCornerShape(KeuTrackTheme.shapeTokens.radiusLg),
-                backgroundColor = MaterialTheme.colors.primary,
-                contentColor = MaterialTheme.colors.onPrimary,
+                backgroundColor = semantic.primary,
+                contentColor = neutral.white,
             ) {
                 Icon(
                     imageVector = Icons.Filled.Add,

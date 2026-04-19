@@ -15,7 +15,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.FloatingActionButton
 import androidx.compose.material.Icon
-import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Scaffold
 import androidx.compose.material.Surface
 import androidx.compose.runtime.Composable
@@ -83,6 +82,8 @@ fun FamilyScreen(
     onFabClick: () -> Unit = {},
 ) {
     val pageBg = KeuTrackTheme.contentColors.pageColor
+    val semantic = KeuTrackTheme.semanticColors
+    val neutral = KeuTrackTheme.neutralColors
     var heroWidth by remember { mutableStateOf(0.dp) }
 
     Scaffold(
@@ -109,8 +110,8 @@ fun FamilyScreen(
             FloatingActionButton(
                 onClick = onFabClick,
                 shape = RoundedCornerShape(KeuTrackTheme.shapeTokens.radiusLg),
-                backgroundColor = MaterialTheme.colors.primary,
-                contentColor = MaterialTheme.colors.onPrimary,
+                backgroundColor = semantic.primary,
+                contentColor = neutral.white,
             ) {
                 Icon(
                     imageVector = Icons.Filled.Add,

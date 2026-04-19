@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -41,6 +40,7 @@ fun FamilySavingTogetherCard(
     val semantic = KeuTrackTheme.semanticColors
     val shapes = KeuTrackTheme.shapeTokens
     val typography = KeuTrackTheme.typography
+    val neutral = KeuTrackTheme.neutralColors
 
     val shape = RoundedCornerShape(shapes.radiusXl)
 
@@ -57,7 +57,7 @@ fun FamilySavingTogetherCard(
                     .offset(x = FAM_INSIGHT_DECO_OFFSET_X.dp, y = FAM_INSIGHT_DECO_OFFSET_Y.dp)
                     .size(FAM_INSIGHT_DECO_SIZE.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colors.onPrimary.copy(alpha = FAM_INSIGHT_DECO_ALPHA)),
+                    .background(neutral.white.copy(alpha = FAM_INSIGHT_DECO_ALPHA)),
         )
         Column(
             modifier =
@@ -68,12 +68,12 @@ fun FamilySavingTogetherCard(
             Text(
                 text = content.insightTitle,
                 style = typography.headingBold20,
-                color = MaterialTheme.colors.onPrimary,
+                color = neutral.white,
             )
             Text(
                 text = content.insightBody,
                 style = typography.bodyRegular14,
-                color = MaterialTheme.colors.onPrimary.copy(alpha = FAM_INSIGHT_BODY_TEXT_ALPHA),
+                color = neutral.white.copy(alpha = FAM_INSIGHT_BODY_TEXT_ALPHA),
                 modifier = Modifier.padding(top = FAM_INSIGHT_BODY_PT.dp),
             )
             Spacer(modifier = Modifier.height(FAM_INSIGHT_CTA_PT.dp))

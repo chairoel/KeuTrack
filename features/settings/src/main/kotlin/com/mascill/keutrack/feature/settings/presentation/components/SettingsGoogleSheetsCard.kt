@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Icon
-import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Switch
 import androidx.compose.material.SwitchDefaults
 import androidx.compose.material.Text
@@ -51,6 +50,7 @@ fun SettingsGoogleSheetsCard(
     val typography = KeuTrackTheme.typography
     val textColors = KeuTrackTheme.textColors
     val shapes = KeuTrackTheme.shapeTokens
+    val neutral = KeuTrackTheme.neutralColors
 
     KeuTrackCard(modifier = modifier.fillMaxWidth()) {
         Column(modifier = Modifier.fillMaxWidth()) {
@@ -96,8 +96,8 @@ fun SettingsGoogleSheetsCard(
                     onCheckedChange = onSyncChange,
                     colors =
                         SwitchDefaults.colors(
-                            checkedThumbColor = MaterialTheme.colors.onPrimary,
-                            checkedTrackColor = MaterialTheme.colors.primary,
+                            checkedThumbColor = neutral.white,
+                            checkedTrackColor = semantic.primary,
                             uncheckedThumbColor = semantic.onSurfaceVariant,
                             uncheckedTrackColor = semantic.surfaceContainerHigh,
                         ),
