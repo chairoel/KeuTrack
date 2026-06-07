@@ -2,6 +2,8 @@ package com.mascill.keutrack.core.data.di
 
 import com.mascill.keutrack.core.data.datasource.AuthNetworkDataSource
 import com.mascill.keutrack.core.data.datasource.AuthNetworkDataSourceImpl
+import com.mascill.keutrack.core.data.datasource.UserProfileLocalDataSource
+import com.mascill.keutrack.core.data.datasource.UserProfileLocalDataSourceImpl
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -22,4 +24,9 @@ interface CommonDataSourceModule {
     fun bindAuthNetworkDataSource(
         authNetworkDataSourceImpl: AuthNetworkDataSourceImpl
     ): AuthNetworkDataSource
+
+    @Binds
+    fun bindUserProfileLocalDataSource(
+        impl: UserProfileLocalDataSourceImpl
+    ): UserProfileLocalDataSource
 }

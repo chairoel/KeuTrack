@@ -1,6 +1,7 @@
 package com.mascill.keutrack.core.data.di
 
 import com.mascill.keutrack.core.data.mapper.AuthUserMapper
+import com.mascill.keutrack.core.data.mapper.SignedInUserProtoMapper
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -23,4 +24,7 @@ class CommonMapperModule {
      */
     @Provides
     fun provideAuthUserMapper(): AuthUserMapper = AuthUserMapper()
+
+    @Provides
+    fun provideSignedInUserProtoMapper(): SignedInUserProtoMapper = SignedInUserProtoMapper()
 }

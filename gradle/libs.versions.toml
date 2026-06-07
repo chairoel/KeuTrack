@@ -1,4 +1,7 @@
 [versions]
+androidxDataStore = "1.1.7"
+protobuf = "4.32.1"
+protobufPlugin = "0.9.5"
 accompanist = "0.37.3"
 activityCompose = "1.10.1"
 agp = "8.11.1"
@@ -26,6 +29,9 @@ googleId = "1.1.1"
 kotlinxCoroutines = "1.9.0"
 
 [libraries]
+androidx-datastore = { group = "androidx.datastore", name = "datastore", version.ref = "androidxDataStore" }
+protobuf-kotlin-lite = { group = "com.google.protobuf", name = "protobuf-kotlin-lite", version.ref = "protobuf" }
+protobuf-protoc = { group = "com.google.protobuf", name = "protoc", version.ref = "protobuf" }
 accompanist-permissions = { group = "com.google.accompanist", name = "accompanist-permissions", version.ref = "accompanist" }
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
 androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
@@ -72,6 +78,7 @@ androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
 
 [plugins]
+protobuf = { id = "com.google.protobuf", version.ref = "protobufPlugin" }
 google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }
 android-application = { id = "com.android.application", version.ref = "agp" }
 android-library = { id = "com.android.library", version.ref = "agp" }

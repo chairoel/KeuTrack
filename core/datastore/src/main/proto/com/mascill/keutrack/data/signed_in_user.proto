@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+option java_package = "com.mascill.keutrack.core.datastore";
+option java_multiple_files = true;
+
+message SignedInUser {
+  string uid = 1;
+  string display_name = 2;
+  string email = 3;
+  string photo_url = 4;
+  string currency = 5;
+  string family_id = 6;
+  string family_role = 7;
+}

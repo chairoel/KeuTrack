@@ -19,8 +19,24 @@ class KeuTrackFirebasePlugin : Plugin<Project> {
 
             dependencies {
                 add("implementation", platform(libs.findLibrary("firebase-bom").get()))
-                add("implementation", libs.findLibrary("firebase-auth").get())
-                add("implementation", libs.findLibrary("firebase-firestore").get())
+                // Exclude protolite-well-known-types: it duplicates classes from protobuf-javalite
+                // (pulled by :core:datastore via protobuf-kotlin-lite), causing checkDuplicateClasses to fail.
+                "implementation"(libs.findLibrary("firebase-auth").get()) {
+                    exclude(
+                        mapOf(
+                            "group" to "com.google.firebase",
+                            "module" to "protolite-well-known-types",
+                        ),
+                    )
+                }
+                "implementation"(libs.findLibrary("firebase-firestore").get()) {
+                    exclude(
+                        mapOf(
+                            "group" to "com.google.firebase",
+                            "module" to "protolite-well-known-types",
+                        ),
+                    )
+                }
                 add("implementation", libs.findLibrary("kotlinx-coroutines-play-services").get())
             }
         }
