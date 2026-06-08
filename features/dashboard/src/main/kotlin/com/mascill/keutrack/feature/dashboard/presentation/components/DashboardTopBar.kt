@@ -1,35 +1,31 @@
 package com.mascill.keutrack.feature.dashboard.presentation.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.mascill.keutrack.core.designsystem.component.KeuTrackTopBar
+import com.mascill.keutrack.core.designsystem.component.ProfileImage
 import com.mascill.keutrack.core.designsystem.model.KeuTrackTopBarTitleAlignment
 import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
 
 private const val DASH_TOP_BRAND_SPACING = 8
-private const val DASH_TOP_AVATAR_BOX = 44
+private const val DASH_TOP_AVATAR = 44
 private const val DASH_TOP_AVATAR_ICON = 28
 private const val DASH_TOP_BAR_TITLE = "KeuTrack"
 private const val DASH_TOP_BAR_TRAILING_CD = "Settings"
 
 @Composable
 fun DashboardTopBar(
+    avatar: String?,
     onSettingsClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -45,22 +41,11 @@ fun DashboardTopBar(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(DASH_TOP_BRAND_SPACING.dp),
             ) {
-                Box(
-                    modifier =
-                        Modifier
-                            .size(DASH_TOP_AVATAR_BOX.dp)
-                            .clip(CircleShape)
-                            .background(semantic.surfaceContainerHigh),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.AccountCircle,
-                        contentDescription = null,
-                        tint = semantic.onSurfaceVariant,
-                        modifier = Modifier.size(DASH_TOP_AVATAR_ICON.dp),
-                    )
-                }
-
+                ProfileImage(
+                    photoUrl = avatar,
+                    avatarSize = DASH_TOP_AVATAR,
+                    iconSize = DASH_TOP_AVATAR_ICON,
+                )
                 Text(
                     text = DASH_TOP_BAR_TITLE,
                     style = typography.headingBold20,

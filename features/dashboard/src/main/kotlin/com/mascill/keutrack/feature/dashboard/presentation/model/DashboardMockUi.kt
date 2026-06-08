@@ -26,6 +26,7 @@ data class TransactionRowUi(
 
 data class DashboardMockContent(
     val userFirstName: String,
+    val avatar: String?,
     val pageTitle: String,
     val personalBalanceLabel: String,
     val personalBalanceAmount: String,
@@ -50,6 +51,7 @@ fun TransactionCategoryIcon.toImageVector(): ImageVector =
 
 val DefaultDashboardMockContent =
     DashboardMockContent(
+        avatar = "",
         userFirstName = "Adhi",
         pageTitle = "Financial Journal",
         personalBalanceLabel = "Current Balance",

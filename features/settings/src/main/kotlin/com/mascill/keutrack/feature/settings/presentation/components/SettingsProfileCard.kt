@@ -14,7 +14,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.Icon
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -23,11 +22,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.mascill.keutrack.core.designsystem.component.KeuTrackCard
+import com.mascill.keutrack.core.designsystem.component.ProfileImage
 import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
 import com.mascill.keutrack.feature.settings.presentation.model.SettingsProfileUi
 
-private const val SETTINGS_PROFILE_AVATAR = 56
-private const val SETTINGS_PROFILE_AVATAR_ICON = 44
 private const val SETTINGS_PROFILE_EDIT_BADGE = 22
 private const val SETTINGS_PROFILE_EDIT_ICON = 14
 private const val SETTINGS_PROFILE_EDIT_ICON_OFFSET = 4
@@ -51,21 +49,7 @@ fun SettingsProfileCard(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box {
-                Box(
-                    modifier =
-                        Modifier
-                            .size(SETTINGS_PROFILE_AVATAR.dp)
-                            .clip(CircleShape)
-                            .background(semantic.surfaceContainerHigh),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.AccountCircle,
-                        contentDescription = null,
-                        tint = semantic.onSurfaceVariant,
-                        modifier = Modifier.size(SETTINGS_PROFILE_AVATAR_ICON.dp),
-                    )
-                }
+                ProfileImage(profile.avatar)
                 Box(
                     modifier =
                         Modifier

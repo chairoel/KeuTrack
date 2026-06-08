@@ -6,6 +6,7 @@ import androidx.compose.material.icons.filled.Groups
 import androidx.compose.ui.graphics.vector.ImageVector
 
 data class SettingsProfileUi(
+    val avatar: String?,
     val displayName: String,
     val email: String,
 )
@@ -41,6 +42,7 @@ val DefaultSettingsMockContent =
             SettingsProfileUi(
                 displayName = "Adhi",
                 email = "adhi.k@family.com",
+                avatar = "",
             ),
         familyNetworkActive = true,
         familyIdCode = "KEU-992-KRT",

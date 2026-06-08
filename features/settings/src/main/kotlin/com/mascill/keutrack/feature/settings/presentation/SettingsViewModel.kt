@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mascill.keutrack.core.common.utils.CommonDispatcher
+import com.mascill.keutrack.core.domain.model.User
 import com.mascill.keutrack.core.domain.repository.UserRepository
 import com.mascill.keutrack.feature.settings.presentation.model.SignOutState
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -21,6 +22,15 @@ class SettingsViewModel @Inject constructor(
 
     private val _signOutState = MutableStateFlow<SignOutState>(SignOutState.Idle)
     val signOutState: StateFlow<SignOutState> = _signOutState.asStateFlow()
+
+    private val _currentUser = MutableStateFlow<User?>(null)
+    val currentUser: StateFlow<User?> = _currentUser.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            userRepository.getCurrentUser().collect { _currentUser.value = it }
+        }
+    }
 
     fun signOut() {
         viewModelScope.launch(dispatcher.io) {

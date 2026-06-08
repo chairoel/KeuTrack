@@ -68,6 +68,7 @@ fun DashboardRouting(
                 userFirstName = currentUser.greetingFirstNameOrFallback(
                     DefaultDashboardMockContent.userFirstName,
                 ),
+                avatar = currentUser?.photoUrl,
             )
         }
     var showNewEntrySheet by remember { mutableStateOf(false) }
@@ -117,7 +118,9 @@ private fun DashboardScreen(
                                     vertical = DASH_TOP_BAR_PV.dp
                                 ),
                     ) {
-                        DashboardTopBar(onSettingsClick = onSettingsClick)
+                        DashboardTopBar(
+                            avatar= content.avatar,
+                            onSettingsClick = onSettingsClick)
                     }
                 }
             },

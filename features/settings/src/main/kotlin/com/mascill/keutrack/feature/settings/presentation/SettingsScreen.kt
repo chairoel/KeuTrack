@@ -38,6 +38,7 @@ import com.mascill.keutrack.core.designsystem.component.KeuTrackCard
 import com.mascill.keutrack.core.designsystem.component.KeuTrackTopBar
 import com.mascill.keutrack.core.designsystem.model.KeuTrackButtonStyle
 import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
+import com.mascill.keutrack.core.domain.model.User
 import com.mascill.keutrack.feature.settings.presentation.components.SettingsConnectedWalletCard
 import com.mascill.keutrack.feature.settings.presentation.components.SettingsFamilyActionTile
 import com.mascill.keutrack.feature.settings.presentation.components.SettingsFamilyIdHeroCard
@@ -70,6 +71,18 @@ fun SettingsRouting(
     onSignOutSuccess: () -> Unit = {},
 ) {
     val signOutState by viewModel.signOutState.collectAsStateWithLifecycle()
+    val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
+
+    val content =
+        remember(currentUser) {
+            DefaultSettingsMockContent.copy(
+                profile =  DefaultSettingsMockContent.profile.copy(
+                    displayName = currentUser.greetingFirstNameOrFallback(DefaultSettingsMockContent.profile.displayName),
+                    email = currentUser?.email ?: DefaultSettingsMockContent.profile.email,
+                    avatar = currentUser?.photoUrl
+                )
+            )
+        }
 
     LaunchedEffect(signOutState) {
         if (signOutState is SignOutState.Success) {
@@ -78,7 +91,7 @@ fun SettingsRouting(
     }
 
     SettingsScreen(
-        content = DefaultSettingsMockContent,
+        content = content,
         signOutState = signOutState,
         onSignOutClick = { viewModel.signOut() },
         onCopyFamilyId = {},
@@ -261,6 +274,17 @@ fun SettingsScreen(
             }
         }
     }
+}
+
+private fun User?.greetingFirstNameOrFallback(fallback: String): String {
+    val user = this ?: return fallback
+    val fromDisplay = user.displayName.trim().split(" ").firstOrNull().orEmpty()
+    if (fromDisplay.isNotEmpty()) return fromDisplay
+    val fromEmail = user.email.substringBefore('@').trim()
+    if (fromEmail.isNotEmpty()) {
+        return fromEmail.replaceFirstChar { c -> c.titlecaseChar() }
+    }
+    return fallback
 }
 
 @Preview(showBackground = true, name = "Settings — Light")
