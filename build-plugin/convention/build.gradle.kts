@@ -22,7 +22,6 @@ dependencies {
     compileOnly(libs.compose.gradlePlugin)
     compileOnly(libs.kotlin.gradlePlugin)
     compileOnly(libs.ksp.gradlePlugin)
-    compileOnly(libs.google.services.gradlePlugin)
 }
 
 gradlePlugin {
@@ -89,11 +88,20 @@ gradlePlugin {
     }
 
     /**
-     * KeuTrack firebase plugin (works for app and library modules)
+     * KeuTrack application firebase plugin
      */
-    plugins.register("keutrackFirebasePlugin") {
-        id = libs.plugins.keutrack.firebase.get().pluginId
+    plugins.register("keutrackAppFirebasePlugin") {
+        id = libs.plugins.keutrack.app.firebase.get().pluginId
         implementationClass =
-            "com.mascill.keutrack.buildplugin.convention.plugins.KeuTrackFirebasePlugin"
+            "com.mascill.keutrack.buildplugin.convention.plugins.KeuTrackAppFirebasePlugin"
+    }
+
+    /**
+     * KeuTrack library firebase plugin
+     */
+    plugins.register("keutrackLibFirebasePlugin") {
+        id = libs.plugins.keutrack.lib.firebase.get().pluginId
+        implementationClass =
+            "com.mascill.keutrack.buildplugin.convention.plugins.KeuTrackLibFirebasePlugin"
     }
 }
