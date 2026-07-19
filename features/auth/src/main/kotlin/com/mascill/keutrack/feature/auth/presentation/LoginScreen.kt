@@ -1,6 +1,7 @@
 package com.mascill.keutrack.feature.auth.presentation
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.Divider
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
@@ -29,11 +31,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -47,28 +48,30 @@ import com.mascill.keutrack.feature.auth.R
 import com.mascill.keutrack.feature.auth.presentation.model.AuthState
 
 @Composable
-fun AuthRouting(
-    viewModel: AuthViewModel = hiltViewModel(),
-    navigateToHome: () -> Unit
+fun LoginRouting(
+    viewModel: LoginViewModel = hiltViewModel(),
+    navigateToHome: () -> Unit,
+    navigateToRegister: () -> Unit,
 ) {
     val context = LocalContext.current
     val authUIState by viewModel.authUIState.collectAsStateWithLifecycle()
 
-    HandleAuthState(
+    HandleLoginAuthState(
         authState = authUIState.authState,
         navigateToHome = navigateToHome,
         onStateConsumed = viewModel::resetState
     )
 
-    AuthScreen(
+    LoginScreen(
         authState = authUIState.authState,
         onSignInClick = { viewModel.signInWithGoogle(context) },
-        onEmailLoginClick = { }
+        onEmailLoginClick = { },
+        onRegisterClick = navigateToRegister,
     )
 }
 
 @Composable
-private fun HandleAuthState(
+private fun HandleLoginAuthState(
     authState: AuthState,
     navigateToHome: () -> Unit,
     onStateConsumed: () -> Unit
@@ -82,10 +85,11 @@ private fun HandleAuthState(
 }
 
 @Composable
-fun AuthScreen(
+fun LoginScreen(
     authState: AuthState,
     onSignInClick: () -> Unit,
-    onEmailLoginClick: () -> Unit
+    onEmailLoginClick: () -> Unit,
+    onRegisterClick: () -> Unit = {},
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -290,7 +294,8 @@ fun AuthScreen(
                         Text(
                             text = "Register",
                             style = KeuTrackTheme.typography.bodyBold14,
-                            color = KeuTrackTheme.primaryColors.primary500
+                            color = KeuTrackTheme.primaryColors.primary500,
+                            modifier = Modifier.clickable(onClick = onRegisterClick)
                         )
                     }
                 }
@@ -299,11 +304,11 @@ fun AuthScreen(
     }
 }
 
-@Preview(showBackground = true, name = "Auth Screen - Idle")
+@Preview(showBackground = true, name = "Login Screen - Idle")
 @Composable
-fun AuthScreenPreview() {
+fun LoginScreenPreview() {
     KeuTrackTheme {
-        AuthScreen(
+        LoginScreen(
             authState = AuthState.Idle,
             onSignInClick = {},
             onEmailLoginClick = {}
@@ -311,11 +316,11 @@ fun AuthScreenPreview() {
     }
 }
 
-@Preview(showBackground = true, name = "Auth Screen - Loading")
+@Preview(showBackground = true, name = "Login Screen - Loading")
 @Composable
-fun AuthScreenLoadingPreview() {
+fun LoginScreenLoadingPreview() {
     KeuTrackTheme {
-        AuthScreen(
+        LoginScreen(
             authState = AuthState.Loading,
             onSignInClick = {},
             onEmailLoginClick = {}
@@ -323,11 +328,11 @@ fun AuthScreenLoadingPreview() {
     }
 }
 
-@Preview(showBackground = true, name = "Auth Screen - Error")
+@Preview(showBackground = true, name = "Login Screen - Error")
 @Composable
-fun AuthScreenErrorPreview() {
+fun LoginScreenErrorPreview() {
     KeuTrackTheme {
-        AuthScreen(
+        LoginScreen(
             authState = AuthState.Error("Maaf, koneksi internet bermasalah. Silakan coba lagi."),
             onSignInClick = {},
             onEmailLoginClick = {}

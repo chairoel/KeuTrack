@@ -20,16 +20,16 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
-class AuthViewModel @Inject constructor(
+class LoginViewModel @Inject constructor(
     private val dispatcher: CommonDispatcher,
     private val googleSignInTokenProvider: GoogleSignInTokenProvider,
     private val userRepository: UserRepository,
 ) : ViewModel() {
 
     private val _authState = MutableStateFlow<AuthState>(AuthState.Idle)
-    
+
     /**
-     * UI state for the auth screen.
+     * UI state for the login screen.
      */
     val authUIState: StateFlow<AuthUIState> = _authState.map { state ->
         AuthUIState(authState = state)
