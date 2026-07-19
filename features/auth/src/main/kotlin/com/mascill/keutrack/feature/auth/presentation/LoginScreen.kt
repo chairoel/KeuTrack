@@ -48,21 +48,21 @@ import com.mascill.keutrack.feature.auth.R
 import com.mascill.keutrack.feature.auth.presentation.model.AuthState
 
 @Composable
-fun AuthRouting(
-    viewModel: AuthViewModel = hiltViewModel(),
+fun LoginRouting(
+    viewModel: LoginViewModel = hiltViewModel(),
     navigateToHome: () -> Unit,
     navigateToRegister: () -> Unit,
 ) {
     val context = LocalContext.current
     val authUIState by viewModel.authUIState.collectAsStateWithLifecycle()
 
-    HandleAuthState(
+    HandleLoginAuthState(
         authState = authUIState.authState,
         navigateToHome = navigateToHome,
         onStateConsumed = viewModel::resetState
     )
 
-    AuthScreen(
+    LoginScreen(
         authState = authUIState.authState,
         onSignInClick = { viewModel.signInWithGoogle(context) },
         onEmailLoginClick = { },
@@ -71,7 +71,7 @@ fun AuthRouting(
 }
 
 @Composable
-private fun HandleAuthState(
+private fun HandleLoginAuthState(
     authState: AuthState,
     navigateToHome: () -> Unit,
     onStateConsumed: () -> Unit
@@ -85,7 +85,7 @@ private fun HandleAuthState(
 }
 
 @Composable
-fun AuthScreen(
+fun LoginScreen(
     authState: AuthState,
     onSignInClick: () -> Unit,
     onEmailLoginClick: () -> Unit,
@@ -304,11 +304,11 @@ fun AuthScreen(
     }
 }
 
-@Preview(showBackground = true, name = "Auth Screen - Idle")
+@Preview(showBackground = true, name = "Login Screen - Idle")
 @Composable
-fun AuthScreenPreview() {
+fun LoginScreenPreview() {
     KeuTrackTheme {
-        AuthScreen(
+        LoginScreen(
             authState = AuthState.Idle,
             onSignInClick = {},
             onEmailLoginClick = {}
@@ -316,11 +316,11 @@ fun AuthScreenPreview() {
     }
 }
 
-@Preview(showBackground = true, name = "Auth Screen - Loading")
+@Preview(showBackground = true, name = "Login Screen - Loading")
 @Composable
-fun AuthScreenLoadingPreview() {
+fun LoginScreenLoadingPreview() {
     KeuTrackTheme {
-        AuthScreen(
+        LoginScreen(
             authState = AuthState.Loading,
             onSignInClick = {},
             onEmailLoginClick = {}
@@ -328,11 +328,11 @@ fun AuthScreenLoadingPreview() {
     }
 }
 
-@Preview(showBackground = true, name = "Auth Screen - Error")
+@Preview(showBackground = true, name = "Login Screen - Error")
 @Composable
-fun AuthScreenErrorPreview() {
+fun LoginScreenErrorPreview() {
     KeuTrackTheme {
-        AuthScreen(
+        LoginScreen(
             authState = AuthState.Error("Maaf, koneksi internet bermasalah. Silakan coba lagi."),
             onSignInClick = {},
             onEmailLoginClick = {}

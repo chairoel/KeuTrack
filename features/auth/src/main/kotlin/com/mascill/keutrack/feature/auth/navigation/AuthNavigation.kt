@@ -4,20 +4,20 @@ import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavOptions
 import androidx.navigation.compose.composable
-import com.mascill.keutrack.feature.auth.presentation.AuthRouting
+import com.mascill.keutrack.feature.auth.presentation.LoginRouting
 import com.mascill.keutrack.feature.auth.presentation.RegisterRouting
 import kotlinx.serialization.Serializable
 
-@Serializable object AuthRoute
+@Serializable object LoginRoute
 
 @Serializable object RegisterRoute
 
 /**
- * Method to simplify navigate to Auth Screen implementation
+ * Method to simplify navigate to Login Screen implementation
  */
-fun NavController.navigateToAuth(
+fun NavController.navigateToLogin(
     navOptions: NavOptions? = null
-) = navigate(route = AuthRoute, navOptions = navOptions)
+) = navigate(route = LoginRoute, navOptions = navOptions)
 
 /**
  * Method to simplify navigate to Register Screen implementation
@@ -27,15 +27,15 @@ fun NavController.navigateToRegister(
 ) = navigate(route = RegisterRoute, navOptions = navOptions)
 
 /**
- * Auth screen navigation graph extension to simplify navigation graph builder
+ * Auth navigation graph extension (Login + Register)
  */
 fun NavGraphBuilder.authGraph(
     navToHome: () -> Unit,
     navToRegister: () -> Unit,
     navToLogin: () -> Unit,
 ) {
-    composable<AuthRoute> {
-        AuthRouting(
+    composable<LoginRoute> {
+        LoginRouting(
             navigateToHome = navToHome,
             navigateToRegister = navToRegister,
         )

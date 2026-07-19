@@ -5,7 +5,7 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.mascill.keutrack.feature.auth.navigation.authGraph
-import com.mascill.keutrack.feature.auth.navigation.navigateToAuth
+import com.mascill.keutrack.feature.auth.navigation.navigateToLogin
 import com.mascill.keutrack.feature.auth.navigation.navigateToRegister
 import com.mascill.keutrack.feature.splashscreen.navigation.SplashRoute
 import com.mascill.keutrack.feature.splashscreen.navigation.splashGraph
@@ -39,7 +39,7 @@ fun KeuTrackNavHost(
             },
             navToAuth = {
                 appState.navigateAndResetStack { navOpt ->
-                    navController.navigateToAuth(navOptions = navOpt)
+                    navController.navigateToLogin(navOptions = navOpt)
                 }
             }
         )
@@ -58,7 +58,7 @@ fun KeuTrackNavHost(
             HomeShell(
                 onSignOutSuccess = {
                     appState.navigateAndResetStack { navOpt ->
-                        navController.navigateToAuth(navOptions = navOpt)
+                        navController.navigateToLogin(navOptions = navOpt)
                     }
                 }
             )
