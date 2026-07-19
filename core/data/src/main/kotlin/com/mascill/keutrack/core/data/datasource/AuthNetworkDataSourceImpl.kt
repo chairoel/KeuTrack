@@ -2,6 +2,7 @@ package com.mascill.keutrack.core.data.datasource
 
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
+import com.google.firebase.auth.UserProfileChangeRequest
 import com.mascill.keutrack.core.data.mapper.AuthUserMapper
 import com.mascill.keutrack.core.data.model.AuthUserResponse
 import kotlinx.coroutines.tasks.await
@@ -20,6 +21,29 @@ class AuthNetworkDataSourceImpl @Inject constructor(
     override suspend fun signInWithGoogle(idToken: String): AuthUserResponse? {
         val credential = GoogleAuthProvider.getCredential(idToken, null)
         val authResult = firebaseAuth.signInWithCredential(credential).await()
+        return authResult.user?.let(mapper::mapToResponse)
+    }
+
+    override suspend fun registerWithEmail(
+        email: String,
+        password: String,
+        displayName: String,
+    ): AuthUserResponse? {
+        val authResult = firebaseAuth.createUserWithEmailAndPassword(email, password).await()
+        val user = authResult.user ?: return null
+        val profileUpdates = UserProfileChangeRequest.Builder()
+            .setDisplayName(displayName)
+            .build()
+        user.updateProfile(profileUpdates).await()
+        user.reload().await()
+        return mapper.mapToResponse(user)
+    }
+
+    override suspend fun signInWithEmail(
+        email: String,
+        password: String,
+    ): AuthUserResponse? {
+        val authResult = firebaseAuth.signInWithEmailAndPassword(email, password).await()
         return authResult.user?.let(mapper::mapToResponse)
     }
 
