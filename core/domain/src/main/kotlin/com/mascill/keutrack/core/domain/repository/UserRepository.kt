@@ -7,6 +7,17 @@ import kotlinx.coroutines.flow.Flow
 interface UserRepository {
     fun getCurrentUser(): Flow<User?>
     suspend fun signInWithGoogle(idToken: String): AuthResult
+    suspend fun registerWithEmail(
+        fullName: String,
+        email: String,
+        password: String,
+    ): AuthResult
+
+    suspend fun signInWithEmail(
+        email: String,
+        password: String,
+    ): AuthResult
+
     suspend fun signOut()
     suspend fun syncUserProfile()
 }
