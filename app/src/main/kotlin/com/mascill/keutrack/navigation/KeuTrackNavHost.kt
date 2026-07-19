@@ -6,6 +6,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.mascill.keutrack.feature.auth.navigation.authGraph
 import com.mascill.keutrack.feature.auth.navigation.navigateToAuth
+import com.mascill.keutrack.feature.auth.navigation.navigateToRegister
 import com.mascill.keutrack.feature.splashscreen.navigation.SplashRoute
 import com.mascill.keutrack.feature.splashscreen.navigation.splashGraph
 import com.mascill.keutrack.feature.transaction.navigation.transactionGraph
@@ -48,7 +49,9 @@ fun KeuTrackNavHost(
                 appState.navigateAndResetStack { navOpt ->
                     navController.navigateToHome(navOptions = navOpt)
                 }
-            }
+            },
+            navToRegister = { navController.navigateToRegister() },
+            navToLogin = { navController.popBackStack() },
         )
 
         composable<HomeRoute> {

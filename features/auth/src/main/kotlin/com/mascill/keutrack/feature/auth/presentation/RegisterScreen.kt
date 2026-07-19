@@ -12,8 +12,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.Divider
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
@@ -34,6 +36,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -48,30 +51,30 @@ import com.mascill.keutrack.feature.auth.R
 import com.mascill.keutrack.feature.auth.presentation.model.AuthState
 
 @Composable
-fun AuthRouting(
-    viewModel: AuthViewModel = hiltViewModel(),
+fun RegisterRouting(
+    viewModel: RegisterViewModel = hiltViewModel(),
     navigateToHome: () -> Unit,
-    navigateToRegister: () -> Unit,
+    navigateToLogin: () -> Unit,
 ) {
     val context = LocalContext.current
     val authUIState by viewModel.authUIState.collectAsStateWithLifecycle()
 
-    HandleAuthState(
+    HandleRegisterAuthState(
         authState = authUIState.authState,
         navigateToHome = navigateToHome,
         onStateConsumed = viewModel::resetState
     )
 
-    AuthScreen(
+    RegisterScreen(
         authState = authUIState.authState,
-        onSignInClick = { viewModel.signInWithGoogle(context) },
-        onEmailLoginClick = { },
-        onRegisterClick = navigateToRegister,
+        onSignUpClick = { },
+        onSignInWithGoogleClick = { viewModel.signInWithGoogle(context) },
+        onLoginClick = navigateToLogin,
     )
 }
 
 @Composable
-private fun HandleAuthState(
+private fun HandleRegisterAuthState(
     authState: AuthState,
     navigateToHome: () -> Unit,
     onStateConsumed: () -> Unit
@@ -85,15 +88,18 @@ private fun HandleAuthState(
 }
 
 @Composable
-fun AuthScreen(
+fun RegisterScreen(
     authState: AuthState,
-    onSignInClick: () -> Unit,
-    onEmailLoginClick: () -> Unit,
-    onRegisterClick: () -> Unit = {},
+    onSignUpClick: () -> Unit,
+    onSignInWithGoogleClick: () -> Unit,
+    onLoginClick: () -> Unit,
 ) {
+    var fullName by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
+    var confirmPasswordVisible by remember { mutableStateOf(false) }
 
     Scaffold { innerPadding ->
         Box(
@@ -105,9 +111,9 @@ fun AuthScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
                     .padding(horizontal = 24.dp, vertical = 48.dp)
             ) {
-                // --- Brand Identity ---
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(bottom = 32.dp)
@@ -142,24 +148,32 @@ fun AuthScreen(
                     )
                 }
 
-                // --- Welcome Message ---
                 Text(
-                    text = "Welcome Back",
+                    text = "Create Account",
                     style = KeuTrackTheme.typography.headingBold30,
                     color = KeuTrackTheme.textColors.title,
                     letterSpacing = (-0.5).sp
                 )
                 Text(
-                    text = "Step into your financial atelier.",
+                    text = "Join the atelier of financial precision",
                     style = KeuTrackTheme.typography.bodyRegular16,
                     color = KeuTrackTheme.textColors.body,
                     modifier = Modifier.padding(top = 4.dp)
                 )
 
-                Spacer(modifier = Modifier.height(64.dp))
+                Spacer(modifier = Modifier.height(40.dp))
 
                 KeuTrackCard {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        KeuTrackTextField(
+                            value = fullName,
+                            onValueChange = { fullName = it },
+                            placeholder = "Full Name",
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                        )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
                         KeuTrackTextField(
                             value = email,
                             onValueChange = { email = it },
@@ -204,24 +218,43 @@ fun AuthScreen(
                             }
                         )
 
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 10.dp),
-                            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.End
-                        ) {
-                            Text(
-                                text = "Forgot Password?",
-                                style = KeuTrackTheme.typography.bodyBold14,
-                                color = KeuTrackTheme.primaryColors.primary500
-                            )
-                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        KeuTrackTextField(
+                            value = confirmPassword,
+                            onValueChange = { confirmPassword = it },
+                            placeholder = "Confirm Password",
+                            visualTransformation =
+                                if (confirmPasswordVisible) {
+                                    VisualTransformation.None
+                                } else {
+                                    PasswordVisualTransformation()
+                                },
+                            leadingIcon = {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.ic_lock_24),
+                                    contentDescription = null,
+                                    tint = KeuTrackTheme.semanticColors.onSurfaceVariant
+                                )
+                            },
+                            trailingIcon = {
+                                IconButton(
+                                    onClick = { confirmPasswordVisible = !confirmPasswordVisible }
+                                ) {
+                                    Text(
+                                        text = if (confirmPasswordVisible) "Hide" else "Show",
+                                        style = KeuTrackTheme.typography.bodyBold14,
+                                        color = KeuTrackTheme.semanticColors.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        )
 
                         Spacer(modifier = Modifier.height(16.dp))
 
                         KeuTrackButton(
-                            text = "Login",
-                            onClick = onEmailLoginClick,
+                            text = "Sign Up",
+                            onClick = onSignUpClick,
                             style = KeuTrackButtonStyle.Primary,
                             modifier = Modifier.fillMaxWidth(),
                         )
@@ -251,8 +284,8 @@ fun AuthScreen(
                         Spacer(modifier = Modifier.height(18.dp))
 
                         KeuTrackButton(
-                            text = "Login with Google",
-                            onClick = onSignInClick,
+                            text = "Sign Up with Google",
+                            onClick = onSignInWithGoogleClick,
                             style = KeuTrackButtonStyle.Secondary,
                             isLoading = authState is AuthState.Loading || authState is AuthState.Success,
                             modifier = Modifier.fillMaxWidth(),
@@ -277,65 +310,78 @@ fun AuthScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.weight(1f))
+                Spacer(modifier = Modifier.height(32.dp))
 
-                // --- Footer & Decorative Elements ---
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Row {
                         Text(
-                            text = "Don't have an account?",
+                            text = "Already have an account?",
                             style = KeuTrackTheme.typography.bodyRegular14,
                             color = KeuTrackTheme.textColors.body
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "Register",
+                            text = "Login",
                             style = KeuTrackTheme.typography.bodyBold14,
                             color = KeuTrackTheme.primaryColors.primary500,
-                            modifier = Modifier.clickable(onClick = onRegisterClick)
+                            modifier = Modifier.clickable(onClick = onLoginClick)
                         )
                     }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = "By creating an account, you agree to KeuTrack's Terms of Service " +
+                            "and Privacy Policy. We treat your family data as a curated atelier of life.",
+                        style = KeuTrackTheme.typography.bodyRegular14,
+                        color = KeuTrackTheme.semanticColors.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(horizontal = 8.dp)
+                    )
                 }
             }
         }
     }
 }
 
-@Preview(showBackground = true, name = "Auth Screen - Idle")
+@Preview(showBackground = true, name = "Register Screen - Idle")
 @Composable
-fun AuthScreenPreview() {
+fun RegisterScreenPreview() {
     KeuTrackTheme {
-        AuthScreen(
+        RegisterScreen(
             authState = AuthState.Idle,
-            onSignInClick = {},
-            onEmailLoginClick = {}
+            onSignUpClick = {},
+            onSignInWithGoogleClick = {},
+            onLoginClick = {},
         )
     }
 }
 
-@Preview(showBackground = true, name = "Auth Screen - Loading")
+@Preview(showBackground = true, name = "Register Screen - Loading")
 @Composable
-fun AuthScreenLoadingPreview() {
+fun RegisterScreenLoadingPreview() {
     KeuTrackTheme {
-        AuthScreen(
+        RegisterScreen(
             authState = AuthState.Loading,
-            onSignInClick = {},
-            onEmailLoginClick = {}
+            onSignUpClick = {},
+            onSignInWithGoogleClick = {},
+            onLoginClick = {},
         )
     }
 }
 
-@Preview(showBackground = true, name = "Auth Screen - Error")
+@Preview(showBackground = true, name = "Register Screen - Error")
 @Composable
-fun AuthScreenErrorPreview() {
+fun RegisterScreenErrorPreview() {
     KeuTrackTheme {
-        AuthScreen(
-            authState = AuthState.Error("Maaf, koneksi internet bermasalah. Silakan coba lagi."),
-            onSignInClick = {},
-            onEmailLoginClick = {}
+        RegisterScreen(
+            authState = AuthState.Error("No internet connection. Please try again."),
+            onSignUpClick = {},
+            onSignInWithGoogleClick = {},
+            onLoginClick = {},
         )
     }
 }
