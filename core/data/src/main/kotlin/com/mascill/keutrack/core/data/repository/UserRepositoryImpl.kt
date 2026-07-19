@@ -1,8 +1,10 @@
 package com.mascill.keutrack.core.data.repository
 
+import android.util.Log
 import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.firestore.FirebaseFirestoreException
+import com.mascill.keutrack.core.data.BuildConfig
 import com.mascill.keutrack.core.data.datasource.AuthNetworkDataSource
 import com.mascill.keutrack.core.data.datasource.FirestoreNetworkDataSource
 import com.mascill.keutrack.core.data.datasource.UserProfileLocalDataSource
@@ -122,6 +124,7 @@ class UserRepositoryImpl @Inject constructor(
     }
 
     private fun mapAuthFailure(e: Exception): AuthResult.Error {
+        logFailure("mapAuthFailure", e)
         return when (e) {
             is FirebaseNetworkException -> AuthResult.Error.Network
             is FirebaseAuthException -> when (e.errorCode) {
@@ -140,6 +143,7 @@ class UserRepositoryImpl @Inject constructor(
     }
 
     private fun mapFirestoreFailure(e: Exception): AuthResult.Error {
+        logFailure("mapFirestoreFailure", e)
         return when (e) {
             is FirebaseNetworkException -> AuthResult.Error.Network
             is FirebaseFirestoreException -> when (e.code) {
@@ -149,6 +153,37 @@ class UserRepositoryImpl @Inject constructor(
             }
             else -> AuthResult.Error.Unknown(e.message)
         }
+    }
+
+    private fun logFailure(tag: String, e: Exception) {
+        if (BuildConfig.FLAVOR != "dev") return
+
+        val details = buildString {
+            appendLine("type=${e::class.java.name}")
+            appendLine("message=${e.message}")
+            when (e) {
+                is FirebaseAuthException -> {
+                    appendLine("authErrorCode=${e.errorCode}")
+                }
+                is FirebaseFirestoreException -> {
+                    appendLine("firestoreCode=${e.code}")
+                }
+                is FirebaseNetworkException -> {
+                    appendLine("network=true")
+                }
+            }
+            var cause = e.cause
+            var depth = 1
+            while (cause != null) {
+                appendLine("cause$depth=${cause::class.java.name}: ${cause.message}")
+                if (cause is FirebaseAuthException) {
+                    appendLine("cause${depth}AuthErrorCode=${cause.errorCode}")
+                }
+                cause = cause.cause
+                depth++
+            }
+        }
+        Log.e("UserRepository", "$tag\n$details", e)
     }
 
     private companion object {

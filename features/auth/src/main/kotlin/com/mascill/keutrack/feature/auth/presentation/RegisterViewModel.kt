@@ -3,6 +3,7 @@ package com.mascill.keutrack.feature.auth.presentation
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.mascill.keutrack.core.common.di.Environment
 import com.mascill.keutrack.core.common.utils.CommonDispatcher
 import com.mascill.keutrack.core.domain.model.AuthResult
 import com.mascill.keutrack.core.domain.model.TokenResult
@@ -12,6 +13,7 @@ import com.mascill.keutrack.feature.auth.presentation.model.AuthMethod
 import com.mascill.keutrack.feature.auth.presentation.model.AuthState
 import com.mascill.keutrack.feature.auth.presentation.model.AuthUIState
 import com.mascill.keutrack.feature.auth.presentation.model.isBusy
+import com.mascill.keutrack.feature.auth.presentation.model.unknownAuthErrorMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -26,6 +28,7 @@ class RegisterViewModel @Inject constructor(
     private val dispatcher: CommonDispatcher,
     private val googleSignInTokenProvider: GoogleSignInTokenProvider,
     private val userRepository: UserRepository,
+    @Environment private val environment: String,
 ) : ViewModel() {
 
     private val _authState = MutableStateFlow<AuthState>(AuthState.Idle)
@@ -48,19 +51,23 @@ class RegisterViewModel @Inject constructor(
             _authState.value = AuthState.Loading(AuthMethod.Google)
 
             _authState.value = when (val tokenResult = googleSignInTokenProvider.getGoogleIdToken(context)) {
-                is TokenResult.Success -> when (userRepository.signInWithGoogle(tokenResult.idToken)) {
+                is TokenResult.Success -> when (val authResult = userRepository.signInWithGoogle(tokenResult.idToken)) {
                     is AuthResult.Success -> AuthState.Success(AuthMethod.Google)
                     is AuthResult.Cancelled -> AuthState.Idle
                     is AuthResult.Error.Network -> AuthState.Error("No internet connection. Please try again.")
                     is AuthResult.Error.NoCredential -> AuthState.Error("No Google account found on this device.")
                     is AuthResult.Error.InvalidCredential -> AuthState.Error("Invalid credential. Please try again.")
                     is AuthResult.Error.UserNotFound -> AuthState.Error("Account not found. Please try again.")
-                    is AuthResult.Error.Unknown -> AuthState.Error("An unexpected error occurred.")
+                    is AuthResult.Error.Unknown -> AuthState.Error(
+                        unknownAuthErrorMessage(authResult.message, environment)
+                    )
                 }
                 is TokenResult.Cancelled -> AuthState.Idle
                 is TokenResult.Error.Network -> AuthState.Error("No internet connection. Please try again.")
                 is TokenResult.Error.NoCredential -> AuthState.Error("No Google account found on this device.")
-                is TokenResult.Error.Unknown -> AuthState.Error("An unexpected error occurred.")
+                is TokenResult.Error.Unknown -> AuthState.Error(
+                    unknownAuthErrorMessage(tokenResult.message, environment)
+                )
             }
         }
     }
@@ -70,7 +77,7 @@ class RegisterViewModel @Inject constructor(
 
         viewModelScope.launch(dispatcher.main) {
             _authState.value = AuthState.Loading(AuthMethod.Email)
-            _authState.value = when (userRepository.registerWithEmail(fullName, email, password)) {
+            _authState.value = when (val authResult = userRepository.registerWithEmail(fullName, email, password)) {
                 is AuthResult.Success -> AuthState.Success(AuthMethod.Email)
                 is AuthResult.Cancelled -> AuthState.Idle
                 is AuthResult.Error.Network -> AuthState.Error("No internet connection. Please try again.")
@@ -79,7 +86,9 @@ class RegisterViewModel @Inject constructor(
                     "Unable to create account. Email may already be in use or password is too weak."
                 )
                 is AuthResult.Error.UserNotFound -> AuthState.Error("Unable to create account. Please try again.")
-                is AuthResult.Error.Unknown -> AuthState.Error("An unexpected error occurred.")
+                is AuthResult.Error.Unknown -> AuthState.Error(
+                    unknownAuthErrorMessage(authResult.message, environment)
+                )
             }
         }
     }
