@@ -67,7 +67,19 @@ fun RegisterRouting(
 
     RegisterScreen(
         authState = authUIState.authState,
-        onSignUpClick = { },
+        onSignUpClick = { fullName, email, password, confirmPassword ->
+            val validationError = AuthFormValidation.validateRegister(
+                fullName = fullName,
+                email = email,
+                password = password,
+                confirmPassword = confirmPassword,
+            )
+            if (validationError != null) {
+                viewModel.showError(validationError)
+            } else {
+                viewModel.registerWithEmail(fullName.trim(), email.trim(), password)
+            }
+        },
         onSignInWithGoogleClick = { viewModel.signInWithGoogle(context) },
         onLoginClick = navigateToLogin,
     )
@@ -90,10 +102,16 @@ private fun HandleRegisterAuthState(
 @Composable
 fun RegisterScreen(
     authState: AuthState,
-    onSignUpClick: () -> Unit,
+    onSignUpClick: (
+        fullName: String,
+        email: String,
+        password: String,
+        confirmPassword: String,
+    ) -> Unit,
     onSignInWithGoogleClick: () -> Unit,
     onLoginClick: () -> Unit,
 ) {
+    val isAuthBusy = authState is AuthState.Loading || authState is AuthState.Success
     var fullName by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -254,8 +272,11 @@ fun RegisterScreen(
 
                         KeuTrackButton(
                             text = "Sign Up",
-                            onClick = onSignUpClick,
+                            onClick = {
+                                onSignUpClick(fullName, email, password, confirmPassword)
+                            },
                             style = KeuTrackButtonStyle.Primary,
+                            isLoading = isAuthBusy,
                             modifier = Modifier.fillMaxWidth(),
                         )
 
@@ -287,7 +308,7 @@ fun RegisterScreen(
                             text = "Sign Up with Google",
                             onClick = onSignInWithGoogleClick,
                             style = KeuTrackButtonStyle.Secondary,
-                            isLoading = authState is AuthState.Loading || authState is AuthState.Success,
+                            isLoading = isAuthBusy,
                             modifier = Modifier.fillMaxWidth(),
                             leading = {
                                 Icon(
@@ -353,7 +374,7 @@ fun RegisterScreenPreview() {
     KeuTrackTheme {
         RegisterScreen(
             authState = AuthState.Idle,
-            onSignUpClick = {},
+            onSignUpClick = { _, _, _, _ -> },
             onSignInWithGoogleClick = {},
             onLoginClick = {},
         )
@@ -366,7 +387,7 @@ fun RegisterScreenLoadingPreview() {
     KeuTrackTheme {
         RegisterScreen(
             authState = AuthState.Loading,
-            onSignUpClick = {},
+            onSignUpClick = { _, _, _, _ -> },
             onSignInWithGoogleClick = {},
             onLoginClick = {},
         )
@@ -379,7 +400,7 @@ fun RegisterScreenErrorPreview() {
     KeuTrackTheme {
         RegisterScreen(
             authState = AuthState.Error("No internet connection. Please try again."),
-            onSignUpClick = {},
+            onSignUpClick = { _, _, _, _ -> },
             onSignInWithGoogleClick = {},
             onLoginClick = {},
         )

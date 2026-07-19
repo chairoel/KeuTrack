@@ -63,6 +63,27 @@ class LoginViewModel @Inject constructor(
         }
     }
 
+    fun signInWithEmail(email: String, password: String) {
+        if (_authState.value == AuthState.Loading) return
+
+        viewModelScope.launch(dispatcher.main) {
+            _authState.value = AuthState.Loading
+            _authState.value = when (userRepository.signInWithEmail(email, password)) {
+                is AuthResult.Success -> AuthState.Success
+                is AuthResult.Cancelled -> AuthState.Idle
+                is AuthResult.Error.Network -> AuthState.Error("No internet connection. Please try again.")
+                is AuthResult.Error.NoCredential -> AuthState.Error("Unable to sign in. Please try again.")
+                is AuthResult.Error.InvalidCredential -> AuthState.Error("Invalid email or password.")
+                is AuthResult.Error.UserNotFound -> AuthState.Error("Account not found. Please try again.")
+                is AuthResult.Error.Unknown -> AuthState.Error("An unexpected error occurred.")
+            }
+        }
+    }
+
+    fun showError(message: String) {
+        _authState.value = AuthState.Error(message)
+    }
+
     fun resetState() {
         _authState.value = AuthState.Idle
     }

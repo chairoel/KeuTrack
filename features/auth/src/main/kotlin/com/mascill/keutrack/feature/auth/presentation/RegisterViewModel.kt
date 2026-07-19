@@ -63,6 +63,29 @@ class RegisterViewModel @Inject constructor(
         }
     }
 
+    fun registerWithEmail(fullName: String, email: String, password: String) {
+        if (_authState.value == AuthState.Loading) return
+
+        viewModelScope.launch(dispatcher.main) {
+            _authState.value = AuthState.Loading
+            _authState.value = when (userRepository.registerWithEmail(fullName, email, password)) {
+                is AuthResult.Success -> AuthState.Success
+                is AuthResult.Cancelled -> AuthState.Idle
+                is AuthResult.Error.Network -> AuthState.Error("No internet connection. Please try again.")
+                is AuthResult.Error.NoCredential -> AuthState.Error("Unable to create account. Please try again.")
+                is AuthResult.Error.InvalidCredential -> AuthState.Error(
+                    "Unable to create account. Email may already be in use or password is too weak."
+                )
+                is AuthResult.Error.UserNotFound -> AuthState.Error("Unable to create account. Please try again.")
+                is AuthResult.Error.Unknown -> AuthState.Error("An unexpected error occurred.")
+            }
+        }
+    }
+
+    fun showError(message: String) {
+        _authState.value = AuthState.Error(message)
+    }
+
     fun resetState() {
         _authState.value = AuthState.Idle
     }

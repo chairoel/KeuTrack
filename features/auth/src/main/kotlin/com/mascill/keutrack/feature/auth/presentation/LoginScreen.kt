@@ -65,7 +65,14 @@ fun LoginRouting(
     LoginScreen(
         authState = authUIState.authState,
         onSignInClick = { viewModel.signInWithGoogle(context) },
-        onEmailLoginClick = { },
+        onEmailLoginClick = { email, password ->
+            val validationError = AuthFormValidation.validateLogin(email, password)
+            if (validationError != null) {
+                viewModel.showError(validationError)
+            } else {
+                viewModel.signInWithEmail(email.trim(), password)
+            }
+        },
         onRegisterClick = navigateToRegister,
     )
 }
@@ -88,9 +95,10 @@ private fun HandleLoginAuthState(
 fun LoginScreen(
     authState: AuthState,
     onSignInClick: () -> Unit,
-    onEmailLoginClick: () -> Unit,
+    onEmailLoginClick: (email: String, password: String) -> Unit,
     onRegisterClick: () -> Unit = {},
 ) {
+    val isAuthBusy = authState is AuthState.Loading || authState is AuthState.Success
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
@@ -221,8 +229,9 @@ fun LoginScreen(
 
                         KeuTrackButton(
                             text = "Login",
-                            onClick = onEmailLoginClick,
+                            onClick = { onEmailLoginClick(email, password) },
                             style = KeuTrackButtonStyle.Primary,
+                            isLoading = isAuthBusy,
                             modifier = Modifier.fillMaxWidth(),
                         )
 
@@ -254,7 +263,7 @@ fun LoginScreen(
                             text = "Login with Google",
                             onClick = onSignInClick,
                             style = KeuTrackButtonStyle.Secondary,
-                            isLoading = authState is AuthState.Loading || authState is AuthState.Success,
+                            isLoading = isAuthBusy,
                             modifier = Modifier.fillMaxWidth(),
                             leading = {
                                 Icon(
@@ -311,7 +320,7 @@ fun LoginScreenPreview() {
         LoginScreen(
             authState = AuthState.Idle,
             onSignInClick = {},
-            onEmailLoginClick = {}
+            onEmailLoginClick = { _, _ -> },
         )
     }
 }
@@ -323,7 +332,7 @@ fun LoginScreenLoadingPreview() {
         LoginScreen(
             authState = AuthState.Loading,
             onSignInClick = {},
-            onEmailLoginClick = {}
+            onEmailLoginClick = { _, _ -> },
         )
     }
 }
@@ -335,7 +344,7 @@ fun LoginScreenErrorPreview() {
         LoginScreen(
             authState = AuthState.Error("Maaf, koneksi internet bermasalah. Silakan coba lagi."),
             onSignInClick = {},
-            onEmailLoginClick = {}
+            onEmailLoginClick = { _, _ -> },
         )
     }
 }
