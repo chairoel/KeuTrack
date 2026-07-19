@@ -45,7 +45,10 @@ import com.mascill.keutrack.core.designsystem.component.KeuTrackTextField
 import com.mascill.keutrack.core.designsystem.model.KeuTrackButtonStyle
 import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
 import com.mascill.keutrack.feature.auth.R
+import com.mascill.keutrack.feature.auth.presentation.model.AuthMethod
 import com.mascill.keutrack.feature.auth.presentation.model.AuthState
+import com.mascill.keutrack.feature.auth.presentation.model.isBusy
+import com.mascill.keutrack.feature.auth.presentation.model.isLoading
 
 @Composable
 fun LoginRouting(
@@ -65,7 +68,14 @@ fun LoginRouting(
     LoginScreen(
         authState = authUIState.authState,
         onSignInClick = { viewModel.signInWithGoogle(context) },
-        onEmailLoginClick = { },
+        onEmailLoginClick = { email, password ->
+            val validationError = AuthFormValidation.validateLogin(email, password)
+            if (validationError != null) {
+                viewModel.showError(validationError)
+            } else {
+                viewModel.signInWithEmail(email.trim(), password)
+            }
+        },
         onRegisterClick = navigateToRegister,
     )
 }
@@ -88,9 +98,12 @@ private fun HandleLoginAuthState(
 fun LoginScreen(
     authState: AuthState,
     onSignInClick: () -> Unit,
-    onEmailLoginClick: () -> Unit,
+    onEmailLoginClick: (email: String, password: String) -> Unit,
     onRegisterClick: () -> Unit = {},
 ) {
+    val isBusy = authState.isBusy()
+    val isEmailLoading = authState.isLoading(AuthMethod.Email)
+    val isGoogleLoading = authState.isLoading(AuthMethod.Google)
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
@@ -221,8 +234,10 @@ fun LoginScreen(
 
                         KeuTrackButton(
                             text = "Login",
-                            onClick = onEmailLoginClick,
+                            onClick = { onEmailLoginClick(email, password) },
                             style = KeuTrackButtonStyle.Primary,
+                            enabled = !isBusy || isEmailLoading,
+                            isLoading = isEmailLoading,
                             modifier = Modifier.fillMaxWidth(),
                         )
 
@@ -254,7 +269,8 @@ fun LoginScreen(
                             text = "Login with Google",
                             onClick = onSignInClick,
                             style = KeuTrackButtonStyle.Secondary,
-                            isLoading = authState is AuthState.Loading || authState is AuthState.Success,
+                            enabled = !isBusy || isGoogleLoading,
+                            isLoading = isGoogleLoading,
                             modifier = Modifier.fillMaxWidth(),
                             leading = {
                                 Icon(
@@ -311,7 +327,7 @@ fun LoginScreenPreview() {
         LoginScreen(
             authState = AuthState.Idle,
             onSignInClick = {},
-            onEmailLoginClick = {}
+            onEmailLoginClick = { _, _ -> },
         )
     }
 }
@@ -321,9 +337,9 @@ fun LoginScreenPreview() {
 fun LoginScreenLoadingPreview() {
     KeuTrackTheme {
         LoginScreen(
-            authState = AuthState.Loading,
+            authState = AuthState.Loading(AuthMethod.Email),
             onSignInClick = {},
-            onEmailLoginClick = {}
+            onEmailLoginClick = { _, _ -> },
         )
     }
 }
@@ -335,7 +351,7 @@ fun LoginScreenErrorPreview() {
         LoginScreen(
             authState = AuthState.Error("Maaf, koneksi internet bermasalah. Silakan coba lagi."),
             onSignInClick = {},
-            onEmailLoginClick = {}
+            onEmailLoginClick = { _, _ -> },
         )
     }
 }

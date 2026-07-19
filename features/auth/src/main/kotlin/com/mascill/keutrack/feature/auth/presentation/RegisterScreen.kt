@@ -48,7 +48,10 @@ import com.mascill.keutrack.core.designsystem.component.KeuTrackTextField
 import com.mascill.keutrack.core.designsystem.model.KeuTrackButtonStyle
 import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
 import com.mascill.keutrack.feature.auth.R
+import com.mascill.keutrack.feature.auth.presentation.model.AuthMethod
 import com.mascill.keutrack.feature.auth.presentation.model.AuthState
+import com.mascill.keutrack.feature.auth.presentation.model.isBusy
+import com.mascill.keutrack.feature.auth.presentation.model.isLoading
 
 @Composable
 fun RegisterRouting(
@@ -67,7 +70,19 @@ fun RegisterRouting(
 
     RegisterScreen(
         authState = authUIState.authState,
-        onSignUpClick = { },
+        onSignUpClick = { fullName, email, password, confirmPassword ->
+            val validationError = AuthFormValidation.validateRegister(
+                fullName = fullName,
+                email = email,
+                password = password,
+                confirmPassword = confirmPassword,
+            )
+            if (validationError != null) {
+                viewModel.showError(validationError)
+            } else {
+                viewModel.registerWithEmail(fullName.trim(), email.trim(), password)
+            }
+        },
         onSignInWithGoogleClick = { viewModel.signInWithGoogle(context) },
         onLoginClick = navigateToLogin,
     )
@@ -90,10 +105,18 @@ private fun HandleRegisterAuthState(
 @Composable
 fun RegisterScreen(
     authState: AuthState,
-    onSignUpClick: () -> Unit,
+    onSignUpClick: (
+        fullName: String,
+        email: String,
+        password: String,
+        confirmPassword: String,
+    ) -> Unit,
     onSignInWithGoogleClick: () -> Unit,
     onLoginClick: () -> Unit,
 ) {
+    val isBusy = authState.isBusy()
+    val isEmailLoading = authState.isLoading(AuthMethod.Email)
+    val isGoogleLoading = authState.isLoading(AuthMethod.Google)
     var fullName by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -254,8 +277,12 @@ fun RegisterScreen(
 
                         KeuTrackButton(
                             text = "Sign Up",
-                            onClick = onSignUpClick,
+                            onClick = {
+                                onSignUpClick(fullName, email, password, confirmPassword)
+                            },
                             style = KeuTrackButtonStyle.Primary,
+                            enabled = !isBusy || isEmailLoading,
+                            isLoading = isEmailLoading,
                             modifier = Modifier.fillMaxWidth(),
                         )
 
@@ -287,7 +314,8 @@ fun RegisterScreen(
                             text = "Sign Up with Google",
                             onClick = onSignInWithGoogleClick,
                             style = KeuTrackButtonStyle.Secondary,
-                            isLoading = authState is AuthState.Loading || authState is AuthState.Success,
+                            enabled = !isBusy || isGoogleLoading,
+                            isLoading = isGoogleLoading,
                             modifier = Modifier.fillMaxWidth(),
                             leading = {
                                 Icon(
@@ -353,7 +381,7 @@ fun RegisterScreenPreview() {
     KeuTrackTheme {
         RegisterScreen(
             authState = AuthState.Idle,
-            onSignUpClick = {},
+            onSignUpClick = { _, _, _, _ -> },
             onSignInWithGoogleClick = {},
             onLoginClick = {},
         )
@@ -365,8 +393,8 @@ fun RegisterScreenPreview() {
 fun RegisterScreenLoadingPreview() {
     KeuTrackTheme {
         RegisterScreen(
-            authState = AuthState.Loading,
-            onSignUpClick = {},
+            authState = AuthState.Loading(AuthMethod.Email),
+            onSignUpClick = { _, _, _, _ -> },
             onSignInWithGoogleClick = {},
             onLoginClick = {},
         )
@@ -379,7 +407,7 @@ fun RegisterScreenErrorPreview() {
     KeuTrackTheme {
         RegisterScreen(
             authState = AuthState.Error("No internet connection. Please try again."),
-            onSignUpClick = {},
+            onSignUpClick = { _, _, _, _ -> },
             onSignInWithGoogleClick = {},
             onLoginClick = {},
         )
