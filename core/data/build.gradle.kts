@@ -1,7 +1,7 @@
 plugins {
     alias(libs.plugins.keutrack.library)
     alias(libs.plugins.keutrack.hilt)
-    alias(libs.plugins.keutrack.firebase)
+    alias(libs.plugins.keutrack.lib.firebase)
 }
 
 android {
@@ -12,4 +12,7 @@ dependencies {
     implementation(projects.core.datastore)
     implementation(projects.core.domain)
     implementation(projects.core.network)
+
+    implementation(libs.firebase.auth)
+    implementation(libs.firebase.firestore)
 }
