@@ -45,7 +45,10 @@ import com.mascill.keutrack.core.designsystem.component.KeuTrackTextField
 import com.mascill.keutrack.core.designsystem.model.KeuTrackButtonStyle
 import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
 import com.mascill.keutrack.feature.auth.R
+import com.mascill.keutrack.feature.auth.presentation.model.AuthMethod
 import com.mascill.keutrack.feature.auth.presentation.model.AuthState
+import com.mascill.keutrack.feature.auth.presentation.model.isBusy
+import com.mascill.keutrack.feature.auth.presentation.model.isLoading
 
 @Composable
 fun LoginRouting(
@@ -98,7 +101,9 @@ fun LoginScreen(
     onEmailLoginClick: (email: String, password: String) -> Unit,
     onRegisterClick: () -> Unit = {},
 ) {
-    val isAuthBusy = authState is AuthState.Loading || authState is AuthState.Success
+    val isBusy = authState.isBusy()
+    val isEmailLoading = authState.isLoading(AuthMethod.Email)
+    val isGoogleLoading = authState.isLoading(AuthMethod.Google)
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
@@ -231,7 +236,8 @@ fun LoginScreen(
                             text = "Login",
                             onClick = { onEmailLoginClick(email, password) },
                             style = KeuTrackButtonStyle.Primary,
-                            isLoading = isAuthBusy,
+                            enabled = !isBusy || isEmailLoading,
+                            isLoading = isEmailLoading,
                             modifier = Modifier.fillMaxWidth(),
                         )
 
@@ -263,7 +269,8 @@ fun LoginScreen(
                             text = "Login with Google",
                             onClick = onSignInClick,
                             style = KeuTrackButtonStyle.Secondary,
-                            isLoading = isAuthBusy,
+                            enabled = !isBusy || isGoogleLoading,
+                            isLoading = isGoogleLoading,
                             modifier = Modifier.fillMaxWidth(),
                             leading = {
                                 Icon(
@@ -330,7 +337,7 @@ fun LoginScreenPreview() {
 fun LoginScreenLoadingPreview() {
     KeuTrackTheme {
         LoginScreen(
-            authState = AuthState.Loading,
+            authState = AuthState.Loading(AuthMethod.Email),
             onSignInClick = {},
             onEmailLoginClick = { _, _ -> },
         )

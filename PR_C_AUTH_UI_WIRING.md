@@ -251,15 +251,38 @@ fun showError(message: String) {
 }
 ```
 
-### Step 6 — Loading UX polish (recommended)
+### Step 6 — Separate loading per auth method
 
-Today Google buttons set `isLoading` from `authState`. Apply the same to primary Login / Sign Up buttons so users cannot double-submit:
+Do **not** share one loading flag for both buttons. Track which method is in progress:
 
 ```kotlin
-isLoading = authState is AuthState.Loading || authState is AuthState.Success
+enum class AuthMethod { Email, Google }
+
+sealed interface AuthState {
+    data object Idle : AuthState
+    data class Loading(val method: AuthMethod) : AuthState
+    data class Success(val method: AuthMethod) : AuthState
+    data class Error(val message: String) : AuthState
+}
 ```
 
-on both primary email buttons (and keep Google buttons consistent).
+In screens:
+
+```kotlin
+val isEmailLoading = authState.isLoading(AuthMethod.Email)
+val isGoogleLoading = authState.isLoading(AuthMethod.Google)
+val isBusy = authState.isBusy()
+
+// Email / Sign Up button
+enabled = !isBusy || isEmailLoading
+isLoading = isEmailLoading
+
+// Google button
+enabled = !isBusy || isGoogleLoading
+isLoading = isGoogleLoading
+```
+
+While one method is loading, the other button is disabled (no spinner). Only the active method shows loading.
 
 ### Step 7 — Shared AuthResult mapping (optional cleanup)
 

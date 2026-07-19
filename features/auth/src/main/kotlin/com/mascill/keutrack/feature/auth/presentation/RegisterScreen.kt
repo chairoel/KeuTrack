@@ -48,7 +48,10 @@ import com.mascill.keutrack.core.designsystem.component.KeuTrackTextField
 import com.mascill.keutrack.core.designsystem.model.KeuTrackButtonStyle
 import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
 import com.mascill.keutrack.feature.auth.R
+import com.mascill.keutrack.feature.auth.presentation.model.AuthMethod
 import com.mascill.keutrack.feature.auth.presentation.model.AuthState
+import com.mascill.keutrack.feature.auth.presentation.model.isBusy
+import com.mascill.keutrack.feature.auth.presentation.model.isLoading
 
 @Composable
 fun RegisterRouting(
@@ -111,7 +114,9 @@ fun RegisterScreen(
     onSignInWithGoogleClick: () -> Unit,
     onLoginClick: () -> Unit,
 ) {
-    val isAuthBusy = authState is AuthState.Loading || authState is AuthState.Success
+    val isBusy = authState.isBusy()
+    val isEmailLoading = authState.isLoading(AuthMethod.Email)
+    val isGoogleLoading = authState.isLoading(AuthMethod.Google)
     var fullName by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -276,7 +281,8 @@ fun RegisterScreen(
                                 onSignUpClick(fullName, email, password, confirmPassword)
                             },
                             style = KeuTrackButtonStyle.Primary,
-                            isLoading = isAuthBusy,
+                            enabled = !isBusy || isEmailLoading,
+                            isLoading = isEmailLoading,
                             modifier = Modifier.fillMaxWidth(),
                         )
 
@@ -308,7 +314,8 @@ fun RegisterScreen(
                             text = "Sign Up with Google",
                             onClick = onSignInWithGoogleClick,
                             style = KeuTrackButtonStyle.Secondary,
-                            isLoading = isAuthBusy,
+                            enabled = !isBusy || isGoogleLoading,
+                            isLoading = isGoogleLoading,
                             modifier = Modifier.fillMaxWidth(),
                             leading = {
                                 Icon(
@@ -386,7 +393,7 @@ fun RegisterScreenPreview() {
 fun RegisterScreenLoadingPreview() {
     KeuTrackTheme {
         RegisterScreen(
-            authState = AuthState.Loading,
+            authState = AuthState.Loading(AuthMethod.Email),
             onSignUpClick = { _, _, _, _ -> },
             onSignInWithGoogleClick = {},
             onLoginClick = {},

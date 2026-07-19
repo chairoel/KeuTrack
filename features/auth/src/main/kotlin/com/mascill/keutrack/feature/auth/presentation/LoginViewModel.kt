@@ -8,8 +8,10 @@ import com.mascill.keutrack.core.domain.model.AuthResult
 import com.mascill.keutrack.core.domain.model.TokenResult
 import com.mascill.keutrack.core.domain.repository.UserRepository
 import com.mascill.keutrack.feature.auth.data.GoogleSignInTokenProvider
+import com.mascill.keutrack.feature.auth.presentation.model.AuthMethod
 import com.mascill.keutrack.feature.auth.presentation.model.AuthState
 import com.mascill.keutrack.feature.auth.presentation.model.AuthUIState
+import com.mascill.keutrack.feature.auth.presentation.model.isBusy
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -40,14 +42,14 @@ class LoginViewModel @Inject constructor(
     )
 
     fun signInWithGoogle(context: Context) {
-        if (_authState.value == AuthState.Loading) return
+        if (_authState.value.isBusy()) return
 
         viewModelScope.launch(dispatcher.main) {
-            _authState.value = AuthState.Loading
+            _authState.value = AuthState.Loading(AuthMethod.Google)
 
             _authState.value = when (val tokenResult = googleSignInTokenProvider.getGoogleIdToken(context)) {
                 is TokenResult.Success -> when (userRepository.signInWithGoogle(tokenResult.idToken)) {
-                    is AuthResult.Success -> AuthState.Success
+                    is AuthResult.Success -> AuthState.Success(AuthMethod.Google)
                     is AuthResult.Cancelled -> AuthState.Idle
                     is AuthResult.Error.Network -> AuthState.Error("No internet connection. Please try again.")
                     is AuthResult.Error.NoCredential -> AuthState.Error("No Google account found on this device.")
@@ -64,12 +66,12 @@ class LoginViewModel @Inject constructor(
     }
 
     fun signInWithEmail(email: String, password: String) {
-        if (_authState.value == AuthState.Loading) return
+        if (_authState.value.isBusy()) return
 
         viewModelScope.launch(dispatcher.main) {
-            _authState.value = AuthState.Loading
+            _authState.value = AuthState.Loading(AuthMethod.Email)
             _authState.value = when (userRepository.signInWithEmail(email, password)) {
-                is AuthResult.Success -> AuthState.Success
+                is AuthResult.Success -> AuthState.Success(AuthMethod.Email)
                 is AuthResult.Cancelled -> AuthState.Idle
                 is AuthResult.Error.Network -> AuthState.Error("No internet connection. Please try again.")
                 is AuthResult.Error.NoCredential -> AuthState.Error("Unable to sign in. Please try again.")
