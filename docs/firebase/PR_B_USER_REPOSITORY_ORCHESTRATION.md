@@ -1,6 +1,6 @@
 # PR B — UserRepository Orchestration (Auth → Firestore → Local)
 
-Parent plan: [`FIRESTORE_LOGIN_PLAN.md`](./FIRESTORE_LOGIN_PLAN.md)  
+Parent plan: [`FIRESTORE_LOGIN_INTEGRATION.md`](./FIRESTORE_LOGIN_INTEGRATION.md)  
 Depends on: [`PR_A_FIRESTORE_AUTH_INFRA.md`](./PR_A_FIRESTORE_AUTH_INFRA.md) (merged or available on branch)
 
 ## Goal
@@ -66,7 +66,7 @@ Confirm these already exist and compile:
 ### Reference only (read, usually no edits)
 | File | Why it matters |
 |---|---|
-| [`FIRESTORE_LOGIN_PLAN.md`](./FIRESTORE_LOGIN_PLAN.md) | Canonical flows, rollback, error mapping cheatsheet |
+| [`FIRESTORE_LOGIN_INTEGRATION.md`](./FIRESTORE_LOGIN_INTEGRATION.md) | Canonical flows, rollback, error mapping cheatsheet |
 | [`PR_A_FIRESTORE_AUTH_INFRA.md`](./PR_A_FIRESTORE_AUTH_INFRA.md) | Handoff contract for data-source APIs |
 | [`core/domain/src/main/kotlin/com/mascill/keutrack/core/domain/model/AuthResult.kt`](core/domain/src/main/kotlin/com/mascill/keutrack/core/domain/model/AuthResult.kt) | Keep sealed hierarchy unchanged |
 | [`core/domain/src/main/kotlin/com/mascill/keutrack/core/domain/model/User.kt`](core/domain/src/main/kotlin/com/mascill/keutrack/core/domain/model/User.kt) | Domain user shape |

@@ -1,6 +1,6 @@
 # PR C — Auth UI Wiring (Email Login / Register + E2E)
 
-Parent plan: [`FIRESTORE_LOGIN_PLAN.md`](./FIRESTORE_LOGIN_PLAN.md)  
+Parent plan: [`FIRESTORE_LOGIN_INTEGRATION.md`](./FIRESTORE_LOGIN_INTEGRATION.md)  
 Depends on:
 - [`PR_A_FIRESTORE_AUTH_INFRA.md`](./PR_A_FIRESTORE_AUTH_INFRA.md)
 - [`PR_B_USER_REPOSITORY_ORCHESTRATION.md`](./PR_B_USER_REPOSITORY_ORCHESTRATION.md)
@@ -77,7 +77,7 @@ Confirm these exist:
 ### Reference only (read, usually no edits)
 | File | Why it matters |
 |---|---|
-| [`FIRESTORE_LOGIN_PLAN.md`](./FIRESTORE_LOGIN_PLAN.md) | Full flows + manual Test Plan |
+| [`FIRESTORE_LOGIN_INTEGRATION.md`](./FIRESTORE_LOGIN_INTEGRATION.md) | Full flows + manual Test Plan |
 | [`PR_B_USER_REPOSITORY_ORCHESTRATION.md`](./PR_B_USER_REPOSITORY_ORCHESTRATION.md) | Handoff contract for repository APIs |
 | [`core/domain/src/main/kotlin/com/mascill/keutrack/core/domain/repository/UserRepository.kt`](core/domain/src/main/kotlin/com/mascill/keutrack/core/domain/repository/UserRepository.kt) | Methods to call from ViewModels |
 | [`core/domain/src/main/kotlin/com/mascill/keutrack/core/domain/model/AuthResult.kt`](core/domain/src/main/kotlin/com/mascill/keutrack/core/domain/model/AuthResult.kt) | Result mapping to UI state |

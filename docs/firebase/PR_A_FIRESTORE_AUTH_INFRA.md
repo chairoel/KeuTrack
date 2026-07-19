@@ -1,6 +1,6 @@
 # PR A — Firebase Auth Email + Firestore Data Infrastructure
 
-Parent plan: [`FIRESTORE_LOGIN_PLAN.md`](./FIRESTORE_LOGIN_PLAN.md)
+Parent plan: [`FIRESTORE_LOGIN_INTEGRATION.md`](./FIRESTORE_LOGIN_INTEGRATION.md)
 
 ## Goal
 Deliver the **data-layer infrastructure** required by the Auth → Firestore profile flow, without wiring repository orchestration or UI yet.
@@ -57,7 +57,7 @@ flowchart LR
 ### Reference only (read, usually no edits)
 | File | Why it matters |
 |---|---|
-| [`FIRESTORE_LOGIN_PLAN.md`](./FIRESTORE_LOGIN_PLAN.md) | Full product/technical contract, field rules, error mapping |
+| [`FIRESTORE_LOGIN_INTEGRATION.md`](./FIRESTORE_LOGIN_INTEGRATION.md) | Full product/technical contract, field rules, error mapping |
 | [`core/domain/src/main/kotlin/com/mascill/keutrack/core/domain/model/User.kt`](core/domain/src/main/kotlin/com/mascill/keutrack/core/domain/model/User.kt) | Domain user shape used by Firestore upsert/get |
 | [`core/data/src/main/kotlin/com/mascill/keutrack/core/data/model/AuthUserResponse.kt`](core/data/src/main/kotlin/com/mascill/keutrack/core/data/model/AuthUserResponse.kt) | DTO returned by Auth data source |
 | [`core/data/src/main/kotlin/com/mascill/keutrack/core/data/mapper/AuthUserMapper.kt`](core/data/src/main/kotlin/com/mascill/keutrack/core/data/mapper/AuthUserMapper.kt) | Map `FirebaseUser` ↔ `AuthUserResponse` / `User` |
