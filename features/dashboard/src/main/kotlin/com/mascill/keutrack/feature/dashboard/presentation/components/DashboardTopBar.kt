@@ -19,7 +19,7 @@ import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
 
 private const val DASH_TOP_BRAND_SPACING = 8
 private const val DASH_TOP_AVATAR = 44
-private const val DASH_TOP_AVATAR_ICON = 28
+private const val DASH_TOP_AVATAR_ICON = 36
 private const val DASH_TOP_BAR_TITLE = "KeuTrack"
 private const val DASH_TOP_BAR_TRAILING_CD = "Settings"
 

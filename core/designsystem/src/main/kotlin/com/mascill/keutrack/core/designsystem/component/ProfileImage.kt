@@ -32,7 +32,7 @@ fun ProfileImage(
         modifier = Modifier
             .size(avatarSize.dp)
             .clip(CircleShape)
-            .background(semantic.onSurfaceVariant),
+            .background(semantic.surfaceContainerHigh),
         contentAlignment = Alignment.Center
     ) {
         if (photoUrl.isNullOrBlank()) {
