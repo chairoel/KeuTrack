@@ -11,14 +11,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.FloatingActionButton
-import androidx.compose.material.Icon
 import androidx.compose.material.Scaffold
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -29,6 +24,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.mascill.keutrack.core.designsystem.component.KeuTrackFab
 import com.mascill.keutrack.core.designsystem.component.KeuTrackModalBottomSheet
 import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
 import com.mascill.keutrack.core.domain.model.User
@@ -95,8 +91,6 @@ private fun DashboardScreen(
     onNewEntrySheetDismiss: () -> Unit,
 ) {
     val pageBg = KeuTrackTheme.contentColors.pageColor
-    val semantic = KeuTrackTheme.semanticColors
-    val neutral = KeuTrackTheme.neutralColors
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
@@ -125,17 +119,10 @@ private fun DashboardScreen(
                 }
             },
             floatingActionButton = {
-                FloatingActionButton(
+                KeuTrackFab(
                     onClick = onFabClick,
-                    shape = RoundedCornerShape(KeuTrackTheme.shapeTokens.radiusLg),
-                    backgroundColor = semantic.primary,
-                    contentColor = neutral.white,
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Add,
-                        contentDescription = "Add transaction",
-                    )
-                }
+                    contentDescription = "Add transaction",
+                )
             },
         ) { innerPadding ->
             LazyColumn(

@@ -2,11 +2,8 @@ package com.mascill.keutrack.feature.dashboard.presentation.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -21,7 +18,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.Icon
 import androidx.compose.material.Text
-import androidx.compose.material.ripple
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.DirectionsCar
@@ -39,23 +35,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.mascill.keutrack.core.designsystem.component.KeuTrackAmountKeypad
 import com.mascill.keutrack.core.designsystem.component.KeuTrackButton
 import com.mascill.keutrack.core.designsystem.component.KeuTrackCard
+import com.mascill.keutrack.core.designsystem.component.KeuTrackCategoryChip
+import com.mascill.keutrack.core.designsystem.component.KeuTrackCurrencyText
+import com.mascill.keutrack.core.designsystem.component.KeuTrackSegmentedControl
+import com.mascill.keutrack.core.designsystem.format.MAX_AMOUNT_RUPIAH
 import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
 import com.mascill.keutrack.feature.dashboard.presentation.model.EntryTransactionKind
 import com.mascill.keutrack.feature.dashboard.presentation.model.NewEntryCategoryUI
-import com.mascill.keutrack.feature.dashboard.presentation.model.NewEntryKeypad
-import java.text.NumberFormat
-import java.util.Locale
-import kotlin.math.min
-
-/** Max whole rupiah digits the keypad can represent (≈100 trillion). */
-private const val MAX_AMOUNT_RUPIAH = 99_999_999_999_999L
 
 private const val NEW_ENTRY_TITLE = "New Entry"
 private const val NEW_ENTRY_SUBTITLE = "Add a transaction to your ledger"
@@ -77,7 +70,6 @@ private const val NEW_ENTRY_CATEGORY_ID_BILLS = "bills"
 private const val NEW_ENTRY_CATEGORY_LABEL_BILLS = "Bills"
 private const val NEW_ENTRY_CATEGORY_ID_FUN = "fun"
 private const val NEW_ENTRY_CATEGORY_LABEL_FUN = "Fun"
-private const val NEW_ENTRY_AMOUNT_CURRENCY_PREFIX = "Rp "
 
 private const val NEW_ENTRY_SHEET_PH = 20
 private const val NEW_ENTRY_SHEET_PB = 8
@@ -92,31 +84,11 @@ private const val NEW_ENTRY_CATEGORY_HEADER_PB = 12
 private const val NEW_ENTRY_CATEGORY_ROW_SPACING = 12
 private const val NEW_ENTRY_BEFORE_KEYPAD_SPACER = 20
 private const val NEW_ENTRY_AFTER_KEYPAD_SPACER = 20
-private const val NEW_ENTRY_TOGGLE_PADDING = 4
-private const val NEW_ENTRY_TOGGLE_INNER_SPACING = 4
-private const val NEW_ENTRY_TOGGLE_SEGMENT_PV = 12
 private const val NEW_ENTRY_WALLET_CHIP_LABEL_GAP = 6
 private const val NEW_ENTRY_WALLET_CHIP_PH = 12
 private const val NEW_ENTRY_WALLET_CHIP_PV = 12
 private const val NEW_ENTRY_WALLET_CHIP_ICON_TEXT_SPACING = 8
 private const val NEW_ENTRY_WALLET_CHIP_ICON = 20
-private const val NEW_ENTRY_CATEGORY_CHIP_BOX = 56
-private const val NEW_ENTRY_CATEGORY_CHIP_ICON = 26
-private const val NEW_ENTRY_CATEGORY_CHIP_LABEL_PT = 6
-private const val NEW_ENTRY_KEYPAD_ROW_SPACING = 8
-private const val NEW_ENTRY_KEYPAD_CELL_HEIGHT = 52
-
-private const val NEW_ENTRY_TOGGLE_EXPENSE_PRIMARY_CONTAINER_ALPHA = 0.85f
-private const val NEW_ENTRY_TOGGLE_INCOME_PRIMARY_LIGHT_ALPHA = 0.1f
-private const val NEW_ENTRY_TOGGLE_INCOME_PRIMARY_DARK_ALPHA = 0.35f
-private const val NEW_ENTRY_CATEGORY_CHIP_SELECTED_ALPHA = 0.85f
-
-private val newEntryIdNumberFormat: NumberFormat =
-    NumberFormat.getNumberInstance(Locale.forLanguageTag("id-ID")).apply {
-        maximumFractionDigits = 0
-        minimumFractionDigits = 0
-        isGroupingUsed = true
-    }
 
 @Composable
 fun NewEntryBottomSheetContent(
@@ -181,9 +153,12 @@ fun NewEntryBottomSheetContent(
 
         Spacer(modifier = Modifier.height(NEW_ENTRY_SECTION_SPACER_LG.dp))
 
-        ExpenseIncomeToggle(
-            selected = kind,
-            onSelect = { kind = it },
+        KeuTrackSegmentedControl(
+            leftLabel = NEW_ENTRY_EXPENSE,
+            rightLabel = NEW_ENTRY_INCOME,
+            leftSelected = kind == EntryTransactionKind.Expense,
+            onLeftClick = { kind = EntryTransactionKind.Expense },
+            onRightClick = { kind = EntryTransactionKind.Income },
         )
 
         Spacer(modifier = Modifier.height(NEW_ENTRY_SECTION_SPACER_LG.dp))
@@ -208,14 +183,12 @@ fun NewEntryBottomSheetContent(
                 ),
             onClick = null,
         ) {
-            Text(
-                text = formatAmountIdr(amountRupiah),
+            KeuTrackCurrencyText(
+                amount = amountRupiah,
                 style = typography.headingBold36,
                 color = semantic.primary,
                 modifier = Modifier.fillMaxWidth(),
                 textAlign = TextAlign.Center,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
             )
         }
 
@@ -271,10 +244,10 @@ fun NewEntryBottomSheetContent(
             horizontalArrangement = Arrangement.spacedBy(NEW_ENTRY_CATEGORY_ROW_SPACING.dp),
         ) {
             categories.forEach { cat ->
-                CategoryChip(
+                KeuTrackCategoryChip(
                     label = cat.label,
                     icon = cat.icon,
-                    accent = cat.accent,
+                    containerColor = cat.accent,
                     selected = selectedCategoryId == cat.id,
                     onClick = { selectedCategoryId = cat.id },
                 )
@@ -283,7 +256,7 @@ fun NewEntryBottomSheetContent(
 
         Spacer(modifier = Modifier.height(NEW_ENTRY_BEFORE_KEYPAD_SPACER.dp))
 
-        AmountKeypad(
+        KeuTrackAmountKeypad(
             onDigit = { d ->
                 val next = amountRupiah * 10L + d
                 if (next <= MAX_AMOUNT_RUPIAH) amountRupiah = next
@@ -306,74 +279,6 @@ fun NewEntryBottomSheetContent(
                     .fillMaxWidth()
                     .navigationBarsPadding(),
         )
-    }
-}
-
-@Composable
-private fun ExpenseIncomeToggle(
-    selected: EntryTransactionKind,
-    onSelect: (EntryTransactionKind) -> Unit,
-) {
-    val isDark = isSystemInDarkTheme()
-    val semantic = KeuTrackTheme.semanticColors
-    val shapes = KeuTrackTheme.shapeTokens
-    val typography = KeuTrackTheme.typography
-
-    Row(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(shapes.radiusLg))
-                .background(semantic.surfaceContainerHigh)
-                .padding(NEW_ENTRY_TOGGLE_PADDING.dp),
-        horizontalArrangement = Arrangement.spacedBy(NEW_ENTRY_TOGGLE_INNER_SPACING.dp),
-    ) {
-        EntryTransactionKind.entries.forEach { entryKind ->
-            val isSelected = selected == entryKind
-            val bg =
-                when {
-                    !isSelected -> Color.Transparent
-                    entryKind == EntryTransactionKind.Expense && !isDark ->
-                        semantic.surfaceContainerLowest
-
-                    entryKind == EntryTransactionKind.Expense && isDark ->
-                        semantic.primaryContainer.copy(alpha = NEW_ENTRY_TOGGLE_EXPENSE_PRIMARY_CONTAINER_ALPHA)
-
-                    entryKind == EntryTransactionKind.Income && !isDark ->
-                        semantic.primary.copy(alpha = NEW_ENTRY_TOGGLE_INCOME_PRIMARY_LIGHT_ALPHA)
-
-                    else -> semantic.primary.copy(alpha = NEW_ENTRY_TOGGLE_INCOME_PRIMARY_DARK_ALPHA)
-                }
-            val labelColor =
-                when {
-                    !isSelected -> semantic.onSurfaceVariant
-                    entryKind == EntryTransactionKind.Expense && !isDark -> semantic.tertiary
-                    entryKind == EntryTransactionKind.Expense && isDark -> Color.White
-                    entryKind == EntryTransactionKind.Income && !isDark -> semantic.primary
-                    else -> Color.White
-                }
-            val label =
-                when (entryKind) {
-                    EntryTransactionKind.Expense -> NEW_ENTRY_EXPENSE
-                    EntryTransactionKind.Income -> NEW_ENTRY_INCOME
-                }
-            Box(
-                modifier =
-                    Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(shapes.radiusMd))
-                        .background(bg)
-                        .clickable { onSelect(entryKind) }
-                        .padding(vertical = NEW_ENTRY_TOGGLE_SEGMENT_PV.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = label,
-                    style = typography.bodyBold14,
-                    color = labelColor,
-                )
-            }
-        }
     }
 }
 
@@ -435,124 +340,4 @@ private fun WalletDateChip(
             }
         }
     }
-}
-
-@Composable
-private fun CategoryChip(
-    label: String,
-    icon: ImageVector,
-    accent: Color,
-    selected: Boolean,
-    onClick: () -> Unit,
-) {
-    val semantic = KeuTrackTheme.semanticColors
-    val textColors = KeuTrackTheme.textColors
-    val typography = KeuTrackTheme.typography
-    val shapes = KeuTrackTheme.shapeTokens
-    val chipShape = RoundedCornerShape(shapes.radiusMd)
-    val chipInteractionSource = remember { MutableInteractionSource() }
-
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(
-            modifier =
-                Modifier
-                    .size(NEW_ENTRY_CATEGORY_CHIP_BOX.dp)
-                    .clip(chipShape)
-                    .background(
-                        if (selected) {
-                            accent.copy(alpha = NEW_ENTRY_CATEGORY_CHIP_SELECTED_ALPHA)
-                        } else {
-                            semantic.surfaceContainerHigh
-                        },
-                    )
-                    .clickable(
-                        interactionSource = chipInteractionSource,
-                        indication = ripple(bounded = true),
-                        onClick = onClick,
-                    ),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = label,
-                tint =
-                    if (selected) {
-                        Color.White
-                    } else {
-                        accent
-                    },
-                modifier = Modifier.size(NEW_ENTRY_CATEGORY_CHIP_ICON.dp),
-            )
-        }
-        Spacer(modifier = Modifier.height(NEW_ENTRY_CATEGORY_CHIP_LABEL_PT.dp))
-        Text(
-            text = label,
-            style = typography.bodyRegular12,
-            color = textColors.body,
-            maxLines = 1,
-        )
-    }
-}
-
-@Composable
-private fun AmountKeypad(
-    onDigit: (Long) -> Unit,
-    onTripleZero: () -> Unit,
-    onBackspace: () -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(NEW_ENTRY_KEYPAD_ROW_SPACING.dp)) {
-        NewEntryKeypad.ROWS.forEach { row ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(NEW_ENTRY_KEYPAD_ROW_SPACING.dp),
-            ) {
-                row.forEach { key ->
-                    KeypadCell(
-                        label = key,
-                        modifier = Modifier.weight(1f),
-                        onClick = {
-                            when (key) {
-                                NewEntryKeypad.BACKSPACE -> onBackspace()
-                                NewEntryKeypad.TRIPLE_ZERO -> onTripleZero()
-                                else -> onDigit(key.first().digitToInt().toLong())
-                            }
-                        },
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun KeypadCell(
-    label: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val semantic = KeuTrackTheme.semanticColors
-    val textColors = KeuTrackTheme.textColors
-    val typography = KeuTrackTheme.typography
-    val shapes = KeuTrackTheme.shapeTokens
-
-    Box(
-        modifier =
-            modifier
-                .height(NEW_ENTRY_KEYPAD_CELL_HEIGHT.dp)
-                .clip(RoundedCornerShape(shapes.radiusMd))
-                .background(semantic.surfaceContainerHigh)
-                .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = label,
-            style = typography.headingBold20,
-            color = textColors.title,
-        )
-    }
-}
-
-private fun formatAmountIdr(amountRupiah: Long): String {
-    val safe = min(amountRupiah, MAX_AMOUNT_RUPIAH)
-    return NEW_ENTRY_AMOUNT_CURRENCY_PREFIX + newEntryIdNumberFormat.format(safe)
 }
