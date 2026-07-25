@@ -46,6 +46,11 @@ class SplashViewModel @Inject constructor(
     fun checkOnGoingNavigation() = viewModelScope.launch(dispatcher.io) {
         // Observe current user. If null -> Auth, if exists -> Home
         val user = userRepository.getCurrentUser().first()
+        if (user != null) {
+            // Refresh Firestore → local so Home sees currency/family fields.
+            // Best-effort: failure must not block navigation when local session exists.
+            userRepository.syncUserProfile()
+        }
         val nextState = if (user != null) {
             NavigationState.NavigateToHome
         } else {

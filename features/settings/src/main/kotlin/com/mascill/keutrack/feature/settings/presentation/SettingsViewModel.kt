@@ -27,7 +27,8 @@ class SettingsViewModel @Inject constructor(
     val currentUser: StateFlow<User?> = _currentUser.asStateFlow()
 
     init {
-        viewModelScope.launch {
+        viewModelScope.launch(dispatcher.io) {
+            runCatching { userRepository.syncUserProfile() }
             userRepository.getCurrentUser().collect { _currentUser.value = it }
         }
     }

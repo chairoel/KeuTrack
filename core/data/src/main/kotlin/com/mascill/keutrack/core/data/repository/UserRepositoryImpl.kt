@@ -93,7 +93,17 @@ class UserRepositoryImpl @Inject constructor(
     }
 
     override suspend fun syncUserProfile() {
-        // TODO: Implement user profile sync to Firestore
+        val authUser = mapper.mapToDomainOrNull(authDataSource.getCurrentUser()) ?: return
+        try {
+            firestoreDataSource.upsertUserProfile(authUser)
+            val userToPersist = resolveUserForPersist(authUser)
+            userProfileLocalDataSource.persist(userToPersist)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Best-effort: do not sign out on sync failure.
+            logFailure("syncUserProfile", e)
+        }
     }
 
     private suspend fun resolveUserForPersist(authUser: User): User {
