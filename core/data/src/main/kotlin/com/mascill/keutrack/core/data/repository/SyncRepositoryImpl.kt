@@ -12,6 +12,7 @@ import com.mascill.keutrack.core.data.mapper.BudgetMapper
 import com.mascill.keutrack.core.data.mapper.CategorySummaryMapper
 import com.mascill.keutrack.core.data.mapper.TransactionMapper
 import com.mascill.keutrack.core.data.mapper.WalletMapper
+import com.mascill.keutrack.core.data.sync.SyncScheduler
 import com.mascill.keutrack.core.domain.model.CategorySummary
 import com.mascill.keutrack.core.domain.model.SyncStatus
 import com.mascill.keutrack.core.domain.model.TransactionType
@@ -36,6 +37,7 @@ class SyncRepositoryImpl @Inject constructor(
     private val walletMapper: WalletMapper,
     private val budgetMapper: BudgetMapper,
     private val summaryMapper: CategorySummaryMapper,
+    private val syncScheduler: SyncScheduler,
 ) : SyncRepository {
 
     override suspend fun syncPendingWallets() {
@@ -143,6 +145,15 @@ class SyncRepositoryImpl @Inject constructor(
         } catch (e: CancellationException) {
             throw e
         }
+    }
+
+    override suspend fun hasPendingSync(): Boolean =
+        walletLocal.getPending().isNotEmpty() ||
+            budgetLocal.getPending().isNotEmpty() ||
+            transactionLocal.getPending().isNotEmpty()
+
+    override fun enqueuePendingSync(force: Boolean) {
+        syncScheduler.enqueueSync(force = force)
     }
 
     private companion object {

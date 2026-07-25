@@ -17,7 +17,7 @@ class SyncScheduler @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {
 
-    fun enqueueSync() {
+    fun enqueueSync(force: Boolean = false) {
         val request = OneTimeWorkRequestBuilder<SyncWorker>()
             .setConstraints(
                 Constraints.Builder()
@@ -30,7 +30,7 @@ class SyncScheduler @Inject constructor(
         WorkManager.getInstance(context)
             .enqueueUniqueWork(
                 UNIQUE_SYNC_WORK,
-                ExistingWorkPolicy.KEEP,
+                if (force) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP,
                 request,
             )
     }

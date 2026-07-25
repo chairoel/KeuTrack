@@ -74,6 +74,10 @@ fun DashboardRouting(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showNewEntrySheet by remember { mutableStateOf(false) }
 
+    LaunchedEffect(Unit) {
+        viewModel.onScreenRendered()
+    }
+
     LaunchedEffect(uiState.dismissNewEntrySheet) {
         if (uiState.dismissNewEntrySheet) {
             showNewEntrySheet = false

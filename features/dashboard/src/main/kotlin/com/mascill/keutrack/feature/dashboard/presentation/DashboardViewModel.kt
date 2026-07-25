@@ -15,6 +15,7 @@ import com.mascill.keutrack.core.domain.usecase.GetMonthlySummaryUseCase
 import com.mascill.keutrack.core.domain.usecase.GetTransactionsUseCase
 import com.mascill.keutrack.core.domain.usecase.GetWalletSummaryUseCase
 import com.mascill.keutrack.core.domain.usecase.MonthlySummaryResult
+import com.mascill.keutrack.core.domain.usecase.RetryPendingSyncUseCase
 import com.mascill.keutrack.core.domain.usecase.WalletSummary
 import com.mascill.keutrack.feature.dashboard.presentation.model.DashboardUIState
 import com.mascill.keutrack.feature.dashboard.presentation.model.DashboardUiMapper
@@ -42,6 +43,7 @@ class DashboardViewModel @Inject constructor(
     private val getMonthlySummary: GetMonthlySummaryUseCase,
     private val getCategories: GetCategoriesUseCase,
     private val addTransaction: AddTransactionUseCase,
+    private val retryPendingSync: RetryPendingSyncUseCase,
     private val dispatcher: CommonDispatcher,
 ) : ViewModel() {
 
@@ -135,6 +137,22 @@ class DashboardViewModel @Inject constructor(
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = DashboardUIState(),
         )
+
+    /**
+     * Called when the dashboard becomes visible. Retries sync only if Room still
+     * has PENDING/FAILED items; otherwise no WorkManager work is enqueued.
+     */
+    fun onScreenRendered() {
+        viewModelScope.launch(dispatcher.io) {
+            try {
+                retryPendingSync()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // Best-effort; UI already shows local sync badges.
+            }
+        }
+    }
 
     fun onEntryKindChanged(kind: EntryTransactionKind) {
         selectedEntryKind.value = kind
