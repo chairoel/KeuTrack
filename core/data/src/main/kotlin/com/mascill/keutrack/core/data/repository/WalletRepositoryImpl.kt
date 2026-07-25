@@ -10,12 +10,19 @@ import com.mascill.keutrack.core.domain.model.WalletType
 import com.mascill.keutrack.core.domain.repository.WalletRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.time.Instant
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.cancellation.CancellationException
 
+/**
+ * Wallets are local-first. A default personal wallet is created lazily on first
+ * [observeWallets] / [getPersonalWallet] when none exists yet.
+ */
 @Singleton
 class WalletRepositoryImpl @Inject constructor(
     private val local: WalletLocalDataSource,
@@ -24,11 +31,17 @@ class WalletRepositoryImpl @Inject constructor(
     private val syncScheduler: SyncScheduler,
 ) : WalletRepository {
 
+    private val ensureWalletMutex = Mutex()
+
     override fun observeWallets(): Flow<List<Wallet>> =
-        local.observeAll().map { entities -> entities.map(mapper::toDomain) }
+        local.observeAll()
+            .onStart { ensureDefaultPersonalWallet() }
+            .map { entities -> entities.map(mapper::toDomain) }
 
     override fun observeWalletsByType(type: WalletType): Flow<List<Wallet>> =
-        local.observeByType(type.value).map { entities -> entities.map(mapper::toDomain) }
+        local.observeByType(type.value)
+            .onStart { ensureDefaultPersonalWallet() }
+            .map { entities -> entities.map(mapper::toDomain) }
 
     override fun observeWalletById(walletId: String): Flow<Wallet?> =
         local.observeById(walletId).map { entity -> entity?.let(mapper::toDomain) }
@@ -72,22 +85,28 @@ class WalletRepositoryImpl @Inject constructor(
     }
 
     private suspend fun ensureDefaultPersonalWallet(): Wallet? {
-        val uid = authNetworkDataSource.getCurrentUser()?.uid ?: return null
-        val existing = local.getPersonal()
-        if (existing != null) return mapper.toDomain(existing)
+        try {
+            return ensureWalletMutex.withLock {
+                local.getPersonal()?.let { return@withLock mapper.toDomain(it) }
 
-        val wallet = Wallet(
-            id = UUID.randomUUID().toString(),
-            ownerId = uid,
-            name = "Dompet Utama",
-            type = WalletType.PERSONAL,
-            balance = 0L,
-            currency = "IDR",
-            syncStatus = SyncStatus.PENDING,
-            createdAt = Instant.now(),
-        )
-        local.upsert(mapper.toEntity(wallet))
-        syncScheduler.enqueueSync()
-        return wallet
+                val uid = authNetworkDataSource.getCurrentUser()?.uid ?: return@withLock null
+
+                val wallet = Wallet(
+                    id = UUID.randomUUID().toString(),
+                    ownerId = uid,
+                    name = "Dompet Utama",
+                    type = WalletType.PERSONAL,
+                    balance = 0L,
+                    currency = "IDR",
+                    syncStatus = SyncStatus.PENDING,
+                    createdAt = Instant.now(),
+                )
+                local.upsert(mapper.toEntity(wallet))
+                syncScheduler.enqueueSync()
+                wallet
+            }
+        } catch (e: CancellationException) {
+            throw e
+        }
     }
 }
