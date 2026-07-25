@@ -1,0 +1,42 @@
+---
+description: Git commit message conventions for KeuTrack project
+alwaysApply: true
+---
+
+# Git Commit Conventions
+
+## Format
+
+```
+[TAG] Short description in imperative mood
+```
+
+## Tags
+
+| Tag | When |
+|-----|------|
+| `[FEAT]` | New feature or significant functionality |
+| `[FIX]` | Bug fix |
+| `[REFACTOR]` | Code restructuring without behavior change |
+| `[CONFIG]` | Build, Gradle, plugin, CI/CD, or config changes |
+| `[DOCS]` | Documentation only |
+| `[TEST]` | Adding or updating tests |
+| `[STYLE]` | Formatting, whitespace, naming (no logic change) |
+
+## Examples from This Project
+
+```
+[FEAT] Implement syncUserProfile and refresh on splash and settings
+[FEAT] Wire email login/register UI to UserRepository
+[FIX] Align protobuf with Firestore protolite-well-known-types
+[CONFIG] Split Firebase convention plugin into app and library variants
+[REFACTOR] Rename Auth screen and route to Login
+```
+
+## Rules
+
+- Tag is uppercase in square brackets
+- Description starts with imperative verb (Implement, Add, Fix, Wire, Create, Update, Remove)
+- Keep under 72 characters
+- No period at the end
+- Reference feature area if helpful (e.g., "on dashboard and settings pages")

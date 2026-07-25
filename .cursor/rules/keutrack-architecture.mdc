@@ -1,0 +1,59 @@
+---
+description: KeuTrack project architecture, module boundaries, and clean architecture rules. Always active to enforce consistency.
+alwaysApply: true
+---
+
+# KeuTrack Architecture
+
+Android · Kotlin · Jetpack Compose · Multi-module Clean Architecture · Hilt · Firebase
+
+## Module Structure
+
+```
+:app                → depends on :features:*, :core:designsystem, :core:common
+:features:*         → depends on :core:domain, :core:designsystem, :core:common, :core:network
+:core:data          → depends on :core:domain, :core:datastore, :core:network
+:core:domain        → NO dependencies (pure Kotlin + javax.inject)
+:core:designsystem  → depends on :core:common
+:core:datastore     → standalone
+:core:common        → NO dependencies
+:core:network       → standalone
+:build-plugin       → convention plugins, shared across all modules
+```
+
+## Dependency Rules (STRICT)
+
+- `:features:*` MUST NOT depend on each other — communicate only via navigation or shared `:core` state
+- `:core:domain` MUST NOT import Android framework classes (except `javax.inject`)
+- `:core:data` implements repository interfaces defined in `:core:domain`
+- Feature modules MUST NOT contain repository implementations — put them in `:core:data`
+- All Firestore/Room/DataStore access goes through `:core:data`, never directly from features
+
+## Package Convention
+
+- Base package: `com.mascill.keutrack`
+- Core: `com.mascill.keutrack.core.{module}` (e.g., `core.domain`, `core.data`)
+- Feature: `com.mascill.keutrack.feature.{name}` (e.g., `feature.dashboard`, `feature.auth`)
+- Build plugin: `com.mascill.keutrack.buildplugin.convention`
+
+## Tech Stack
+
+| Concern | Technology |
+|---------|-----------|
+| UI | Jetpack Compose (Material 2 — `androidx.compose.material`) |
+| DI | Hilt + KSP |
+| Navigation | Navigation Compose (type-safe routes with `@Serializable`) |
+| Local storage | Proto DataStore (user session), Room (financial data — Phase 2+) |
+| Remote | Firebase Auth, Firestore |
+| Networking | Retrofit + Moshi (for non-Firebase APIs) |
+| Image loading | Coil |
+| Async | Kotlin Coroutines + Flow |
+| Min SDK | 28 |
+
+## Key Conventions
+
+- Language: Kotlin only (no Java)
+- All screens use `KeuTrackTheme` — never raw `MaterialTheme`
+- Use `CommonDispatcher` for coroutine dispatchers (testability)
+- Use `CancellationException` propagation pattern: always `catch (e: CancellationException) { throw e }` before generic catch blocks
+- Financial amounts use `Long` (not Double) — IDR has no decimals

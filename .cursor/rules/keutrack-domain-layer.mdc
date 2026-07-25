@@ -1,0 +1,91 @@
+---
+description: Conventions for core:domain module — entities, enums, repository interfaces, and use cases
+globs: core/domain/src/**/*.kt
+alwaysApply: false
+---
+
+# core:domain Conventions
+
+## Domain Model (Entity)
+
+```kotlin
+// data class with sensible defaults, nullable for optional fields
+data class Transaction(
+    val id: String,
+    val walletId: String,
+    val type: TransactionType,
+    val amount: Long,              // Long for money, not Double
+    val syncStatus: SyncStatus = SyncStatus.PENDING,
+    val createdAt: Instant = Instant.now(),
+)
+```
+
+Rules:
+- Use `data class` — immutable, no vars
+- Financial values: `Long` (never `Double` or `BigDecimal`)
+- Timestamps: `java.time.Instant`
+- Optional fields: nullable with `= null` default
+- Computed properties (e.g., `val remaining: Long get() = limit - spent`) are allowed in domain models
+- NO Android framework imports — pure Kotlin only
+
+## Enum
+
+```kotlin
+enum class TransactionType(val value: String) {
+    INCOME("income"),
+    EXPENSE("expense");
+
+    companion object {
+        fun fromValue(value: String): TransactionType =
+            entries.firstOrNull { it.value == value } ?: EXPENSE
+    }
+}
+```
+
+Rules:
+- Include `value: String` for Firestore/Room serialization (lowercase)
+- Always provide `fromValue()` companion with a safe default fallback
+- Exception: `SyncStatus` (local-only enum) doesn't need `value`
+
+## Repository Interface
+
+```kotlin
+interface TransactionRepository {
+    // Reactive reads → Flow
+    fun observeTransactions(): Flow<List<Transaction>>
+    // One-shot reads → suspend + nullable
+    suspend fun getTransactionById(id: String): Transaction?
+    // Writes → suspend
+    suspend fun addTransaction(transaction: Transaction)
+}
+```
+
+Rules:
+- Reactive reads return `Flow<T>`
+- One-shot reads/writes are `suspend` functions
+- Defined in `core/domain/repository/` — implemented in `core/data/`
+- Never reference data layer types (Room entities, Firestore types)
+
+## Use Case
+
+```kotlin
+class AddTransactionUseCase @Inject constructor(
+    private val transactionRepository: TransactionRepository,
+) {
+    suspend operator fun invoke(transaction: Transaction): Result<Unit> {
+        if (transaction.amount <= 0) {
+            return Result.failure(IllegalArgumentException("Amount must be greater than 0"))
+        }
+        transactionRepository.addTransaction(transaction)
+        return Result.success(Unit)
+    }
+}
+```
+
+Rules:
+- `@Inject constructor` — Hilt provides dependencies
+- Single `operator fun invoke()` — called like a function
+- Business validation lives here (not in ViewModel or Repository)
+- Return `Result<T>` for operations that can fail with validation
+- Return `Flow<T>` for reactive data (delegate directly to repository)
+- Naming: `VerbNounUseCase` (e.g., `AddTransactionUseCase`, `GetWalletSummaryUseCase`)
