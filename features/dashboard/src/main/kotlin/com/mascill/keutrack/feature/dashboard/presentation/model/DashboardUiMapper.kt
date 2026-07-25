@@ -116,6 +116,7 @@ internal object DashboardUiMapper {
                         else -> "Personal"
                     },
                 categoryIcon = iconKeyToCategoryIcon(category?.icon),
+                syncStatus = tx.syncStatus,
             )
         }
 

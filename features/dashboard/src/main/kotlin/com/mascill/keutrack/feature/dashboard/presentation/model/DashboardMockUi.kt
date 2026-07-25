@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.mascill.keutrack.core.domain.model.SyncStatus
 
 enum class TransactionCategoryIcon {
     Restaurant,
@@ -34,7 +35,11 @@ data class TransactionRowUi(
     val isExpense: Boolean,
     val walletLabel: String,
     val categoryIcon: TransactionCategoryIcon,
-)
+    val syncStatus: SyncStatus = SyncStatus.SYNCED,
+) {
+    val isLocalOnly: Boolean
+        get() = syncStatus != SyncStatus.SYNCED
+}
 
 /** Preview-only mock content — not used as a runtime data source. */
 data class DashboardMockContent(
@@ -93,6 +98,7 @@ val DefaultDashboardMockContent =
                     isExpense = true,
                     walletLabel = "Personal",
                     categoryIcon = TransactionCategoryIcon.Restaurant,
+                    syncStatus = SyncStatus.PENDING,
                 ),
                 TransactionRowUi(
                     title = "GoRide — Office",
@@ -120,6 +126,7 @@ val DefaultDashboardMockContent =
                     isExpense = true,
                     walletLabel = "Family",
                     categoryIcon = TransactionCategoryIcon.Utilities,
+                    syncStatus = SyncStatus.FAILED,
                 ),
             ),
     )
