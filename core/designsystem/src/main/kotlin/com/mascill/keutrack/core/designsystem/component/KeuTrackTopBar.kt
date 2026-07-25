@@ -1,5 +1,6 @@
 package com.mascill.keutrack.core.designsystem.component
 
+import android.content.res.Configuration
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -137,143 +138,19 @@ fun KeuTrackTopBar(
     }
 }
 
-//@Preview(showBackground = true, name = "Title — center")
-//@Composable
-//private fun KeuTrackTopBarPreviewCenter() {
-//    KeuTrackTheme(darkTheme = false) {
-//        Surface(color = KeuTrackTheme.contentColors.pageColor) {
-//            KeuTrackTopBar(
-//                title = "Settings",
-//                modifier =
-//                    Modifier
-//                        .fillMaxWidth()
-//                        .padding(horizontal = 20.dp, vertical = 4.dp),
-//            )
-//        }
-//    }
-//}
-//
-//@Preview(showBackground = true, name = "Title — start (brand + actions)")
-//@Composable
-//private fun KeuTrackTopBarPreviewStart() {
-//    KeuTrackTheme(darkTheme = false) {
-//        Surface(color = KeuTrackTheme.contentColors.pageColor) {
-//            KeuTrackTopBar(
-//                modifier =
-//                    Modifier
-//                        .fillMaxWidth()
-//                        .padding(horizontal = 20.dp, vertical = 4.dp),
-//                titleAlignment = KeuTrackTopBarTitleAlignment.Start,
-//                leading = {
-//                    Row(verticalAlignment = Alignment.CenterVertically) {
-//                        Text(
-//                            text = "◎",
-//                            style = KeuTrackTheme.typography.headingBold20,
-//                            color = KeuTrackTheme.textColors.title,
-//                            modifier = Modifier.padding(end = 8.dp),
-//                        )
-//                        Text(
-//                            text = "KeuTrack",
-//                            style = KeuTrackTheme.typography.headingBold20,
-//                            color = KeuTrackTheme.textColors.title,
-//                        )
-//                    }
-//                },
-//                title = {},
-//                trailing = {
-//                    Text(
-//                        text = "···",
-//                        style = KeuTrackTheme.typography.headingBold20,
-//                        color = KeuTrackTheme.semanticColors.onSurface,
-//                        modifier = Modifier.padding(horizontal = 12.dp),
-//                    )
-//                },
-//            )
-//        }
-//    }
-//}
-//
-//@Preview(showBackground = true, name = "Title — end")
-//@Composable
-//private fun KeuTrackTopBarPreviewEnd() {
-//    KeuTrackTheme(darkTheme = false) {
-//        Surface(color = KeuTrackTheme.contentColors.pageColor) {
-//            KeuTrackTopBar(
-//                title = "Export",
-//                titleAlignment = KeuTrackTopBarTitleAlignment.End,
-//                modifier =
-//                    Modifier
-//                        .fillMaxWidth()
-//                        .padding(horizontal = 20.dp, vertical = 4.dp),
-//                leading = {
-//                    Text(
-//                        text = "←",
-//                        style = KeuTrackTheme.typography.headingBold20,
-//                        color = KeuTrackTheme.semanticColors.onSurface,
-//                        modifier = Modifier.padding(end = 8.dp),
-//                    )
-//                },
-//            )
-//        }
-//    }
-//}
-//
-//@Preview(showBackground = true, name = "Custom title composable")
-//@Composable
-//private fun KeuTrackTopBarPreviewCustomTitle() {
-//    KeuTrackTheme(darkTheme = false) {
-//        Surface(color = KeuTrackTheme.contentColors.pageColor) {
-//            KeuTrackTopBar(
-//                modifier =
-//                    Modifier
-//                        .fillMaxWidth()
-//                        .padding(horizontal = 20.dp, vertical = 4.dp),
-//                title = {
-//                    Row(verticalAlignment = Alignment.CenterVertically) {
-//                        Text(
-//                            text = "Step ",
-//                            style = KeuTrackTheme.typography.bodyRegular14,
-//                            color = KeuTrackTheme.textColors.body,
-//                        )
-//                        Text(
-//                            text = "2",
-//                            style = KeuTrackTheme.typography.headingBold20,
-//                            color = KeuTrackTheme.textColors.title,
-//                        )
-//                        Text(
-//                            text = "/4",
-//                            style = KeuTrackTheme.typography.bodyRegular14,
-//                            color = KeuTrackTheme.textColors.body,
-//                        )
-//                    }
-//                },
-//            )
-//        }
-//    }
-//}
-//
-//@Preview(showBackground = true, name = "Title — center (dark)")
-//@Composable
-//private fun KeuTrackTopBarPreviewCenterDark() {
-//    KeuTrackTheme(darkTheme = true) {
-//        Surface(color = KeuTrackTheme.contentColors.pageColor) {
-//            KeuTrackTopBar(
-//                title = "Settings",
-//                modifier =
-//                    Modifier
-//                        .fillMaxWidth()
-//                        .padding(horizontal = 20.dp, vertical = 4.dp),
-//            )
-//        }
-//    }
-//}
-//
-//@Preview(
-//    showBackground = true,
-//    name = "Title — center (landscape)",
-//    device = "spec:width=411dp,height=891dp,dpi=420,isRound=false,chinSize=0dp,orientation=landscape",
-//)
-//@Composable
-//private fun KeuTrackTopBarPreviewCenterLandscape() {
-//    KeuTrackTopBarPreviewCenter()
-//}
+@Preview(name = "Light", showBackground = true)
+@Preview(name = "Dark", uiMode = Configuration.UI_MODE_NIGHT_YES, showBackground = true)
+@Composable
+private fun KeuTrackTopBarPreview() {
+    KeuTrackTheme {
+        Surface(color = KeuTrackTheme.contentColors.pageColor) {
+            KeuTrackTopBar(
+                title = "Settings",
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 4.dp),
+            )
+        }
+    }
+}

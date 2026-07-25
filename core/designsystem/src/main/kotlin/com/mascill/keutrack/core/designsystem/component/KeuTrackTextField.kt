@@ -1,17 +1,21 @@
 package com.mascill.keutrack.core.designsystem.component
 
+import android.content.res.Configuration
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.Text
 import androidx.compose.material.TextField
+import androidx.compose.material.TextFieldColors
 import androidx.compose.material.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.TextFieldColors
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
 
 @Composable
@@ -99,4 +103,19 @@ private fun keuTrackTextFieldColors(isError: Boolean): TextFieldColors {
         unfocusedLabelColor = semantic.onSurfaceVariant,
         placeholderColor = semantic.onSurfaceVariant,
     )
+}
+
+@Preview(name = "Light", showBackground = true)
+@Preview(name = "Dark", uiMode = Configuration.UI_MODE_NIGHT_YES, showBackground = true)
+@Composable
+private fun KeuTrackTextFieldPreview() {
+    KeuTrackTheme {
+        KeuTrackTextField(
+            value = "",
+            onValueChange = {},
+            label = "Email",
+            placeholder = "you@example.com",
+            modifier = Modifier.padding(16.dp),
+        )
+    }
 }
