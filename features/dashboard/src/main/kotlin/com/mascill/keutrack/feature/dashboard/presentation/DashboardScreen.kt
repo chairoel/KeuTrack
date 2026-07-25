@@ -1,6 +1,7 @@
 package com.mascill.keutrack.feature.dashboard.presentation
 
 import android.content.res.Configuration
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,14 +12,19 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material.CircularProgressIndicator
 import androidx.compose.material.Scaffold
+import androidx.compose.material.Snackbar
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
+import androidx.compose.material.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -26,8 +32,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mascill.keutrack.core.designsystem.component.KeuTrackFab
 import com.mascill.keutrack.core.designsystem.component.KeuTrackModalBottomSheet
+import com.mascill.keutrack.core.designsystem.format.CurrencyFormat
 import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
-import com.mascill.keutrack.core.domain.model.User
 import com.mascill.keutrack.feature.dashboard.presentation.components.DashboardStatCardsRow
 import com.mascill.keutrack.feature.dashboard.presentation.components.DashboardTopBar
 import com.mascill.keutrack.feature.dashboard.presentation.components.NewEntryBottomSheetContent
@@ -36,8 +42,10 @@ import com.mascill.keutrack.feature.dashboard.presentation.components.WalletSumm
 import com.mascill.keutrack.feature.dashboard.presentation.components.WalletSummaryCardKind
 import com.mascill.keutrack.feature.dashboard.presentation.components.WalletSummaryFamilySharedFooter
 import com.mascill.keutrack.feature.dashboard.presentation.components.WalletSummaryPersonalMonthChangeFooter
-import com.mascill.keutrack.feature.dashboard.presentation.model.DashboardMockContent
+import com.mascill.keutrack.feature.dashboard.presentation.model.DashboardUIState
 import com.mascill.keutrack.feature.dashboard.presentation.model.DefaultDashboardMockContent
+import com.mascill.keutrack.feature.dashboard.presentation.model.EntryTransactionKind
+import com.mascill.keutrack.feature.dashboard.presentation.model.toPreviewUiState
 
 private const val DASH_FAB_LIST_CLEARANCE = 72
 private const val DASH_TOP_BAR_ELEVATION = 4
@@ -48,33 +56,48 @@ private const val DASH_CONTENT_PT = 8
 private const val DASH_CONTENT_PB_EXTRA = 24
 private const val DASH_LIST_SECTION_SPACING = 16
 private const val DASH_GREETING_TITLE_PT = 4
+private const val DASH_BALANCE_LABEL_PERSONAL = "Current Balance"
+private const val DASH_BALANCE_LABEL_FAMILY = "Available Shared"
+private const val DASH_INCOME_LABEL = "INCOME"
+private const val DASH_EXPENSE_LABEL = "EXPENSE"
+private const val DASH_ERROR_DISMISS = "Dismiss"
+private const val TAG = "Dashboard"
 
 /**
- * Dashboard routing to handle screen that will be showing and to handle view model flow /
- * live data collection
+ * Dashboard routing — collects ViewModel state and wires navigation callbacks.
  */
 @Composable
 fun DashboardRouting(
+    onSettingsClick: () -> Unit = {},
     viewModel: DashboardViewModel = hiltViewModel(),
 ) {
-    val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
-    val content =
-        remember(currentUser) {
-            DefaultDashboardMockContent.copy(
-                userFirstName = currentUser.greetingFirstNameOrFallback(
-                    DefaultDashboardMockContent.userFirstName,
-                ),
-                avatar = currentUser?.photoUrl,
-            )
-        }
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showNewEntrySheet by remember { mutableStateOf(false) }
+
+    LaunchedEffect(uiState.dismissNewEntrySheet) {
+        if (uiState.dismissNewEntrySheet) {
+            showNewEntrySheet = false
+            viewModel.onNewEntrySheetDismissed()
+        }
+    }
+
     DashboardScreen(
-        content = content,
-        onSettingsClick = { },
-        onViewAllTransactions = { },
+        uiState = uiState,
+        onSettingsClick = onSettingsClick,
+        onViewAllTransactions = {
+            // TODO(Phase 5): navigate to full transaction history / TransactionRoute
+            Log.d(TAG, "onViewAllTransactions: deferred to Phase 5")
+        },
         onFabClick = { showNewEntrySheet = true },
         showNewEntrySheet = showNewEntrySheet,
-        onNewEntrySheetDismiss = { showNewEntrySheet = false },
+        onNewEntrySheetDismiss = {
+            showNewEntrySheet = false
+            viewModel.onNewEntrySheetDismissed()
+        },
+        onEntryKindChanged = viewModel::onEntryKindChanged,
+        onSaveTransaction = viewModel::onSaveTransaction,
+        onClearSaveError = viewModel::clearSaveError,
+        onDismissError = { /* error is one-shot from flow; next emit clears */ },
     )
 }
 
@@ -82,15 +105,20 @@ fun DashboardRouting(
  * Dashboard screen — wallet summary, income/expense overview, and recent transactions.
  */
 @Composable
-private fun DashboardScreen(
-    content: DashboardMockContent,
+fun DashboardScreen(
+    uiState: DashboardUIState,
     onSettingsClick: () -> Unit,
     onViewAllTransactions: () -> Unit,
     onFabClick: () -> Unit,
     showNewEntrySheet: Boolean,
     onNewEntrySheetDismiss: () -> Unit,
+    onEntryKindChanged: (EntryTransactionKind) -> Unit = {},
+    onSaveTransaction: (amount: Long, categoryId: String, kind: EntryTransactionKind) -> Unit = { _, _, _ -> },
+    onClearSaveError: () -> Unit = {},
+    onDismissError: () -> Unit = {},
 ) {
     val pageBg = KeuTrackTheme.contentColors.pageColor
+    val semantic = KeuTrackTheme.semanticColors
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
@@ -109,12 +137,13 @@ private fun DashboardScreen(
                                 .statusBarsPadding()
                                 .padding(
                                     horizontal = DASH_TOP_BAR_PH.dp,
-                                    vertical = DASH_TOP_BAR_PV.dp
+                                    vertical = DASH_TOP_BAR_PV.dp,
                                 ),
                     ) {
                         DashboardTopBar(
-                            avatar= content.avatar,
-                            onSettingsClick = onSettingsClick)
+                            avatar = uiState.avatarUrl,
+                            onSettingsClick = onSettingsClick,
+                        )
                     }
                 }
             },
@@ -125,92 +154,125 @@ private fun DashboardScreen(
                 )
             },
         ) { innerPadding ->
-            LazyColumn(
+            when {
+                uiState.isLoading -> {
+                    Box(
+                        modifier =
+                            Modifier
+                                .fillMaxSize()
+                                .padding(innerPadding),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator(color = semantic.primary)
+                    }
+                }
+
+                else -> {
+                    LazyColumn(
+                        modifier =
+                            Modifier
+                                .fillMaxSize()
+                                .background(pageBg)
+                                .padding(innerPadding),
+                        contentPadding =
+                            PaddingValues(
+                                start = DASH_CONTENT_PH.dp,
+                                end = DASH_CONTENT_PH.dp,
+                                top = DASH_CONTENT_PT.dp,
+                                bottom = DASH_CONTENT_PB_EXTRA.dp + DASH_FAB_LIST_CLEARANCE.dp,
+                            ),
+                        verticalArrangement = Arrangement.spacedBy(DASH_LIST_SECTION_SPACING.dp),
+                    ) {
+                        item {
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                Text(
+                                    text = "Welcome back, ${uiState.userFirstName}",
+                                    style = KeuTrackTheme.typography.bodyRegular14,
+                                    color = KeuTrackTheme.textColors.body,
+                                )
+                                Text(
+                                    text = uiState.pageTitle,
+                                    style = KeuTrackTheme.typography.headingBold24,
+                                    color = KeuTrackTheme.textColors.title,
+                                    modifier = Modifier.padding(top = DASH_GREETING_TITLE_PT.dp),
+                                )
+                            }
+                        }
+
+                        item {
+                            WalletSummaryCard(
+                                kind = WalletSummaryCardKind.Personal,
+                                balanceLabel = DASH_BALANCE_LABEL_PERSONAL,
+                                balanceAmount = CurrencyFormat.formatIdr(uiState.personalBalance),
+                            ) {
+                                uiState.monthChangeLabel?.let { label ->
+                                    WalletSummaryPersonalMonthChangeFooter(label)
+                                }
+                            }
+                        }
+
+                        item {
+                            WalletSummaryCard(
+                                kind = WalletSummaryCardKind.Family,
+                                balanceLabel = DASH_BALANCE_LABEL_FAMILY,
+                                balanceAmount = CurrencyFormat.formatIdr(uiState.familyBalance),
+                            ) {
+                                WalletSummaryFamilySharedFooter(uiState.familySharedSummary)
+                            }
+                        }
+
+                        item {
+                            DashboardStatCardsRow(
+                                incomeLabel = DASH_INCOME_LABEL,
+                                incomeAmount = CurrencyFormat.formatIdr(uiState.incomeTotal),
+                                expenseLabel = DASH_EXPENSE_LABEL,
+                                expenseAmount = CurrencyFormat.formatIdr(uiState.expenseTotal),
+                            )
+                        }
+
+                        item {
+                            RecentTransactionsSection(
+                                transactions = uiState.recentTransactions,
+                                onViewAllClick = onViewAllTransactions,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        uiState.errorMessage?.let { message ->
+            Snackbar(
                 modifier =
                     Modifier
-                        .fillMaxSize()
-                        .background(pageBg)
-                        .padding(innerPadding),
-                contentPadding =
-                    PaddingValues(
-                        start = DASH_CONTENT_PH.dp,
-                        end = DASH_CONTENT_PH.dp,
-                        top = DASH_CONTENT_PT.dp,
-                        bottom = DASH_CONTENT_PB_EXTRA.dp + DASH_FAB_LIST_CLEARANCE.dp,
-                    ),
-                verticalArrangement = Arrangement.spacedBy(DASH_LIST_SECTION_SPACING.dp),
+                        .align(Alignment.BottomCenter)
+                        .padding(16.dp),
+                action = {
+                    TextButton(onClick = onDismissError) {
+                        Text(DASH_ERROR_DISMISS)
+                    }
+                },
             ) {
-                item {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        Text(
-                            text = "Welcome back, ${content.userFirstName}",
-                            style = KeuTrackTheme.typography.bodyRegular14,
-                            color = KeuTrackTheme.textColors.body,
-                        )
-                        Text(
-                            text = content.pageTitle,
-                            style = KeuTrackTheme.typography.headingBold24,
-                            color = KeuTrackTheme.textColors.title,
-                            modifier = Modifier.padding(top = DASH_GREETING_TITLE_PT.dp),
-                        )
-                    }
-                }
-
-                item {
-                    WalletSummaryCard(
-                        kind = WalletSummaryCardKind.Personal,
-                        balanceLabel = content.personalBalanceLabel,
-                        balanceAmount = content.personalBalanceAmount,
-                    ) {
-                        WalletSummaryPersonalMonthChangeFooter(content.personalMonthChangeLabel)
-                    }
-                }
-
-                item {
-                    WalletSummaryCard(
-                        kind = WalletSummaryCardKind.Family,
-                        balanceLabel = content.familyBalanceLabel,
-                        balanceAmount = content.familyBalanceAmount,
-                    ) {
-                        WalletSummaryFamilySharedFooter(content.familySharedSummary)
-                    }
-                }
-
-                item {
-                    DashboardStatCardsRow(
-                        incomeLabel = content.incomeLabel,
-                        incomeAmount = content.incomeAmount,
-                        expenseLabel = content.expenseLabel,
-                        expenseAmount = content.expenseAmount,
-                    )
-                }
-
-                item {
-                    RecentTransactionsSection(
-                        transactions = content.transactions,
-                        onViewAllClick = onViewAllTransactions,
-                    )
-                }
+                Text(message)
             }
         }
 
         if (showNewEntrySheet) {
             KeuTrackModalBottomSheet(onDismissRequest = onNewEntrySheetDismiss) {
-                NewEntryBottomSheetContent(onDismiss = onNewEntrySheetDismiss)
+                NewEntryBottomSheetContent(
+                    categories = uiState.categories,
+                    selectedKind = uiState.selectedEntryKind,
+                    isSaving = uiState.isSavingTransaction,
+                    errorMessage = uiState.saveError,
+                    hasPersonalWallet = !uiState.personalWalletId.isNullOrBlank(),
+                    onDismiss = onNewEntrySheetDismiss,
+                    onKindChanged = onEntryKindChanged,
+                    onSave = onSaveTransaction,
+                    onClearError = onClearSaveError,
+                )
             }
         }
     }
-}
-
-private fun User?.greetingFirstNameOrFallback(fallback: String): String {
-    val user = this ?: return fallback
-    val fromDisplay = user.displayName.trim().split(" ").firstOrNull().orEmpty()
-    if (fromDisplay.isNotEmpty()) return fromDisplay
-    val fromEmail = user.email.substringBefore('@').trim()
-    if (fromEmail.isNotEmpty()) {
-        return fromEmail.replaceFirstChar { c -> c.titlecaseChar() }
-    }
-    return fallback
 }
 
 @Preview(showBackground = true)
@@ -218,11 +280,11 @@ private fun User?.greetingFirstNameOrFallback(fallback: String): String {
 private fun DashboardScreenPreview() {
     KeuTrackTheme(darkTheme = false) {
         DashboardScreen(
-            content = DefaultDashboardMockContent,
+            uiState = DefaultDashboardMockContent.toPreviewUiState(),
             onSettingsClick = { },
             onViewAllTransactions = { },
             onFabClick = { },
-            showNewEntrySheet = true,
+            showNewEntrySheet = false,
             onNewEntrySheetDismiss = { },
         )
     }
@@ -237,11 +299,11 @@ private fun DashboardScreenPreview() {
 private fun DashboardScreenDarkPreview() {
     KeuTrackTheme(darkTheme = true) {
         DashboardScreen(
-            content = DefaultDashboardMockContent,
+            uiState = DefaultDashboardMockContent.toPreviewUiState(),
             onSettingsClick = { },
             onViewAllTransactions = { },
             onFabClick = { },
-            showNewEntrySheet = true,
+            showNewEntrySheet = false,
             onNewEntrySheetDismiss = { },
         )
     }

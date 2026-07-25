@@ -19,14 +19,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.Icon
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.CalendarToday
-import androidx.compose.material.icons.outlined.DirectionsCar
-import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
-import androidx.compose.material.icons.outlined.Movie
-import androidx.compose.material.icons.outlined.Receipt
-import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -54,7 +51,7 @@ private const val NEW_ENTRY_TITLE = "New Entry"
 private const val NEW_ENTRY_SUBTITLE = "Add a transaction to your ledger"
 private const val NEW_ENTRY_AMOUNT_SECTION = "AMOUNT"
 private const val NEW_ENTRY_WALLET_TYPE_LABEL = "WALLET TYPE"
-private const val NEW_ENTRY_WALLET_TYPE_VALUE = "Family"
+private const val NEW_ENTRY_WALLET_TYPE_VALUE = "Personal"
 private const val NEW_ENTRY_DATE_LABEL = "DATE"
 private const val NEW_ENTRY_DATE_VALUE = "Today"
 private const val NEW_ENTRY_CATEGORY_SECTION = "CATEGORY"
@@ -62,14 +59,8 @@ private const val NEW_ENTRY_SEE_ALL = "See all"
 private const val NEW_ENTRY_ADD_TRANSACTION = "Add transaction"
 private const val NEW_ENTRY_EXPENSE = "Expense"
 private const val NEW_ENTRY_INCOME = "Income"
-private const val NEW_ENTRY_CATEGORY_ID_FOOD = "food"
-private const val NEW_ENTRY_CATEGORY_LABEL_FOOD = "Food"
-private const val NEW_ENTRY_CATEGORY_ID_TRANSPORT = "transport"
-private const val NEW_ENTRY_CATEGORY_LABEL_TRANSPORT = "Transport"
-private const val NEW_ENTRY_CATEGORY_ID_BILLS = "bills"
-private const val NEW_ENTRY_CATEGORY_LABEL_BILLS = "Bills"
-private const val NEW_ENTRY_CATEGORY_ID_FUN = "fun"
-private const val NEW_ENTRY_CATEGORY_LABEL_FUN = "Fun"
+private const val NEW_ENTRY_NO_WALLET = "Buat dompet dulu sebelum menambah transaksi"
+private const val NEW_ENTRY_NO_CATEGORIES = "Belum ada kategori"
 
 private const val NEW_ENTRY_SHEET_PH = 20
 private const val NEW_ENTRY_SHEET_PB = 8
@@ -89,47 +80,34 @@ private const val NEW_ENTRY_WALLET_CHIP_PH = 12
 private const val NEW_ENTRY_WALLET_CHIP_PV = 12
 private const val NEW_ENTRY_WALLET_CHIP_ICON_TEXT_SPACING = 8
 private const val NEW_ENTRY_WALLET_CHIP_ICON = 20
+private const val NEW_ENTRY_ERROR_PT = 8
 
 @Composable
 fun NewEntryBottomSheetContent(
+    categories: List<NewEntryCategoryUI>,
+    selectedKind: EntryTransactionKind,
+    isSaving: Boolean,
+    errorMessage: String?,
+    hasPersonalWallet: Boolean,
     onDismiss: () -> Unit,
+    onKindChanged: (EntryTransactionKind) -> Unit,
+    onSave: (amount: Long, categoryId: String, kind: EntryTransactionKind) -> Unit,
+    onClearError: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val semantic = KeuTrackTheme.semanticColors
     val textColors = KeuTrackTheme.textColors
     val typography = KeuTrackTheme.typography
+    val danger = KeuTrackTheme.dangerColors
 
-    var kind by remember { mutableStateOf(EntryTransactionKind.Expense) }
     var amountRupiah by remember { mutableLongStateOf(0L) }
-    var selectedCategoryId by remember { mutableStateOf(NEW_ENTRY_CATEGORY_ID_FOOD) }
+    var selectedCategoryId by remember { mutableStateOf<String?>(null) }
 
-    val categories =
-        listOf(
-            NewEntryCategoryUI(
-                NEW_ENTRY_CATEGORY_ID_FOOD,
-                NEW_ENTRY_CATEGORY_LABEL_FOOD,
-                Icons.Outlined.Restaurant,
-                KeuTrackTheme.warningColors.w500,
-            ),
-            NewEntryCategoryUI(
-                NEW_ENTRY_CATEGORY_ID_TRANSPORT,
-                NEW_ENTRY_CATEGORY_LABEL_TRANSPORT,
-                Icons.Outlined.DirectionsCar,
-                semantic.primary,
-            ),
-            NewEntryCategoryUI(
-                NEW_ENTRY_CATEGORY_ID_BILLS,
-                NEW_ENTRY_CATEGORY_LABEL_BILLS,
-                Icons.Outlined.Receipt,
-                textColors.link,
-            ),
-            NewEntryCategoryUI(
-                NEW_ENTRY_CATEGORY_ID_FUN,
-                NEW_ENTRY_CATEGORY_LABEL_FUN,
-                Icons.Outlined.Movie,
-                KeuTrackTheme.successColors.s500,
-            ),
-        )
+    LaunchedEffect(categories, selectedKind) {
+        if (categories.none { it.id == selectedCategoryId }) {
+            selectedCategoryId = categories.firstOrNull()?.id
+        }
+    }
 
     Column(
         modifier =
@@ -156,9 +134,15 @@ fun NewEntryBottomSheetContent(
         KeuTrackSegmentedControl(
             leftLabel = NEW_ENTRY_EXPENSE,
             rightLabel = NEW_ENTRY_INCOME,
-            leftSelected = kind == EntryTransactionKind.Expense,
-            onLeftClick = { kind = EntryTransactionKind.Expense },
-            onRightClick = { kind = EntryTransactionKind.Income },
+            leftSelected = selectedKind == EntryTransactionKind.Expense,
+            onLeftClick = {
+                onClearError()
+                onKindChanged(EntryTransactionKind.Expense)
+            },
+            onRightClick = {
+                onClearError()
+                onKindChanged(EntryTransactionKind.Income)
+            },
         )
 
         Spacer(modifier = Modifier.height(NEW_ENTRY_SECTION_SPACER_LG.dp))
@@ -201,7 +185,7 @@ fun NewEntryBottomSheetContent(
             WalletDateChip(
                 modifier = Modifier.weight(1f),
                 label = NEW_ENTRY_WALLET_TYPE_LABEL,
-                icon = Icons.Outlined.Group,
+                icon = Icons.Outlined.AccountBalanceWallet,
                 value = NEW_ENTRY_WALLET_TYPE_VALUE,
                 showTrailingChevron = true,
             )
@@ -236,21 +220,32 @@ fun NewEntryBottomSheetContent(
 
         Spacer(modifier = Modifier.height(NEW_ENTRY_CATEGORY_HEADER_PB.dp))
 
-        Row(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(NEW_ENTRY_CATEGORY_ROW_SPACING.dp),
-        ) {
-            categories.forEach { cat ->
-                KeuTrackCategoryChip(
-                    label = cat.label,
-                    icon = cat.icon,
-                    containerColor = cat.accent,
-                    selected = selectedCategoryId == cat.id,
-                    onClick = { selectedCategoryId = cat.id },
-                )
+        if (categories.isEmpty()) {
+            Text(
+                text = NEW_ENTRY_NO_CATEGORIES,
+                style = typography.bodyRegular14,
+                color = textColors.body,
+            )
+        } else {
+            Row(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(NEW_ENTRY_CATEGORY_ROW_SPACING.dp),
+            ) {
+                categories.forEach { cat ->
+                    KeuTrackCategoryChip(
+                        label = cat.label,
+                        icon = cat.icon,
+                        containerColor = cat.accent,
+                        selected = selectedCategoryId == cat.id,
+                        onClick = {
+                            onClearError()
+                            selectedCategoryId = cat.id
+                        },
+                    )
+                }
             }
         }
 
@@ -258,26 +253,55 @@ fun NewEntryBottomSheetContent(
 
         KeuTrackAmountKeypad(
             onDigit = { d ->
+                onClearError()
                 val next = amountRupiah * 10L + d
                 if (next <= MAX_AMOUNT_RUPIAH) amountRupiah = next
             },
             onTripleZero = {
+                onClearError()
                 if (amountRupiah <= MAX_AMOUNT_RUPIAH / 1000L) {
                     amountRupiah *= 1000L
                 }
             },
-            onBackspace = { amountRupiah /= 10L },
+            onBackspace = {
+                onClearError()
+                amountRupiah /= 10L
+            },
         )
+
+        val displayError =
+            errorMessage
+                ?: if (!hasPersonalWallet) NEW_ENTRY_NO_WALLET else null
+
+        if (displayError != null) {
+            Text(
+                text = displayError,
+                style = typography.bodyRegular12,
+                color = danger.d500,
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(top = NEW_ENTRY_ERROR_PT.dp),
+                textAlign = TextAlign.Center,
+            )
+        }
 
         Spacer(modifier = Modifier.height(NEW_ENTRY_AFTER_KEYPAD_SPACER.dp))
 
         KeuTrackButton(
             text = NEW_ENTRY_ADD_TRANSACTION,
-            onClick = onDismiss,
+            onClick = {
+                val categoryId = selectedCategoryId
+                if (categoryId != null) {
+                    onSave(amountRupiah, categoryId, selectedKind)
+                }
+            },
             modifier =
                 Modifier
                     .fillMaxWidth()
                     .navigationBarsPadding(),
+            enabled = hasPersonalWallet && !isSaving && categories.isNotEmpty(),
+            isLoading = isSaving,
         )
     }
 }

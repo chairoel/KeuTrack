@@ -1,16 +1,29 @@
 package com.mascill.keutrack.feature.dashboard.presentation.model
 
-
-sealed class SignOutState {
-    object Idle : SignOutState()
-    object Loading : SignOutState()
-    object Success : SignOutState()
-    data class Error(val message: String) : SignOutState()
-}
-
 /**
- * Data class for Dashboard Screen UI State
+ * Production UI state for the Dashboard screen.
+ * Amounts are stored as [Long] (rupiah); format for display in the UI/mapper layer.
  */
 data class DashboardUIState(
-    val signOutState: SignOutState = SignOutState.Idle
+    val isLoading: Boolean = true,
+    val errorMessage: String? = null,
+    val userFirstName: String = "",
+    val avatarUrl: String? = null,
+    val pageTitle: String = "Financial Journal",
+    val personalBalance: Long = 0L,
+    val familyBalance: Long = 0L,
+    val familySharedSummary: String = "",
+    val monthChangeLabel: String? = null,
+    val incomeTotal: Long = 0L,
+    val expenseTotal: Long = 0L,
+    val recentTransactions: List<TransactionRowUi> = emptyList(),
+    val categories: List<NewEntryCategoryUI> = emptyList(),
+    val selectedEntryKind: EntryTransactionKind = EntryTransactionKind.Expense,
+    val personalWalletId: String? = null,
+    val currentUserId: String? = null,
+    val currentUserDisplayName: String = "",
+    val currentUserEmail: String = "",
+    val isSavingTransaction: Boolean = false,
+    val saveError: String? = null,
+    val dismissNewEntrySheet: Boolean = false,
 )

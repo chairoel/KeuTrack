@@ -17,6 +17,7 @@ import com.mascill.keutrack.core.designsystem.component.KeuTrackBottomNav
 import com.mascill.keutrack.feature.family.presentation.navigation.familyGraph
 import com.mascill.keutrack.feature.dashboard.presentation.navigation.DashboardRoute
 import com.mascill.keutrack.feature.dashboard.presentation.navigation.dashboardGraph
+import com.mascill.keutrack.feature.settings.presentation.navigation.SettingsRoute
 import com.mascill.keutrack.feature.settings.presentation.navigation.settingsGraph
 
 /**
@@ -100,7 +101,17 @@ private fun HomeNavHost(
         startDestination = DashboardRoute,
         modifier = modifier,
     ) {
-        dashboardGraph()
+        dashboardGraph(
+            onSettingsClick = {
+                navController.navigate(SettingsRoute) {
+                    popUpTo(navController.graph.findStartDestination().id) {
+                        saveState = true
+                    }
+                    launchSingleTop = true
+                    restoreState = true
+                }
+            },
+        )
         familyGraph()
         settingsGraph(
             onSignOutSuccess = onSignOutSuccess,

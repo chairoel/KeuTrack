@@ -12,8 +12,10 @@ object DashboardRoute
  * Dashboard tab navigation graph extension.
  * Called from the HomeShell's nested NavHost in the :app module.
  */
-fun NavGraphBuilder.dashboardGraph() {
+fun NavGraphBuilder.dashboardGraph(
+    onSettingsClick: () -> Unit = {},
+) {
     composable<DashboardRoute> {
-        DashboardRouting()
+        DashboardRouting(onSettingsClick = onSettingsClick)
     }
 }
