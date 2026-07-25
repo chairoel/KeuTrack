@@ -4,7 +4,10 @@ import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 
 /**
- * data class to defined Route Response from api
+ * Sample Moshi DTO for a Retrofit JSON response item.
+ *
+ * Kept as a reference for `@JsonClass` / `@Json(name = …)` field mapping.
+ * Not used by the production Dashboard.
  */
 @JsonClass(generateAdapter = true)
 data class RouteResponse(

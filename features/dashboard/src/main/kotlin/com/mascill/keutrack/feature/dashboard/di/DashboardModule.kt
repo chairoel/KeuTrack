@@ -12,21 +12,22 @@ import dagger.hilt.android.scopes.ViewModelScoped
 import retrofit2.Retrofit
 
 /**
- * Hilt Module that represent splash screen component and contributes to the object
- * graph [dagger.hilt.android.components.ViewModelComponent].
+ * Sample Hilt module that wires a Retrofit API stack (service → mapper → repository).
  *
- * @see dagger.Module
+ * Kept as a reference for how to consume REST APIs with Retrofit + Hilt in a feature module.
+ * Not used by the production Dashboard (Phase 4+); financial data comes from domain use cases.
+ *
+ * @see RouteServices
+ * @see RouteRepository
  */
 @Module
 @InstallIn(ViewModelComponent::class)
 class DashboardModule {
 
     /**
-     * Create a provider method binding for [RouteServices] API.
+     * Provides a Retrofit-generated [RouteServices] implementation.
      *
-     * @return Instance of service.
-     * @see dagger.Provides
-     * @see dagger.hilt.android.scopes.ViewModelScoped
+     * Sample: create an API interface instance from the shared [Retrofit] client.
      */
     @ViewModelScoped
     @Provides
@@ -35,9 +36,9 @@ class DashboardModule {
     ): RouteServices = retrofit.create(RouteServices::class.java)
 
     /**
-     * Create a provide method binding for [RouteRepository].
+     * Provides [RouteRepository] backed by [RouteRepositoryImpl].
      *
-     * @return Instance of [RouteRepository]
+     * Sample: bind the feature repository so a ViewModel can inject it.
      */
     @ViewModelScoped
     @Provides
@@ -47,9 +48,9 @@ class DashboardModule {
     ): RouteRepository = RouteRepositoryImpl(service = service, mapper = mapper)
 
     /**
-     * Create a provide method binding for [RoutesMapper].
+     * Provides [RoutesMapper] for DTO → domain mapping.
      *
-     * @return Instance of [RoutesMapper]
+     * Sample: keep mappers injectable when they have (or may gain) dependencies.
      */
     @Provides
     fun provideDataMapper(): RoutesMapper = RoutesMapper()

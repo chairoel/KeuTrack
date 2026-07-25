@@ -6,11 +6,15 @@ import com.mascill.keutrack.feature.dashboard.data.models.RouteResponse
 import com.mascill.keutrack.feature.dashboard.domain.models.RouteDomain
 
 /**
- * Mapper class to map data model to domain model or vise versa
+ * Sample mapper from Retrofit/Moshi DTOs ([RouteResponse]) to domain models ([RouteDomain]).
+ *
+ * Kept as a reference for null-safe list mapping and field defaults. Not used by the
+ * production Dashboard.
  */
 class RoutesMapper {
+
     /**
-     * Mapping listOf [RouteResponse] data model to listOf [RouteDomain] domain model
+     * Maps a nullable list of [RouteResponse] into a non-null list of [RouteDomain].
      */
     fun mapRoutesToDomain(routes: List<RouteResponse?>?): List<RouteDomain> = routes?.map {
         RouteDomain(
