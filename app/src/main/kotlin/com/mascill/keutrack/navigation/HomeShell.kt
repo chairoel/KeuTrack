@@ -124,7 +124,10 @@ private fun HomeNavHost(
             onAddTransaction = onAddTransaction,
             onViewAllTransactions = onViewAllTransactions,
         )
-        familyGraph()
+        familyGraph(
+            onAddTransaction = onAddTransaction,
+            onViewAllTransactions = onViewAllTransactions,
+        )
         settingsGraph(
             onSignOutSuccess = onSignOutSuccess,
         )
