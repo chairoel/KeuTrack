@@ -1,0 +1,112 @@
+package com.mascill.keutrack.feature.settings.presentation.membership
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.AlertDialog
+import androidx.compose.material.CircularProgressIndicator
+import androidx.compose.material.Text
+import androidx.compose.material.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import com.mascill.keutrack.core.designsystem.component.KeuTrackButton
+import com.mascill.keutrack.core.designsystem.component.KeuTrackTextField
+import com.mascill.keutrack.core.designsystem.model.KeuTrackButtonStyle
+import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
+
+enum class SettingsFamilyMembershipMode {
+    Create,
+    Join,
+}
+
+@Composable
+fun SettingsFamilyMembershipDialog(
+    mode: SettingsFamilyMembershipMode,
+    isLoading: Boolean,
+    onDismiss: () -> Unit,
+    onSubmit: (String) -> Unit,
+) {
+    var input by remember { mutableStateOf("") }
+    val typography = KeuTrackTheme.typography
+    val textColors = KeuTrackTheme.textColors
+    val semantic = KeuTrackTheme.semanticColors
+
+    val title =
+        when (mode) {
+            SettingsFamilyMembershipMode.Create -> "Buat Keluarga"
+            SettingsFamilyMembershipMode.Join -> "Gabung dengan Kode"
+        }
+    val label =
+        when (mode) {
+            SettingsFamilyMembershipMode.Create -> "Nama keluarga"
+            SettingsFamilyMembershipMode.Join -> "Kode undangan"
+        }
+    val placeholder =
+        when (mode) {
+            SettingsFamilyMembershipMode.Create -> "Contoh: Keluarga Amri"
+            SettingsFamilyMembershipMode.Join -> "KEU-ABC-123"
+        }
+    val confirmLabel =
+        when (mode) {
+            SettingsFamilyMembershipMode.Create -> "Buat"
+            SettingsFamilyMembershipMode.Join -> "Gabung"
+        }
+
+    AlertDialog(
+        onDismissRequest = { if (!isLoading) onDismiss() },
+        title = {
+            Text(
+                text = title,
+                style = typography.headingBold20,
+                color = textColors.title,
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                KeuTrackTextField(
+                    value = input,
+                    onValueChange = { input = it },
+                    label = label,
+                    placeholder = placeholder,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (isLoading) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        CircularProgressIndicator(color = semantic.primary)
+                        Text(
+                            text = "Memproses…",
+                            style = typography.bodyRegular14,
+                            color = semantic.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 4.dp),
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            KeuTrackButton(
+                text = confirmLabel,
+                onClick = { onSubmit(input) },
+                enabled = !isLoading && input.isNotBlank(),
+                style = KeuTrackButtonStyle.Primary,
+            )
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !isLoading) {
+                Text("Batal")
+            }
+        },
+        backgroundColor = KeuTrackTheme.semanticColors.surfaceContainerLowest,
+    )
+}
