@@ -17,13 +17,4 @@ data class DashboardUIState(
     val incomeTotal: Long = 0L,
     val expenseTotal: Long = 0L,
     val recentTransactions: List<TransactionRowUi> = emptyList(),
-    val categories: List<NewEntryCategoryUI> = emptyList(),
-    val selectedEntryKind: EntryTransactionKind = EntryTransactionKind.Expense,
-    val personalWalletId: String? = null,
-    val currentUserId: String? = null,
-    val currentUserDisplayName: String = "",
-    val currentUserEmail: String = "",
-    val isSavingTransaction: Boolean = false,
-    val saveError: String? = null,
-    val dismissNewEntrySheet: Boolean = false,
 )

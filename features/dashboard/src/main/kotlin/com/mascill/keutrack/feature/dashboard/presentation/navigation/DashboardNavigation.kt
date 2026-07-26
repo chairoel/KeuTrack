@@ -14,8 +14,14 @@ object DashboardRoute
  */
 fun NavGraphBuilder.dashboardGraph(
     onSettingsClick: () -> Unit = {},
+    onAddTransaction: () -> Unit = {},
+    onViewAllTransactions: () -> Unit = {},
 ) {
     composable<DashboardRoute> {
-        DashboardRouting(onSettingsClick = onSettingsClick)
+        DashboardRouting(
+            onSettingsClick = onSettingsClick,
+            onAddTransaction = onAddTransaction,
+            onViewAllTransactions = onViewAllTransactions,
+        )
     }
 }

@@ -1,7 +1,6 @@
 package com.mascill.keutrack.feature.dashboard.presentation
 
 import android.content.res.Configuration
-import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,9 +20,6 @@ import androidx.compose.material.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
@@ -31,12 +27,10 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mascill.keutrack.core.designsystem.component.KeuTrackFab
-import com.mascill.keutrack.core.designsystem.component.KeuTrackModalBottomSheet
 import com.mascill.keutrack.core.designsystem.format.CurrencyFormat
 import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
 import com.mascill.keutrack.feature.dashboard.presentation.components.DashboardStatCardsRow
 import com.mascill.keutrack.feature.dashboard.presentation.components.DashboardTopBar
-import com.mascill.keutrack.feature.dashboard.presentation.components.NewEntryBottomSheetContent
 import com.mascill.keutrack.feature.dashboard.presentation.components.RecentTransactionsSection
 import com.mascill.keutrack.feature.dashboard.presentation.components.WalletSummaryCard
 import com.mascill.keutrack.feature.dashboard.presentation.components.WalletSummaryCardKind
@@ -44,7 +38,6 @@ import com.mascill.keutrack.feature.dashboard.presentation.components.WalletSumm
 import com.mascill.keutrack.feature.dashboard.presentation.components.WalletSummaryPersonalMonthChangeFooter
 import com.mascill.keutrack.feature.dashboard.presentation.model.DashboardUIState
 import com.mascill.keutrack.feature.dashboard.presentation.model.DefaultDashboardMockContent
-import com.mascill.keutrack.feature.dashboard.presentation.model.EntryTransactionKind
 import com.mascill.keutrack.feature.dashboard.presentation.model.toPreviewUiState
 
 private const val DASH_FAB_LIST_CLEARANCE = 72
@@ -61,7 +54,6 @@ private const val DASH_BALANCE_LABEL_FAMILY = "Available Shared"
 private const val DASH_INCOME_LABEL = "INCOME"
 private const val DASH_EXPENSE_LABEL = "EXPENSE"
 private const val DASH_ERROR_DISMISS = "Dismiss"
-private const val TAG = "Dashboard"
 
 /**
  * Dashboard routing — collects ViewModel state and wires navigation callbacks.
@@ -69,38 +61,21 @@ private const val TAG = "Dashboard"
 @Composable
 fun DashboardRouting(
     onSettingsClick: () -> Unit = {},
+    onAddTransaction: () -> Unit = {},
+    onViewAllTransactions: () -> Unit = {},
     viewModel: DashboardViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    var showNewEntrySheet by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.onScreenRendered()
     }
 
-    LaunchedEffect(uiState.dismissNewEntrySheet) {
-        if (uiState.dismissNewEntrySheet) {
-            showNewEntrySheet = false
-            viewModel.onNewEntrySheetDismissed()
-        }
-    }
-
     DashboardScreen(
         uiState = uiState,
         onSettingsClick = onSettingsClick,
-        onViewAllTransactions = {
-            // TODO(Phase 5): navigate to full transaction history / TransactionRoute
-            Log.d(TAG, "onViewAllTransactions: deferred to Phase 5")
-        },
-        onFabClick = { showNewEntrySheet = true },
-        showNewEntrySheet = showNewEntrySheet,
-        onNewEntrySheetDismiss = {
-            showNewEntrySheet = false
-            viewModel.onNewEntrySheetDismissed()
-        },
-        onEntryKindChanged = viewModel::onEntryKindChanged,
-        onSaveTransaction = viewModel::onSaveTransaction,
-        onClearSaveError = viewModel::clearSaveError,
+        onViewAllTransactions = onViewAllTransactions,
+        onFabClick = onAddTransaction,
         onDismissError = { /* error is one-shot from flow; next emit clears */ },
     )
 }
@@ -114,11 +89,6 @@ fun DashboardScreen(
     onSettingsClick: () -> Unit,
     onViewAllTransactions: () -> Unit,
     onFabClick: () -> Unit,
-    showNewEntrySheet: Boolean,
-    onNewEntrySheetDismiss: () -> Unit,
-    onEntryKindChanged: (EntryTransactionKind) -> Unit = {},
-    onSaveTransaction: (amount: Long, categoryId: String, kind: EntryTransactionKind) -> Unit = { _, _, _ -> },
-    onClearSaveError: () -> Unit = {},
     onDismissError: () -> Unit = {},
 ) {
     val pageBg = KeuTrackTheme.contentColors.pageColor
@@ -260,22 +230,6 @@ fun DashboardScreen(
                 Text(message)
             }
         }
-
-        if (showNewEntrySheet) {
-            KeuTrackModalBottomSheet(onDismissRequest = onNewEntrySheetDismiss) {
-                NewEntryBottomSheetContent(
-                    categories = uiState.categories,
-                    selectedKind = uiState.selectedEntryKind,
-                    isSaving = uiState.isSavingTransaction,
-                    errorMessage = uiState.saveError,
-                    hasPersonalWallet = !uiState.personalWalletId.isNullOrBlank(),
-                    onDismiss = onNewEntrySheetDismiss,
-                    onKindChanged = onEntryKindChanged,
-                    onSave = onSaveTransaction,
-                    onClearError = onClearSaveError,
-                )
-            }
-        }
     }
 }
 
@@ -288,8 +242,6 @@ private fun DashboardScreenPreview() {
             onSettingsClick = { },
             onViewAllTransactions = { },
             onFabClick = { },
-            showNewEntrySheet = false,
-            onNewEntrySheetDismiss = { },
         )
     }
 }
@@ -307,8 +259,6 @@ private fun DashboardScreenDarkPreview() {
             onSettingsClick = { },
             onViewAllTransactions = { },
             onFabClick = { },
-            showNewEntrySheet = false,
-            onNewEntrySheetDismiss = { },
         )
     }
 }

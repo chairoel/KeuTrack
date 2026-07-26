@@ -1,22 +1,8 @@
 package com.mascill.keutrack.feature.dashboard.presentation.model
 
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.TrendingUp
-import androidx.compose.material.icons.outlined.DirectionsCar
-import androidx.compose.material.icons.outlined.LocalHospital
-import androidx.compose.material.icons.outlined.MoreHoriz
-import androidx.compose.material.icons.outlined.Movie
-import androidx.compose.material.icons.outlined.Payments
-import androidx.compose.material.icons.outlined.Receipt
-import androidx.compose.material.icons.outlined.Restaurant
-import androidx.compose.material.icons.outlined.School
-import androidx.compose.material.icons.outlined.ShoppingCart
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import com.mascill.keutrack.core.designsystem.format.CurrencyFormat
 import com.mascill.keutrack.core.domain.model.Category
 import com.mascill.keutrack.core.domain.model.CategorySummary
-import com.mascill.keutrack.core.domain.model.CategoryType
 import com.mascill.keutrack.core.domain.model.Transaction
 import com.mascill.keutrack.core.domain.model.TransactionType
 import com.mascill.keutrack.core.domain.model.User
@@ -71,28 +57,6 @@ internal object DashboardUiMapper {
         result: MonthlySummaryResult,
         priorPeriod: String,
     ): CategorySummary? = result.trend.firstOrNull { it.period == priorPeriod }
-
-    fun filterCategoriesForKind(
-        categories: List<Category>,
-        kind: EntryTransactionKind,
-    ): List<Category> {
-        val target =
-            when (kind) {
-                EntryTransactionKind.Expense -> CategoryType.EXPENSE
-                EntryTransactionKind.Income -> CategoryType.INCOME
-            }
-        return categories.filter { it.type == target || it.type == CategoryType.BOTH }
-    }
-
-    fun toNewEntryCategories(categories: List<Category>): List<NewEntryCategoryUI> =
-        categories.map { category ->
-            NewEntryCategoryUI(
-                id = category.id,
-                label = category.name,
-                icon = iconKeyToImageVector(category.icon),
-                accent = parseHexColor(category.color),
-            )
-        }
 
     fun toTransactionRows(
         transactions: List<Transaction>,
@@ -149,27 +113,5 @@ internal object DashboardUiMapper {
             "ShoppingCart" -> TransactionCategoryIcon.Shopping
             "TrendingUp" -> TransactionCategoryIcon.Investment
             else -> TransactionCategoryIcon.Other
-        }
-
-    fun iconKeyToImageVector(iconKey: String): ImageVector =
-        when (iconKey) {
-            "Restaurant" -> Icons.Outlined.Restaurant
-            "DirectionsCar" -> Icons.Outlined.DirectionsCar
-            "Receipt" -> Icons.Outlined.Receipt
-            "Payments" -> Icons.Outlined.Payments
-            "School" -> Icons.Outlined.School
-            "Movie" -> Icons.Outlined.Movie
-            "LocalHospital" -> Icons.Outlined.LocalHospital
-            "ShoppingCart" -> Icons.Outlined.ShoppingCart
-            "TrendingUp" -> Icons.AutoMirrored.Filled.TrendingUp
-            else -> Icons.Outlined.MoreHoriz
-        }
-
-    fun parseHexColor(hex: String): Color =
-        try {
-            val normalized = if (hex.startsWith("#")) hex else "#$hex"
-            Color(android.graphics.Color.parseColor(normalized))
-        } catch (_: IllegalArgumentException) {
-            Color(0xFF78909C)
         }
 }

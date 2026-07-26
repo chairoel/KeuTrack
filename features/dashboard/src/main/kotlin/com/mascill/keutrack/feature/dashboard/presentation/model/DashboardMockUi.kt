@@ -145,6 +145,4 @@ fun DashboardMockContent.toPreviewUiState(): DashboardUIState =
         incomeTotal = 8_200_000L,
         expenseTotal = 3_500_000L,
         recentTransactions = transactions,
-        personalWalletId = "preview-wallet",
-        currentUserId = "preview-user",
     )

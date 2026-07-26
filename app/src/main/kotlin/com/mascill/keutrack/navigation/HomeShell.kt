@@ -31,11 +31,15 @@ import com.mascill.keutrack.feature.settings.presentation.navigation.settingsGra
 @Composable
 fun HomeShell(
     onSignOutSuccess: () -> Unit = {},
+    onAddTransaction: () -> Unit = {},
+    onViewAllTransactions: () -> Unit = {},
 ) {
     val homeNavController = rememberNavController()
     HomeShellContent(
         homeNavController = homeNavController,
         onSignOutSuccess = onSignOutSuccess,
+        onAddTransaction = onAddTransaction,
+        onViewAllTransactions = onViewAllTransactions,
     )
 }
 
@@ -43,6 +47,8 @@ fun HomeShell(
 private fun HomeShellContent(
     homeNavController: NavHostController,
     onSignOutSuccess: () -> Unit,
+    onAddTransaction: () -> Unit,
+    onViewAllTransactions: () -> Unit,
 ) {
     val backStackEntry by homeNavController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
@@ -82,6 +88,8 @@ private fun HomeShellContent(
             navController = homeNavController,
             modifier = Modifier.padding(innerPadding),
             onSignOutSuccess = onSignOutSuccess,
+            onAddTransaction = onAddTransaction,
+            onViewAllTransactions = onViewAllTransactions,
         )
     }
 }
@@ -95,6 +103,8 @@ private fun HomeNavHost(
     navController: NavHostController,
     modifier: Modifier = Modifier,
     onSignOutSuccess: () -> Unit,
+    onAddTransaction: () -> Unit,
+    onViewAllTransactions: () -> Unit,
 ) {
     NavHost(
         navController = navController,
@@ -111,6 +121,8 @@ private fun HomeNavHost(
                     restoreState = true
                 }
             },
+            onAddTransaction = onAddTransaction,
+            onViewAllTransactions = onViewAllTransactions,
         )
         familyGraph()
         settingsGraph(
