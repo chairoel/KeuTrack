@@ -1,6 +1,6 @@
 # Firestore Security Rules (KeuTrack)
 
-**Last updated:** 25 July 2026
+**Last updated:** 26 July 2026
 
 This document explains the Firestore security rules used by KeuTrack and includes a copy you can paste into the Firebase Console.
 
@@ -32,10 +32,15 @@ KeuTrack is offline-first: the app writes to Room first, then WorkManager syncs 
 | `/wallets/{walletId}` | Owner of the wallet | `ownerId` |
 | `/transactions/{txId}` | Owner of the transaction | `userId` |
 | `/budgets/{budgetId}` | Owner of the budget | `userId` |
+| `/family_groups/{familyId}` | Signed-in members (create/join) | `ownerId` / `memberIds` |
 
-**Not covered yet:** `/categories` (and family-shared access). Those writes will be denied until rules are added.
+**Not covered yet:** `/categories` (and richer family-shared wallet access across members). Those writes will be denied until rules are added.
 
-User profiles **cannot** be deleted from the client (`allow delete: if false`).
+### Phase 6 notes
+
+- `/family_groups` enables create/join and invite-code lookup (`list` must allow signed-in users so join can query by `inviteCode`).
+- `/users/{uid}` already allows owner `update`, so writing `familyId` / `familyRole` via the membership API is covered (no separate field whitelist required).
+- User profiles **cannot** be deleted from the client (`allow delete: if false`).
 
 ---
 
@@ -162,6 +167,28 @@ service cloud.firestore {
       allow update, delete: if signedIn()
         && resource.data.userId == request.auth.uid;
     }
+
+    // Family groups (Phase 6): create / join / invite
+    match /family_groups/{familyId} {
+      allow get: if signedIn()
+        && (resource == null
+          || request.auth.uid in resource.data.memberIds
+          || request.auth.uid == resource.data.ownerId);
+
+      // Needed so join can query by inviteCode
+      allow list: if signedIn();
+
+      allow create: if signedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && request.auth.uid in request.resource.data.memberIds;
+
+      allow update: if signedIn()
+        && (request.auth.uid == resource.data.ownerId
+          || request.auth.uid in resource.data.memberIds);
+
+      allow delete: if signedIn()
+        && request.auth.uid == resource.data.ownerId;
+    }
   }
 }
 ```
@@ -170,17 +197,20 @@ service cloud.firestore {
 
 ## Publish checklist
 
-1. Paste rules in Firebase Console (or deploy via Firebase CLI).
+1. Paste rules in Firebase Console (or deploy via Firebase CLI), then **Publish**.
 2. Confirm you are signed in on the device under test.
 3. Add a transaction in the app (online), or open the dashboard to retry pending sync.
 4. In Firestore Console, confirm documents appear under `wallets` and `transactions`.
 5. On the dashboard, the **Local** / **Gagal sync** chip should clear after a successful sync (`SYNCED`).
-If sync still fails with `PERMISSION_DENIED`:
+6. Phase 6: create a family from the Family tab, then confirm a doc appears under `family_groups`. Join with invite code from another account if available.
+
+If sync or membership still fails with `PERMISSION_DENIED`:
 
 - Confirm these rules were **Published** (not only saved in this markdown file).
 - Check ownership fields match the app (`ownerId` on wallets, `userId` on transactions/budgets).
 - Confirm `transaction.userId` equals the signed-in Firebase Auth UID.
 - Confirm the wallet document already exists in Firestore before transaction side-effect `update` runs.
+- For create/join family: confirm the `family_groups` match block is present and published.
 
 ---
 
