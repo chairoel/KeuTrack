@@ -22,7 +22,6 @@ import com.mascill.keutrack.core.designsystem.model.KeuTrackProgressTone
 import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
 import com.mascill.keutrack.feature.family.presentation.model.FamilyBudgetBarTone
 import com.mascill.keutrack.feature.family.presentation.model.FamilyBudgetRowUi
-import com.mascill.keutrack.feature.family.presentation.model.FamilyInsightsMockContent
 
 private const val FAM_BUDGET_SECTION_PH = 24
 private const val FAM_BUDGET_SECTION_PV = 24
@@ -31,10 +30,13 @@ private const val FAM_BUDGET_ROW_INNER = 8
 private const val FAM_BUDGET_FOOTNOTE_PT = 4
 private const val FAM_BUDGET_MUTED_ALPHA = 0.8f
 private const val FAM_BUDGET_SPENT_CAP_SEPARATOR = " / "
+private const val FAM_SHARED_BUDGETS_TITLE = "Shared Budgets"
+private const val FAM_BUDGETS_EMPTY =
+    "Belum ada shared budget bulan ini. Buat budget dengan dompet keluarga untuk memantau progress bersama."
 
 @Composable
 fun FamilySharedBudgetsCard(
-    content: FamilyInsightsMockContent,
+    budgetRows: List<FamilyBudgetRowUi>,
     modifier: Modifier = Modifier,
 ) {
     val semantic = KeuTrackTheme.semanticColors
@@ -59,14 +61,22 @@ fun FamilySharedBudgetsCard(
                 .padding(horizontal = FAM_BUDGET_SECTION_PH.dp, vertical = FAM_BUDGET_SECTION_PV.dp),
     ) {
         Text(
-            text = content.sharedBudgetsTitle,
+            text = FAM_SHARED_BUDGETS_TITLE,
             style = typography.headingBold20,
             color = textColors.title,
         )
         Spacer(modifier = Modifier.height(FAM_BUDGET_ROW_SPACING.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(FAM_BUDGET_ROW_SPACING.dp)) {
-            content.budgetRows.forEach { row ->
-                FamilyBudgetRow(row = row)
+        if (budgetRows.isEmpty()) {
+            Text(
+                text = FAM_BUDGETS_EMPTY,
+                style = typography.bodyRegular14,
+                color = semantic.onSurfaceVariant,
+            )
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(FAM_BUDGET_ROW_SPACING.dp)) {
+                budgetRows.forEach { row ->
+                    FamilyBudgetRow(row = row)
+                }
             }
         }
     }
