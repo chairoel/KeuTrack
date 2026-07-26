@@ -6,6 +6,7 @@ import com.mascill.keutrack.core.domain.model.SyncStatus
 import com.mascill.keutrack.core.domain.model.Wallet
 import com.mascill.keutrack.core.domain.model.WalletType
 import com.mascill.keutrack.core.domain.repository.FamilyRepository
+import com.mascill.keutrack.core.domain.repository.SyncRepository
 import com.mascill.keutrack.core.domain.repository.UserRepository
 import com.mascill.keutrack.core.domain.repository.WalletRepository
 import kotlinx.coroutines.flow.first
@@ -18,6 +19,7 @@ class CreateFamilyGroupUseCase @Inject constructor(
     private val familyRepository: FamilyRepository,
     private val userRepository: UserRepository,
     private val walletRepository: WalletRepository,
+    private val syncRepository: SyncRepository,
 ) {
     suspend operator fun invoke(name: String): Result<FamilyGroup> {
         val trimmed = name.trim()
@@ -53,6 +55,14 @@ class CreateFamilyGroupUseCase @Inject constructor(
                 familyId = family.id,
                 familyName = family.name,
             )
+            // Await wallet push so joiners can pull the same canonical id (avoid W_B mint race).
+            try {
+                syncRepository.syncPendingWallets()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                syncRepository.enqueuePendingSync(force = true)
+            }
             Result.success(family)
         } catch (e: CancellationException) {
             throw e

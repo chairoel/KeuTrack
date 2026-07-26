@@ -2,15 +2,12 @@ package com.mascill.keutrack.core.domain.usecase
 
 import com.mascill.keutrack.core.domain.model.FamilyGroup
 import com.mascill.keutrack.core.domain.model.FamilyRole
-import com.mascill.keutrack.core.domain.model.SyncStatus
-import com.mascill.keutrack.core.domain.model.Wallet
 import com.mascill.keutrack.core.domain.model.WalletType
 import com.mascill.keutrack.core.domain.repository.FamilyRepository
 import com.mascill.keutrack.core.domain.repository.UserRepository
 import com.mascill.keutrack.core.domain.repository.WalletRepository
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
-import java.time.Instant
-import java.util.UUID
 import javax.inject.Inject
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -18,6 +15,7 @@ class JoinFamilyGroupUseCase @Inject constructor(
     private val familyRepository: FamilyRepository,
     private val userRepository: UserRepository,
     private val walletRepository: WalletRepository,
+    private val syncFamilyData: SyncFamilyDataUseCase,
 ) {
     suspend operator fun invoke(inviteCode: String): Result<FamilyGroup> {
         val code = inviteCode.trim().uppercase()
@@ -41,11 +39,7 @@ class JoinFamilyGroupUseCase @Inject constructor(
             ).getOrElse {
                 return Result.failure(it)
             }
-            ensureLocalFamilyWallet(
-                ownerId = user.uid,
-                familyId = family.id,
-                familyName = family.name,
-            )
+            ensureSharedFamilyWallet(familyId = family.id)
             Result.success(family)
         } catch (e: CancellationException) {
             throw e
@@ -55,31 +49,26 @@ class JoinFamilyGroupUseCase @Inject constructor(
     }
 
     /**
-     * MVP: if the shared family wallet is not on this device yet (multi-device sync later),
-     * create a local FAMILY wallet linked to the same [familyId] so Insights can work.
+     * Pull the canonical family wallet from Firestore into Room.
+     * Retries briefly if the owner wallet is not remote yet — does **not** mint a second UUID
+     * (that caused split-brain History where A never saw B's txs on W_B).
      */
-    private suspend fun ensureLocalFamilyWallet(
-        ownerId: String,
-        familyId: String,
-        familyName: String,
-    ) {
-        val existing =
-            walletRepository.observeWalletsByType(WalletType.FAMILY).first()
-                .any { it.familyId == familyId }
-        if (existing) return
+    private suspend fun ensureSharedFamilyWallet(familyId: String) {
+        repeat(PULL_ATTEMPTS) { attempt ->
+            syncFamilyData(familyId)
+            val hasFamilyWallet =
+                walletRepository.observeWalletsByType(WalletType.FAMILY).first()
+                    .any { it.familyId == familyId }
+            if (hasFamilyWallet) return
+            if (attempt < PULL_ATTEMPTS - 1) {
+                delay(PULL_RETRY_DELAY_MS)
+            }
+        }
+        // Membership is already saved; Family tab pull can hydrate the wallet later.
+    }
 
-        walletRepository.createWallet(
-            Wallet(
-                id = UUID.randomUUID().toString(),
-                ownerId = ownerId,
-                familyId = familyId,
-                name = "Dompet $familyName",
-                type = WalletType.FAMILY,
-                balance = 0L,
-                currency = "IDR",
-                syncStatus = SyncStatus.PENDING,
-                createdAt = Instant.now(),
-            ),
-        )
+    private companion object {
+        const val PULL_ATTEMPTS = 4
+        const val PULL_RETRY_DELAY_MS = 1_000L
     }
 }
