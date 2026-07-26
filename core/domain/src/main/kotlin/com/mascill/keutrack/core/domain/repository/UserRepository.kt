@@ -20,4 +20,13 @@ interface UserRepository {
 
     suspend fun signOut()
     suspend fun syncUserProfile()
+
+    /**
+     * Explicit membership write for Phase 6 family create/join.
+     * Does not go through auth sign-in upsert paths.
+     */
+    suspend fun updateFamilyMembership(
+        familyId: String?,
+        familyRole: String?,
+    ): Result<Unit>
 }
