@@ -1,6 +1,6 @@
 # Firestore Security Rules (KeuTrack)
 
-**Last updated:** 26 July 2026
+**Last updated:** 26 July 2026 (Phase 6c — shared family wallet/tx read)
 
 This document explains the Firestore security rules used by KeuTrack and includes a copy you can paste into the Firebase Console.
 
@@ -29,18 +29,27 @@ KeuTrack is offline-first: the app writes to Room first, then WorkManager syncs 
 |------|----------------|-----------------|
 | `/users/{uid}` | Only that user | Path `uid` == `request.auth.uid` |
 | `/users/{uid}/category_summaries/{period}` | Only that user | Same as parent `uid` |
-| `/wallets/{walletId}` | Owner of the wallet | `ownerId` |
-| `/transactions/{txId}` | Owner of the transaction | `userId` |
+| `/wallets/{walletId}` | Owner **or** family member (read); owner write; members may update `balance` only | `ownerId` / `familyId` |
+| `/transactions/{txId}` | Author **or** family member (read); author write | `userId` / `familyId` |
 | `/budgets/{budgetId}` | Owner of the budget | `userId` |
 | `/family_groups/{familyId}` | Signed-in members (create/join) | `ownerId` / `memberIds` |
 
-**Not covered yet:** `/categories` (and richer family-shared wallet access across members). Those writes will be denied until rules are added.
+**Not covered yet:** `/categories`. Those writes will be denied until rules are added.
 
 ### Phase 6 notes
 
 - `/family_groups` enables create/join and invite-code lookup (`list` must allow signed-in users so join can query by `inviteCode`).
+- **Join** uses `arrayUnion(uid)` on `memberIds`. The joiner is **not** a member yet, so `allow update` must include a dedicated join clause — member-only update will `PERMISSION_DENIED` on join.
 - `/users/{uid}` already allows owner `update`, so writing `familyId` / `familyRole` via the membership API is covered (no separate field whitelist required).
 - User profiles **cannot** be deleted from the client (`allow delete: if false`).
+
+### Phase 6c notes (shared family data)
+
+- Family members may **get** wallet/transaction docs when `isFamilyMember(resource.data.familyId)`.
+- **List** on `/wallets` and `/transactions` is `allow list: if signedIn()` for MVP so clients can query `where familyId == F`. This is intentionally loose — harden with query-scoped constraints soon after green QA.
+- Shared family wallet sync: when member B adds a transaction, Firestore updates `wallets/{id}.balance` via `FieldValue.increment`. Members must be allowed to change **only** `balance` on family wallets — otherwise SyncWorker stays on `RETRY` with `PERMISSION_DENIED`.
+- Transaction create/update/delete remain author-only (`userId`); wallet delete remains owner-only.
+- Pull sync: equality-only `familyId` query (no composite index required for MVP).
 
 ---
 
@@ -54,10 +63,19 @@ function signedIn() {
 function isOwner(uid) {
   return signedIn() && request.auth.uid == uid;
 }
+
+function isFamilyMember(familyId) {
+  return signedIn()
+    && familyId is string
+    && familyId.size() > 0
+    && request.auth.uid in
+      get(/databases/$(database)/documents/family_groups/$(familyId)).data.memberIds;
+}
 ```
 
 - `signedIn()` — user must be logged in.
 - `isOwner(uid)` — logged-in user’s UID must match the path or document owner.
+- `isFamilyMember(familyId)` — UID is listed in `family_groups/{familyId}.memberIds`.
 
 ---
 
@@ -67,11 +85,11 @@ For top-level money collections (`wallets`, `transactions`, `budgets`):
 
 1. **Create** — `request.resource.data.<ownerField> == request.auth.uid`  
    Client cannot create a document owned by someone else.
-2. **Get (including missing docs)** — allow when `resource == null` **or** the existing doc belongs to the signed-in user.  
+2. **Get (including missing docs)** — allow when `resource == null` **or** the existing doc belongs to the signed-in user **or** (wallets/transactions) the user is a family member on `familyId`.  
    Required because sync does `get()` before create (idempotency). A rule that only checks `resource.data.userId` **denies** reads of non-existent docs → `PERMISSION_DENIED`.
 3. **Update / delete** — `resource.data.<ownerField> == request.auth.uid`  
    Only the current owner can change or remove an existing document.
-4. **List** — denied for these collections (`allow list: if false`) until query-scoped rules are designed.
+4. **List** — wallets/transactions allow signed-in list for Phase 6c pull MVP; budgets remain `list: false`.
 
 ---
 
@@ -85,6 +103,21 @@ For top-level money collections (`wallets`, `transactions`, `budgets`):
 4. `set(users/{uid}/category_summaries/{period})` — upsert summary  
 
 If step 1 is denied, the whole sync fails with `PERMISSION_DENIED` even when create rules are correct.
+
+---
+
+## Indexes (Phase 6c)
+
+**Current app (MVP):** family transaction pull uses `whereEqualTo("familyId", …)` only, then sorts by `date` on device — **no composite index required**.
+
+Optional later (server-side `orderBy("date")` + `limit`):
+
+| Collection | Fields | When |
+|------------|--------|------|
+| `transactions` | `familyId` Asc, `date` Desc | If you restore remote `orderBy` + `limit` |
+| `wallets` | `familyId` Asc (+ optional `type` Asc) | Usually not needed for equality-only |
+
+If you hit `FAILED_PRECONDITION: The query requires an index`, open the link in the error (project `keutrack-dev`) and create the composite, then wait until status is **Enabled**.
 
 ---
 
@@ -106,6 +139,15 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == uid;
     }
 
+    // Phase 6c: shared read for family wallet / transactions
+    function isFamilyMember(familyId) {
+      return signedIn()
+        && familyId is string
+        && familyId.size() > 0
+        && request.auth.uid in
+          get(/databases/$(database)/documents/family_groups/$(familyId)).data.memberIds;
+    }
+
     // Profile: /users/{uid}
     match /users/{uid} {
       allow read: if isOwner(uid);
@@ -118,35 +160,48 @@ service cloud.firestore {
       }
     }
 
-    // Wallets: ownership field = ownerId
+    // Wallets: ownership field = ownerId; family members may read/list (Phase 6c)
     match /wallets/{walletId} {
       allow create: if signedIn()
         && request.resource.data.ownerId == request.auth.uid;
 
-      // Allow get on missing docs; owner-only if the doc exists
       allow get: if signedIn() && (
-        resource == null ||
-        resource.data.ownerId == request.auth.uid
+        resource == null
+        || resource.data.ownerId == request.auth.uid
+        || isFamilyMember(resource.data.familyId)
       );
 
-      allow list: if false;
+      // MVP: signed-in list for pull by familyId — harden later
+      allow list: if signedIn();
 
-      allow update, delete: if signedIn()
+      // Owner full update; family members may only increment/update balance
+      // (required for shared-wallet transaction side-effects in SyncWorker).
+      allow update: if signedIn() && (
+        resource.data.ownerId == request.auth.uid
+        || (
+          isFamilyMember(resource.data.familyId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['balance'])
+        )
+      );
+
+      allow delete: if signedIn()
         && resource.data.ownerId == request.auth.uid;
     }
 
-    // Transactions: ownership field = userId
+    // Transactions: ownership field = userId; family members may read/list (Phase 6c)
     match /transactions/{txId} {
       allow create: if signedIn()
         && request.resource.data.userId == request.auth.uid;
 
       // Required: SyncWorker does get() before create (idempotency check)
       allow get: if signedIn() && (
-        resource == null ||
-        resource.data.userId == request.auth.uid
+        resource == null
+        || resource.data.userId == request.auth.uid
+        || isFamilyMember(resource.data.familyId)
       );
 
-      allow list: if false;
+      // MVP: signed-in list for pull by familyId — harden later
+      allow list: if signedIn();
 
       allow update, delete: if signedIn()
         && resource.data.userId == request.auth.uid;
@@ -182,9 +237,19 @@ service cloud.firestore {
         && request.resource.data.ownerId == request.auth.uid
         && request.auth.uid in request.resource.data.memberIds;
 
-      allow update: if signedIn()
-        && (request.auth.uid == resource.data.ownerId
-          || request.auth.uid in resource.data.memberIds);
+      // Owner/members may update; non-members may only arrayUnion themselves into memberIds.
+      allow update: if signedIn() && (
+        request.auth.uid == resource.data.ownerId
+        || request.auth.uid in resource.data.memberIds
+        || (
+          !(request.auth.uid in resource.data.memberIds)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberIds'])
+          && request.resource.data.memberIds is list
+          && request.resource.data.memberIds.size() == resource.data.memberIds.size() + 1
+          && request.resource.data.memberIds.hasAll(resource.data.memberIds)
+          && request.auth.uid in request.resource.data.memberIds
+        )
+      );
 
       allow delete: if signedIn()
         && request.auth.uid == resource.data.ownerId;
@@ -203,6 +268,7 @@ service cloud.firestore {
 4. In Firestore Console, confirm documents appear under `wallets` and `transactions`.
 5. On the dashboard, the **Local** / **Gagal sync** chip should clear after a successful sync (`SYNCED`).
 6. Phase 6: create a family from the Family tab, then confirm a doc appears under `family_groups`. Join with invite code from another account if available.
+7. Phase 6c: after A syncs a family transaction, B opens Family tab (pull) and sees History from A. Confirm indexes exist if query fails.
 
 If sync or membership still fails with `PERMISSION_DENIED`:
 
@@ -210,7 +276,9 @@ If sync or membership still fails with `PERMISSION_DENIED`:
 - Check ownership fields match the app (`ownerId` on wallets, `userId` on transactions/budgets).
 - Confirm `transaction.userId` equals the signed-in Firebase Auth UID.
 - Confirm the wallet document already exists in Firestore before transaction side-effect `update` runs.
-- For create/join family: confirm the `family_groups` match block is present and published.
+- For create/join family: confirm the `family_groups` match block is present and published (including the join `memberIds` append clause — not member-only update).
+- For family pull: confirm `isFamilyMember` helper is published and B is in `memberIds`.
+- For member transaction sync stuck on RETRY: confirm wallet `allow update` includes the family-member `balance`-only clause (side-effect increment on shared wallet).
 
 ---
 
