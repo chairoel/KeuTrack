@@ -16,6 +16,7 @@ import com.mascill.keutrack.core.data.sync.SyncScheduler
 import com.mascill.keutrack.core.domain.model.CategorySummary
 import com.mascill.keutrack.core.domain.model.SyncStatus
 import com.mascill.keutrack.core.domain.model.TransactionType
+import com.mascill.keutrack.core.domain.model.WalletType
 import com.mascill.keutrack.core.domain.repository.SyncRepository
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -147,6 +148,53 @@ class SyncRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun syncFamilyData(familyId: String) {
+        try {
+            if (familyId.isBlank()) return
+
+            val remoteWallets = walletRemote.getByFamilyId(familyId)
+            remoteWallets.forEach { wallet ->
+                val existing = walletLocal.getById(wallet.id)
+                if (existing != null && existing.syncStatus == SyncStatus.PENDING.name) {
+                    return@forEach
+                }
+                walletLocal.upsert(
+                    walletMapper.toEntity(wallet.copy(syncStatus = SyncStatus.SYNCED)),
+                )
+            }
+
+            // Keep one canonical wallet locally (oldest FAMILY). Drop extras even if remote
+            // still has split-brain W_B from an earlier join race — new writes should target W_A.
+            if (remoteWallets.isNotEmpty()) {
+                val familyTyped =
+                    remoteWallets.filter { it.type == WalletType.FAMILY }.ifEmpty { remoteWallets }
+                val canonicalId =
+                    familyTyped.minByOrNull { it.createdAt }?.id
+                if (canonicalId != null) {
+                    walletLocal.getByFamilyId(familyId)
+                        .filter { it.id != canonicalId }
+                        .forEach { extra -> walletLocal.delete(extra.id) }
+                }
+            }
+
+            val remoteTransactions =
+                transactionRemote.getByFamilyId(familyId, limit = FAMILY_TX_PULL_LIMIT)
+            remoteTransactions.forEach { transaction ->
+                val existing = transactionLocal.getById(transaction.id)
+                if (existing != null && existing.syncStatus == SyncStatus.PENDING.name) {
+                    return@forEach
+                }
+                transactionLocal.upsert(
+                    transactionMapper.toEntity(
+                        transaction.copy(syncStatus = SyncStatus.SYNCED),
+                    ),
+                )
+            }
+        } catch (e: CancellationException) {
+            throw e
+        }
+    }
+
     override suspend fun hasPendingSync(): Boolean =
         walletLocal.getPending().isNotEmpty() ||
             budgetLocal.getPending().isNotEmpty() ||
@@ -158,5 +206,6 @@ class SyncRepositoryImpl @Inject constructor(
 
     private companion object {
         val MONTH_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM")
+        const val FAMILY_TX_PULL_LIMIT = 200
     }
 }

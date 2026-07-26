@@ -26,6 +26,9 @@ interface WalletDao {
     @Query("SELECT * FROM wallets WHERE type = 'personal' LIMIT 1")
     suspend fun getPersonal(): WalletEntity?
 
+    @Query("SELECT * FROM wallets WHERE familyId = :familyId ORDER BY createdAtEpochMs ASC")
+    suspend fun getByFamilyId(familyId: String): List<WalletEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: WalletEntity)
 

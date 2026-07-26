@@ -6,6 +6,12 @@ interface SyncRepository {
     suspend fun syncPendingBudgets()
     suspend fun syncAll()
 
+    /**
+     * Pull shared family wallet(s) + recent transactions into Room (Phase 6c).
+     * Skips overwrite when a local row for the same id is still PENDING.
+     */
+    suspend fun syncFamilyData(familyId: String)
+
     /** True when any wallet, budget, or transaction is PENDING or FAILED. */
     suspend fun hasPendingSync(): Boolean
 

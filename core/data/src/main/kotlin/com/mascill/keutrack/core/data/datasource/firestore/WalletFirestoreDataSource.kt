@@ -2,8 +2,11 @@ package com.mascill.keutrack.core.data.datasource.firestore
 
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FirebaseFirestore
+import com.mascill.keutrack.core.domain.model.SyncStatus
 import com.mascill.keutrack.core.domain.model.Wallet
+import com.mascill.keutrack.core.domain.model.WalletType
 import kotlinx.coroutines.tasks.await
+import java.time.Instant
 import java.util.Date
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -33,8 +36,42 @@ class WalletFirestoreDataSource @Inject constructor(
             .await()
     }
 
+    /**
+     * Pull wallets shared for a family (canonical family wallet expected: 0–1 docs).
+     */
+    suspend fun getByFamilyId(familyId: String): List<Wallet> {
+        val snapshot =
+            firestore.collection(COLLECTION_WALLETS)
+                .whereEqualTo(FIELD_FAMILY_ID, familyId)
+                .get()
+                .await()
+        return snapshot.documents.mapNotNull { doc ->
+            val data = doc.data ?: return@mapNotNull null
+            fromSnapshot(doc.id, data)
+        }
+    }
+
     suspend fun deleteWallet(walletId: String) {
         firestore.collection(COLLECTION_WALLETS).document(walletId).delete().await()
+    }
+
+    private fun fromSnapshot(id: String, data: Map<String, Any?>): Wallet {
+        val createdAt =
+            (data[FIELD_CREATED_AT] as? Timestamp)?.toDate()?.toInstant()
+                ?: Instant.EPOCH
+        return Wallet(
+            id = (data[FIELD_ID] as? String) ?: id,
+            ownerId = (data[FIELD_OWNER_ID] as? String).orEmpty(),
+            familyId = data[FIELD_FAMILY_ID] as? String,
+            name = (data[FIELD_NAME] as? String).orEmpty(),
+            type = WalletType.fromValue((data[FIELD_TYPE] as? String).orEmpty()),
+            balance = (data[FIELD_BALANCE] as? Number)?.toLong() ?: 0L,
+            currency = (data[FIELD_CURRENCY] as? String) ?: "IDR",
+            icon = data[FIELD_ICON] as? String,
+            color = data[FIELD_COLOR] as? String,
+            syncStatus = SyncStatus.SYNCED,
+            createdAt = createdAt,
+        )
     }
 
     private companion object {

@@ -4,9 +4,11 @@ import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.mascill.keutrack.core.domain.model.CategorySummary
+import com.mascill.keutrack.core.domain.model.SyncStatus
 import com.mascill.keutrack.core.domain.model.Transaction
 import com.mascill.keutrack.core.domain.model.TransactionType
 import kotlinx.coroutines.tasks.await
+import java.time.Instant
 import java.util.Date
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -101,13 +103,58 @@ class TransactionFirestoreDataSource @Inject constructor(
         firestore.collection(COLLECTION_TRANSACTIONS).document(transactionId).delete().await()
     }
 
+    /**
+     * Pull shared family transactions (newest first).
+     *
+     * Equality-only query avoids a composite index; sort + limit run client-side.
+     * For large families later, add index `familyId` Asc + `date` Desc and orderBy remotely.
+     */
+    suspend fun getByFamilyId(familyId: String, limit: Int = DEFAULT_FAMILY_PULL_LIMIT): List<Transaction> {
+        val snapshot =
+            firestore.collection(COLLECTION_TRANSACTIONS)
+                .whereEqualTo(FIELD_FAMILY_ID, familyId)
+                .get()
+                .await()
+        return snapshot.documents
+            .mapNotNull { doc ->
+                val data = doc.data ?: return@mapNotNull null
+                fromSnapshot(doc.id, data)
+            }
+            .sortedByDescending { it.date }
+            .take(limit)
+    }
+
     fun walletDeltaFor(transaction: Transaction): Long =
         when (transaction.type) {
             TransactionType.INCOME -> transaction.amount
             TransactionType.EXPENSE -> -transaction.amount
         }
 
+    private fun fromSnapshot(id: String, data: Map<String, Any?>): Transaction {
+        val date =
+            (data[FIELD_DATE] as? Timestamp)?.toDate()?.toInstant()
+                ?: Instant.EPOCH
+        val createdAt =
+            (data[FIELD_CREATED_AT] as? Timestamp)?.toDate()?.toInstant()
+                ?: Instant.EPOCH
+        return Transaction(
+            id = (data[FIELD_ID] as? String) ?: id,
+            walletId = (data[FIELD_WALLET_ID] as? String).orEmpty(),
+            userId = (data[FIELD_USER_ID] as? String).orEmpty(),
+            familyId = data[FIELD_FAMILY_ID] as? String,
+            type = TransactionType.fromValue((data[FIELD_TYPE] as? String).orEmpty()),
+            amount = (data[FIELD_AMOUNT] as? Number)?.toLong() ?: 0L,
+            categoryId = (data[FIELD_CATEGORY_ID] as? String).orEmpty(),
+            note = data[FIELD_NOTE] as? String,
+            date = date,
+            addedByName = (data[FIELD_ADDED_BY_NAME] as? String).orEmpty(),
+            syncStatus = SyncStatus.SYNCED,
+            createdAt = createdAt,
+        )
+    }
+
     private companion object {
+        const val DEFAULT_FAMILY_PULL_LIMIT = 200
         const val COLLECTION_TRANSACTIONS = "transactions"
         const val COLLECTION_WALLETS = "wallets"
         const val COLLECTION_BUDGETS = "budgets"
