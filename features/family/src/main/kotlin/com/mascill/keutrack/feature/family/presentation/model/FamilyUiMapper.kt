@@ -3,11 +3,14 @@ package com.mascill.keutrack.feature.family.presentation.model
 import com.mascill.keutrack.core.designsystem.format.CurrencyFormat
 import com.mascill.keutrack.core.domain.model.Budget
 import com.mascill.keutrack.core.domain.model.Category
-import com.mascill.keutrack.core.domain.model.CategorySummary
+import com.mascill.keutrack.core.domain.model.FamilyGroup
 import com.mascill.keutrack.core.domain.model.Transaction
+import com.mascill.keutrack.core.domain.model.TransactionType
 import com.mascill.keutrack.core.domain.model.User
-import com.mascill.keutrack.core.domain.usecase.MonthlySummaryResult
+import com.mascill.keutrack.core.domain.model.Wallet
 import com.mascill.keutrack.core.domain.usecase.WalletSummary
+import java.time.YearMonth
+import java.time.ZoneId
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -15,6 +18,7 @@ import kotlin.math.roundToInt
 internal object FamilyUiMapper {
 
     private const val TOP_SPEND_SEGMENTS = 5
+    private const val HISTORY_LIMIT = 5
     private const val BUDGET_WARN_THRESHOLD = 0.85f
     private const val DEFAULT_ADDED_BY = "Anggota"
     private const val INSIGHT_TITLE = "Saving Together"
@@ -22,18 +26,29 @@ internal object FamilyUiMapper {
 
     fun toUiState(
         user: User?,
+        familyGroup: FamilyGroup?,
         walletSummary: WalletSummary,
-        transactions: List<Transaction>,
-        monthlySummary: MonthlySummaryResult,
+        familyTransactions: List<Transaction>,
         budgets: List<Budget>,
         categoriesById: Map<String, Category>,
-        priorPeriod: String,
+        currentMonth: YearMonth,
+        priorMonth: YearMonth,
     ): FamilyUIState {
-        val familyWallet = walletSummary.familyWallets.firstOrNull()
-        val familyWalletIds = walletSummary.familyWallets.map { it.id }.toSet()
-        val current = monthlySummary.currentMonth
-        val prior = priorFromTrend(monthlySummary, priorPeriod)
-        val insight = savingTogetherInsight(current = current, prior = prior)
+        val familyWallet = resolveFamilyWallet(user, walletSummary)
+        val familyWalletIds =
+            walletSummary.familyWallets
+                .filter { wallet ->
+                    user?.familyId.isNullOrBlank() || wallet.familyId == user?.familyId
+                }
+                .map { it.id }
+                .toSet()
+                .ifEmpty { familyWallet?.id?.let { setOf(it) }.orEmpty() }
+
+        val currentMonthTxs = familyTransactions.filter { it.date.toYearMonth() == currentMonth }
+        val priorMonthTxs = familyTransactions.filter { it.date.toYearMonth() == priorMonth }
+        val currentExpense = currentMonthTxs.expenseTotal()
+        val priorExpense = priorMonthTxs.expenseTotal()
+        val insight = savingTogetherInsight(currentExpense, priorExpense)
 
         return FamilyUIState(
             isLoading = false,
@@ -41,16 +56,27 @@ internal object FamilyUiMapper {
             showJoinBanner = user?.familyId.isNullOrBlank(),
             hasFamilyWallet = familyWallet != null,
             familyWalletId = familyWallet?.id,
-            monthlyTotalExpense = current?.totalExpense ?: 0L,
-            spendSegments = toSpendSegments(current),
+            familyName = familyGroup?.name,
+            inviteCode = familyGroup?.inviteCode,
+            monthlyTotalExpense = currentExpense,
+            spendSegments =
+                toSpendSegmentsFromTransactions(
+                    transactions = currentMonthTxs,
+                    categoriesById = categoriesById,
+                ),
             budgetRows =
                 toBudgetRows(
-                    budgets = filterSharedBudgets(budgets, familyWalletIds),
+                    budgets =
+                        filterSharedBudgets(
+                            budgets = budgets,
+                            familyWalletIds = familyWalletIds,
+                            familyId = user?.familyId,
+                        ),
                     categoriesById = categoriesById,
                 ),
             historyRows =
                 toHistoryRows(
-                    transactions = transactions,
+                    transactions = familyTransactions.take(HISTORY_LIMIT),
                     categoriesById = categoriesById,
                 ),
             insightTitle = insight?.title.orEmpty(),
@@ -60,31 +86,43 @@ internal object FamilyUiMapper {
         )
     }
 
-    fun priorFromTrend(
-        result: MonthlySummaryResult,
-        priorPeriod: String,
-    ): CategorySummary? = result.trend.firstOrNull { it.period == priorPeriod }
+    fun resolveFamilyWallet(user: User?, walletSummary: WalletSummary): Wallet? {
+        val familyId = user?.familyId
+        if (!familyId.isNullOrBlank()) {
+            walletSummary.familyWallets.firstOrNull { it.familyId == familyId }?.let { return it }
+        }
+        return walletSummary.familyWallets.firstOrNull()
+    }
 
-    fun toSpendSegments(summary: CategorySummary?): List<FamilySpendSegment> {
-        if (summary == null || summary.totalExpense <= 0L) return emptyList()
-        val total = summary.totalExpense
-        return summary.byCategory.values
-            .filter { it.totalExpense > 0L }
-            .sortedByDescending { it.totalExpense }
+    fun toSpendSegmentsFromTransactions(
+        transactions: List<Transaction>,
+        categoriesById: Map<String, Category>,
+    ): List<FamilySpendSegment> {
+        val expenses = transactions.filter { it.type == TransactionType.EXPENSE }
+        val total = expenses.sumOf { it.amount }
+        if (total <= 0L) return emptyList()
+
+        return expenses
+            .groupBy { it.categoryId }
+            .map { (categoryId, txs) ->
+                val amount = txs.sumOf { it.amount }
+                val name = categoriesById[categoryId]?.name ?: "Lainnya"
+                amount to name
+            }
+            .sortedByDescending { it.first }
             .take(TOP_SPEND_SEGMENTS)
-            .map { breakdown ->
-                val pct = breakdown.percentOfTotal(total)
-                val fraction = (breakdown.totalExpense.toDouble() / total.toDouble()).toFloat()
+            .map { (amount, name) ->
+                val pct = (amount.toFloat() / total.toFloat()) * 100f
                 FamilySpendSegment(
-                    label = breakdown.name,
+                    label = name,
                     detail =
                         String.format(
                             Locale.forLanguageTag("id-ID"),
                             "%.0f%% • %s",
                             pct,
-                            CurrencyFormat.formatIdr(breakdown.totalExpense),
+                            CurrencyFormat.formatIdr(amount),
                         ),
-                    fraction = fraction,
+                    fraction = amount.toFloat() / total.toFloat(),
                 )
             }
     }
@@ -128,20 +166,20 @@ internal object FamilyUiMapper {
     fun filterSharedBudgets(
         budgets: List<Budget>,
         familyWalletIds: Set<String>,
+        familyId: String?,
     ): List<Budget> =
         budgets.filter { budget ->
-            !budget.familyId.isNullOrBlank() ||
+            (!familyId.isNullOrBlank() && budget.familyId == familyId) ||
+                (!budget.familyId.isNullOrBlank()) ||
                 (budget.walletId != null && budget.walletId in familyWalletIds)
         }
 
     fun savingTogetherInsight(
-        current: CategorySummary?,
-        prior: CategorySummary?,
+        currentExpense: Long,
+        priorExpense: Long,
     ): FamilyInsightCopy? {
-        if (current == null || prior == null) return null
-        val priorExpense = prior.totalExpense
         if (priorExpense <= 0L) return null
-        val delta = current.totalExpense - priorExpense
+        val delta = currentExpense - priorExpense
         val pct = (delta.toDouble() / abs(priorExpense).toDouble()) * 100.0
         val pctRounded = pct.roundToInt()
         val body =
@@ -176,6 +214,12 @@ internal object FamilyUiMapper {
             "TrendingUp" -> FamilyHistoryCategoryIcon.Investment
             else -> FamilyHistoryCategoryIcon.Other
         }
+
+    private fun List<Transaction>.expenseTotal(): Long =
+        filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+
+    private fun java.time.Instant.toYearMonth(): YearMonth =
+        YearMonth.from(atZone(ZoneId.systemDefault()).toLocalDate())
 
     private fun budgetTone(budget: Budget): FamilyBudgetBarTone =
         when {

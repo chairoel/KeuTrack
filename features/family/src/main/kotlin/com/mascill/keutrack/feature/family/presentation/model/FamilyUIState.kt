@@ -10,6 +10,8 @@ data class FamilyUIState(
     val showJoinBanner: Boolean = false,
     val hasFamilyWallet: Boolean = false,
     val familyWalletId: String? = null,
+    val familyName: String? = null,
+    val inviteCode: String? = null,
     val monthlyTotalExpense: Long = 0L,
     val spendSegments: List<FamilySpendSegment> = emptyList(),
     val budgetRows: List<FamilyBudgetRowUi> = emptyList(),
@@ -18,4 +20,6 @@ data class FamilyUIState(
     val insightBody: String = "",
     val insightCtaLabel: String = "",
     val showInsightCard: Boolean = false,
+    val isMembershipLoading: Boolean = false,
+    val membershipMessage: String? = null,
 )
