@@ -27,9 +27,21 @@ class UserRepositoryImpl @Inject constructor(
     override fun getCurrentUser(): Flow<User?> =
         userProfileLocalDataSource.observeSignedInUser()
             .onStart {
-                val user = mapper.mapToDomainOrNull(authDataSource.getCurrentUser())
-                if (user != null) {
-                    userProfileLocalDataSource.persist(user)
+                val authUser = mapper.mapToDomainOrNull(authDataSource.getCurrentUser())
+                    ?: return@onStart
+                val local = userProfileLocalDataSource.getSignedInUser()
+                if (local == null) {
+                    // Seed session from Auth only when DataStore is empty.
+                    userProfileLocalDataSource.persist(authUser)
+                } else {
+                    // Refresh identity from Auth; preserve membership/currency locally.
+                    userProfileLocalDataSource.persist(
+                        local.copy(
+                            displayName = authUser.displayName,
+                            email = authUser.email,
+                            photoUrl = authUser.photoUrl,
+                        ),
+                    )
                 }
             }
 
@@ -103,6 +115,35 @@ class UserRepositoryImpl @Inject constructor(
         } catch (e: Exception) {
             // Best-effort: do not sign out on sync failure.
             logFailure("syncUserProfile", e)
+        }
+    }
+
+    override suspend fun updateFamilyMembership(
+        familyId: String?,
+        familyRole: String?,
+    ): Result<Unit> {
+        val authUser = mapper.mapToDomainOrNull(authDataSource.getCurrentUser())
+            ?: return Result.failure(IllegalStateException("User belum masuk"))
+        return try {
+            firestoreDataSource.updateFamilyMembership(
+                uid = authUser.uid,
+                familyId = familyId,
+                familyRole = familyRole,
+            )
+            val local = userProfileLocalDataSource.getSignedInUser()
+            val base = local ?: authUser
+            userProfileLocalDataSource.persist(
+                base.copy(
+                    familyId = familyId,
+                    familyRole = familyRole,
+                ),
+            )
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logFailure("updateFamilyMembership", e)
+            Result.failure(e)
         }
     }
 

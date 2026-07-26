@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.Flow
 
 interface UserProfileLocalDataSource {
     fun observeSignedInUser(): Flow<User?>
+    suspend fun getSignedInUser(): User?
     suspend fun persist(user: User)
     suspend fun clear()
 }
