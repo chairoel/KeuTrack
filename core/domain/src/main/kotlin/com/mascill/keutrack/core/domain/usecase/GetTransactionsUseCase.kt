@@ -12,6 +12,7 @@ class GetTransactionsUseCase @Inject constructor(
 ) {
     data class Params(
         val walletId: String? = null,
+        val familyId: String? = null,
         val type: TransactionType? = null,
         val categoryId: String? = null,
         val startDate: Instant? = null,
@@ -22,6 +23,7 @@ class GetTransactionsUseCase @Inject constructor(
     operator fun invoke(params: Params = Params()): Flow<List<Transaction>> =
         transactionRepository.observeTransactions(
             walletId = params.walletId,
+            familyId = params.familyId,
             type = params.type,
             categoryId = params.categoryId,
             startDate = params.startDate,

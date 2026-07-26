@@ -89,9 +89,13 @@ internal object FamilyUiMapper {
     fun resolveFamilyWallet(user: User?, walletSummary: WalletSummary): Wallet? {
         val familyId = user?.familyId
         if (!familyId.isNullOrBlank()) {
-            walletSummary.familyWallets.firstOrNull { it.familyId == familyId }?.let { return it }
+            // Prefer oldest match (canonical owner wallet) if orphans remain locally.
+            walletSummary.familyWallets
+                .filter { it.familyId == familyId }
+                .minByOrNull { it.createdAt }
+                ?.let { return it }
         }
-        return walletSummary.familyWallets.firstOrNull()
+        return walletSummary.familyWallets.minByOrNull { it.createdAt }
     }
 
     fun toSpendSegmentsFromTransactions(

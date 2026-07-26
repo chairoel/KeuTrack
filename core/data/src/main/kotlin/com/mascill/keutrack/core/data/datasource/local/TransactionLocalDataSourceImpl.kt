@@ -22,13 +22,22 @@ class TransactionLocalDataSourceImpl @Inject constructor(
 
     override fun observeFiltered(
         walletId: String?,
+        familyId: String?,
         type: String?,
         categoryId: String?,
         startMs: Long?,
         endMs: Long?,
         limit: Int,
     ): Flow<List<TransactionEntity>> =
-        transactionDao.observeFiltered(walletId, type, categoryId, startMs, endMs, limit)
+        transactionDao.observeFiltered(
+            walletId,
+            familyId,
+            type,
+            categoryId,
+            startMs,
+            endMs,
+            limit,
+        )
 
     override fun observeRecent(limit: Int): Flow<List<TransactionEntity>> =
         transactionDao.observeRecent(limit)

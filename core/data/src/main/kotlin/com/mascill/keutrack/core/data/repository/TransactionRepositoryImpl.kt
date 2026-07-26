@@ -36,6 +36,7 @@ class TransactionRepositoryImpl @Inject constructor(
 
     override fun observeTransactions(
         walletId: String?,
+        familyId: String?,
         type: TransactionType?,
         categoryId: String?,
         startDate: java.time.Instant?,
@@ -44,6 +45,7 @@ class TransactionRepositoryImpl @Inject constructor(
     ): Flow<List<Transaction>> =
         local.observeFiltered(
             walletId = walletId,
+            familyId = familyId,
             type = type?.value,
             categoryId = categoryId,
             startMs = startDate?.toEpochMilli(),

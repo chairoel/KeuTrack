@@ -15,6 +15,7 @@ import com.mascill.keutrack.core.domain.usecase.GetCategoriesUseCase
 import com.mascill.keutrack.core.domain.usecase.GetTransactionsUseCase
 import com.mascill.keutrack.core.domain.usecase.GetWalletSummaryUseCase
 import com.mascill.keutrack.core.domain.usecase.JoinFamilyGroupUseCase
+import com.mascill.keutrack.core.domain.usecase.SyncFamilyDataUseCase
 import com.mascill.keutrack.core.domain.usecase.WalletSummary
 import com.mascill.keutrack.feature.family.presentation.model.FamilyUIState
 import com.mascill.keutrack.feature.family.presentation.model.FamilyUiMapper
@@ -23,7 +24,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
@@ -46,6 +46,7 @@ class FamilyViewModel @Inject constructor(
     getCategories: GetCategoriesUseCase,
     private val createFamilyGroup: CreateFamilyGroupUseCase,
     private val joinFamilyGroup: JoinFamilyGroupUseCase,
+    private val syncFamilyData: SyncFamilyDataUseCase,
     private val dispatcher: CommonDispatcher,
 ) : ViewModel() {
 
@@ -61,15 +62,15 @@ class FamilyViewModel @Inject constructor(
     private val familyGroupFlow = familyRepository.observeCurrentFamily()
 
     private val familyTransactionsFlow =
-        combine(userFlow, walletSummaryFlow) { user, summary ->
-            FamilyUiMapper.resolveFamilyWallet(user, summary)?.id
-        }.flatMapLatest { familyWalletId ->
-            if (familyWalletId == null) {
+        userFlow.flatMapLatest { user ->
+            val familyId = user?.familyId
+            if (familyId.isNullOrBlank()) {
                 flowOf(emptyList())
             } else {
+                // Filter by familyId so History includes all members even if wallet ids split.
                 getTransactions(
                     GetTransactionsUseCase.Params(
-                        walletId = familyWalletId,
+                        familyId = familyId,
                         limit = FAMILY_TX_LIMIT,
                     ),
                 )
@@ -130,6 +131,13 @@ class FamilyViewModel @Inject constructor(
             initialValue = FamilyUIState(),
         )
 
+    /** Pull shared family wallet/tx into Room when the Family tab opens. */
+    fun onScreenRendered() {
+        viewModelScope.launch(dispatcher.io) {
+            pullFamilyData(showError = true)
+        }
+    }
+
     fun createFamily(name: String) {
         viewModelScope.launch(dispatcher.io) {
             _membershipLoading.value = true
@@ -139,6 +147,7 @@ class FamilyViewModel @Inject constructor(
                     .onSuccess {
                         _membershipMessage.value =
                             "Keluarga dibuat. Kode: ${it.inviteCode}"
+                        pullFamilyData(showError = false)
                     }
                     .onFailure { e ->
                         _membershipMessage.value =
@@ -163,6 +172,7 @@ class FamilyViewModel @Inject constructor(
                     .onSuccess {
                         _membershipMessage.value =
                             "Berhasil bergabung ke ${it.name}"
+                        pullFamilyData(showError = true)
                     }
                     .onFailure { e ->
                         _membershipMessage.value =
@@ -182,6 +192,24 @@ class FamilyViewModel @Inject constructor(
         _membershipMessage.update { null }
     }
 
+    private suspend fun pullFamilyData(showError: Boolean) {
+        try {
+            syncFamilyData()
+                .onFailure { e ->
+                    if (showError) {
+                        _membershipMessage.value =
+                            e.message ?: ERR_SYNC_FAMILY
+                    }
+                }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            if (showError) {
+                _membershipMessage.value = e.message ?: ERR_SYNC_FAMILY
+            }
+        }
+    }
+
     private data class FamilyLoadBundle(
         val user: User?,
         val familyGroup: FamilyGroup?,
@@ -193,5 +221,7 @@ class FamilyViewModel @Inject constructor(
     private companion object {
         const val FAMILY_TX_LIMIT = 200
         const val ERR_LOAD_FAILED = "Gagal memuat family insights"
+        const val ERR_SYNC_FAMILY =
+            "Gagal sinkron data keluarga. Coba buka ulang tab Family."
     }
 }

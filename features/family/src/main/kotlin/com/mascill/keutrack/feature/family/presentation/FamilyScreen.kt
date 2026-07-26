@@ -81,6 +81,10 @@ fun FamilyRouting(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
+    LaunchedEffect(Unit) {
+        viewModel.onScreenRendered()
+    }
+
     FamilyScreen(
         uiState = uiState,
         onViewAllHistoryClick = onViewAllTransactions,

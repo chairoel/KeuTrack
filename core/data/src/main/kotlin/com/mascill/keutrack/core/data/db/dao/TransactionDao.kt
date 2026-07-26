@@ -15,6 +15,7 @@ interface TransactionDao {
         """
         SELECT * FROM transactions
         WHERE (:walletId IS NULL OR walletId = :walletId)
+          AND (:familyId IS NULL OR familyId = :familyId)
           AND (:type IS NULL OR type = :type)
           AND (:categoryId IS NULL OR categoryId = :categoryId)
           AND (:startMs IS NULL OR dateEpochMs >= :startMs)
@@ -25,6 +26,7 @@ interface TransactionDao {
     )
     fun observeFiltered(
         walletId: String?,
+        familyId: String?,
         type: String?,
         categoryId: String?,
         startMs: Long?,

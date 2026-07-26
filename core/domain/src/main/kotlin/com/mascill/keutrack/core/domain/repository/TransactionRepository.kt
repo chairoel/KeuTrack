@@ -9,6 +9,7 @@ interface TransactionRepository {
 
     fun observeTransactions(
         walletId: String? = null,
+        familyId: String? = null,
         type: TransactionType? = null,
         categoryId: String? = null,
         startDate: Instant? = null,

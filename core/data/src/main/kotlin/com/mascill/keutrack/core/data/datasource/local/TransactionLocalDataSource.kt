@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.Flow
 interface TransactionLocalDataSource {
     fun observeFiltered(
         walletId: String?,
+        familyId: String? = null,
         type: String?,
         categoryId: String?,
         startMs: Long?,
