@@ -67,7 +67,7 @@ Six Firebase integration docs describe a completed auth pipeline:
 
 #### Auth (`features/auth/`)
 - Login + Register screens with validation
-- Google Sign-In via `GoogleSignInTokenProvider`
+- Google Sign-In via `GoogleSignInTokenProvider` (explicit SIWG button flow: `GetSignInWithGoogleOption`)
 - Email login/register wired to `UserRepository`
 - Loading states per method (Google vs Email)
 - Error mapping to user-facing messages
