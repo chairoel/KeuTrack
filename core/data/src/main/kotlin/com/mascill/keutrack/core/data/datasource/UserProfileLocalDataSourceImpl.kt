@@ -5,6 +5,7 @@ import com.mascill.keutrack.core.data.mapper.SignedInUserProtoMapper
 import com.mascill.keutrack.core.datastore.SignedInUser
 import com.mascill.keutrack.core.domain.model.User
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
@@ -15,6 +16,9 @@ class UserProfileLocalDataSourceImpl @Inject constructor(
 
     override fun observeSignedInUser(): Flow<User?> =
         dataStore.data.map { mapper.toDomainOrNull(it) }
+
+    override suspend fun getSignedInUser(): User? =
+        mapper.toDomainOrNull(dataStore.data.first())
 
     override suspend fun persist(user: User) {
         dataStore.updateData { mapper.toProto(user) }

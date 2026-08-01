@@ -19,7 +19,6 @@ import androidx.compose.ui.unit.dp
 import com.mascill.keutrack.core.designsystem.component.KeuTrackButton
 import com.mascill.keutrack.core.designsystem.model.KeuTrackButtonStyle
 import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
-import com.mascill.keutrack.feature.family.presentation.model.FamilyInsightsMockContent
 
 private const val FAM_INSIGHT_PH = 24
 private const val FAM_INSIGHT_PV = 24
@@ -33,7 +32,9 @@ private const val FAM_INSIGHT_BODY_TEXT_ALPHA = 0.88f
 
 @Composable
 fun FamilySavingTogetherCard(
-    content: FamilyInsightsMockContent,
+    title: String,
+    body: String,
+    ctaLabel: String,
     onAdjustTargetsClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -66,19 +67,19 @@ fun FamilySavingTogetherCard(
                     .padding(horizontal = FAM_INSIGHT_PH.dp, vertical = FAM_INSIGHT_PV.dp),
         ) {
             Text(
-                text = content.insightTitle,
+                text = title,
                 style = typography.headingBold20,
                 color = neutral.white,
             )
             Text(
-                text = content.insightBody,
+                text = body,
                 style = typography.bodyRegular14,
                 color = neutral.white.copy(alpha = FAM_INSIGHT_BODY_TEXT_ALPHA),
                 modifier = Modifier.padding(top = FAM_INSIGHT_BODY_PT.dp),
             )
             Spacer(modifier = Modifier.height(FAM_INSIGHT_CTA_PT.dp))
             KeuTrackButton(
-                text = content.insightCtaLabel,
+                text = ctaLabel,
                 onClick = onAdjustTargetsClick,
                 style = KeuTrackButtonStyle.Secondary,
                 modifier = Modifier.fillMaxWidth(),

@@ -294,11 +294,28 @@ suspend fun signInWithEmail(
    - Simulasikan rules deny write.
    - Auth session dibersihkan, DataStore kosong, UI tetap di auth screen.
 
+## Google Sign-In UI (Credential Manager)
+
+Tombol **Sign in with Google** di Login/Register memakai explicit SIWG button flow — **bukan** One Tap bottom sheet.
+
+| | API | UI tipikal |
+|---|-----|------------|
+| ~~Sebelum~~ | `GetGoogleIdOption` | One Tap → **bottom sheet** |
+| **Sekarang** | `GetSignInWithGoogleOption` | Explicit SIWG → **account picker dialog** |
+
+Implementasi: `features/auth/.../data/GoogleSignInTokenProvider.kt`.
+
+**Kenapa diganti:** One Tap sering `NoCredentialException` di cold start (GMS belum siap) → UI sempat bilang seolah tidak ada akun Google, padahal tap kedua berhasil. Untuk tap tombol eksplisit, Android Identity merekomendasikan `GetSignInWithGoogleOption` (account picker lebih andal).
+
+**Bukan bug UI** — trade-off disengaja: bottom sheet One Tap diganti dialog SIWG demi reliability. Hybrid (One Tap dulu → fallback SIWG) ditunda; lihat [`PHASE_AUTH_GOOGLE_SIGNIN_CREDENTIAL_STABILITY.md`](../dev/phases/PHASE_AUTH_GOOGLE_SIGNIN_CREDENTIAL_STABILITY.md).
+
+Pesan error Google `NoCredential`: lihat [`FIREBASE_AUTH_ERROR_MAPPING.md`](./FIREBASE_AUTH_ERROR_MAPPING.md).
+
 ## Assumptions
 - Firestore rules mengizinkan user authenticated read/write dokumen miliknya sendiri di `/users/{uid}`.
 - Tidak menyimpan password, Google token, atau credential lain di Firestore / DataStore.
 - Email/password Auth diaktifkan di Firebase Console.
-- Google Sign-In tetap memakai alur Credential Manager / idToken yang sudah ada.
+- Google Sign-In memakai Credential Manager **SIWG** (`GetSignInWithGoogleOption`) → idToken → `UserRepository.signInWithGoogle` (lihat bagian di atas).
 - Default `currency = "IDR"` untuk user baru.
 - Login email dengan dokumen Firestore hilang akan **auto-upsert** dari data Auth, bukan hard-fail `UserNotFound`.
 

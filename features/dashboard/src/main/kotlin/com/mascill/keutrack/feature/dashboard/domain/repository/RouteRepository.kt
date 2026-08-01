@@ -4,13 +4,15 @@ import com.mascill.keutrack.core.network.model.DomainResult
 import com.mascill.keutrack.feature.dashboard.domain.models.RouteDomain
 
 /**
- * Abstract class that used as bridge between domain layer and data layer for
- * SMPOB-mobile Route API network operations.
+ * Sample domain repository contract for a Retrofit-backed remote API.
+ *
+ * Kept as a reference for the feature-local repository pattern when consuming REST endpoints.
+ * Not part of KeuTrack's production financial data path (use cases in `:core:domain`).
  */
 interface RouteRepository {
 
     /**
-     * Get list of SMPOB-mobile route
+     * Sample: fetch a remote list and wrap the outcome in [DomainResult].
      */
     suspend fun getRouteList(): DomainResult<List<RouteDomain>>
 }

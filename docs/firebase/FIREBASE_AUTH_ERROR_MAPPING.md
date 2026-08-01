@@ -7,6 +7,11 @@ Sumber implementasi:
 - `core/data/.../repository/UserRepositoryImpl.kt` → `mapAuthFailure()` / `mapFirestoreFailure()`
 - `core/domain/.../model/AuthResult.kt`
 - `features/auth/.../LoginViewModel.kt` / `RegisterViewModel.kt`
+- `features/auth/.../data/GoogleSignInTokenProvider.kt` → Credential Manager SIWG
+
+### Catatan UX Google picker
+
+Tombol Google memakai `GetSignInWithGoogleOption` → UI **account picker dialog**, bukan One Tap **bottom sheet** (`GetGoogleIdOption`). Ini trade-off disengaja demi reliability cold start; detail di [`FIRESTORE_LOGIN_INTEGRATION.md`](./FIRESTORE_LOGIN_INTEGRATION.md#google-sign-in-ui-credential-manager) dan phase [`PHASE_AUTH_GOOGLE_SIGNIN_CREDENTIAL_STABILITY.md`](../dev/phases/PHASE_AUTH_GOOGLE_SIGNIN_CREDENTIAL_STABILITY.md).
 
 ---
 
@@ -80,7 +85,7 @@ Di Android, `FirebaseAuthException.errorCode` / `getErrorCode()` mengembalikan *
 | Variant | Arti di KeuTrack |
 |---------|------------------|
 | `Network` | Tidak ada koneksi / backend sementara tidak tersedia |
-| `NoCredential` | Credential Google tidak tersedia (bukan dari Firebase Auth email) |
+| `NoCredential` | Credential Manager tidak mengembalikan Google ID token (picker kosong / tidak tersedia / GMS gagal). Bukan bukti mutlak “device tanpa akun Google”. |
 | `InvalidCredential` | Email/password/credential tidak valid, atau konflik akun (email sudah dipakai, password lemah, akun disabled) |
 | `UserNotFound` | Akun tidak ditemukan di Auth |
 | `Unknown(message?)` | Error lain yang belum di-mapping secara spesifik (semua ❌) |
@@ -141,7 +146,7 @@ Semua variant domain di bawah sudah di-wire di ViewModel (✅ UI). Yang ❌ adal
 | Status UI | `AuthResult.Error` | Google Sign-In message | Email login message |
 |-----------|--------------------|------------------------|---------------------|
 | ✅ | `Network` | No internet connection. Please try again. | No internet connection. Please try again. |
-| ✅ | `NoCredential` | No Google account found on this device. | Unable to sign in. Please try again. |
+| ✅ | `NoCredential` | Unable to get a Google account. Please try again. | Unable to sign in. Please try again. |
 | ✅ | `InvalidCredential` | Invalid credential. Please try again. | Invalid email or password. |
 | ✅ | `UserNotFound` | Account not found. Please try again. | Account not found. Please try again. |
 | ✅ | `Unknown` | An unexpected error occurred. / message jika ada | An unexpected error occurred. / message jika ada |
@@ -151,7 +156,7 @@ Semua variant domain di bawah sudah di-wire di ViewModel (✅ UI). Yang ❌ adal
 | Status UI | `AuthResult.Error` | Google Sign-In message | Email register message |
 |-----------|--------------------|------------------------|------------------------|
 | ✅ | `Network` | No internet connection. Please try again. | No internet connection. Please try again. |
-| ✅ | `NoCredential` | No Google account found on this device. | Unable to create account. Please try again. |
+| ✅ | `NoCredential` | Unable to get a Google account. Please try again. | Unable to create account. Please try again. |
 | ✅ | `InvalidCredential` | Invalid credential. Please try again. | Unable to create account. Email may already be in use or password is too weak. |
 | ✅ | `UserNotFound` | Account not found. Please try again. | Unable to create account. Please try again. |
 | ✅ | `Unknown` | An unexpected error occurred. | An unexpected error occurred. |
@@ -241,7 +246,7 @@ Fitur reset/verify email belum ada di app → semua ❌ untuk saat ini.
 
 | Status | Case / `errorCode` | Situasi | Prioritas | `AuthResult` / saran |
 |--------|--------------------|---------|-----------|----------------------|
-| ✅ | Google: no credential | Tidak ada akun Google di device | — | `NoCredential` |
+| ✅ | Google: no credential | Credential Manager tidak mengembalikan ID token (SIWG picker kosong / GMS gagal). Setelah button flow `GetSignInWithGoogleOption` kasus ini jarang; jika tetap muncul cek akun device + Play Services + SHA-1 | — | `NoCredential` |
 | ✅ | Google: user cancel picker | User batalkan | — | `Cancelled` |
 | ❌ | `ERROR_WEB_CONTEXT_ALREADY_PRESENTED` | Web context sudah terbuka | P2 | `Unknown` / `Cancelled` |
 | ❌ | `ERROR_WEB_CONTEXT_CANCELED` | User membatalkan web flow | P1 | `Cancelled` |

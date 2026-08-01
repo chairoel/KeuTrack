@@ -55,7 +55,7 @@ class LoginViewModel @Inject constructor(
                     is AuthResult.Success -> AuthState.Success(AuthMethod.Google)
                     is AuthResult.Cancelled -> AuthState.Idle
                     is AuthResult.Error.Network -> AuthState.Error("No internet connection. Please try again.")
-                    is AuthResult.Error.NoCredential -> AuthState.Error("No Google account found on this device.")
+                    is AuthResult.Error.NoCredential -> AuthState.Error("Unable to get a Google account. Please try again.")
                     is AuthResult.Error.InvalidCredential -> AuthState.Error("Invalid credential. Please try again.")
                     is AuthResult.Error.UserNotFound -> AuthState.Error("Account not found. Please try again.")
                     is AuthResult.Error.Unknown -> AuthState.Error(
@@ -64,7 +64,7 @@ class LoginViewModel @Inject constructor(
                 }
                 is TokenResult.Cancelled -> AuthState.Idle
                 is TokenResult.Error.Network -> AuthState.Error("No internet connection. Please try again.")
-                is TokenResult.Error.NoCredential -> AuthState.Error("No Google account found on this device.")
+                is TokenResult.Error.NoCredential -> AuthState.Error("Unable to get a Google account. Please try again.")
                 is TokenResult.Error.Unknown -> AuthState.Error(
                     unknownAuthErrorMessage(tokenResult.message, environment)
                 )

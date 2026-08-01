@@ -1,17 +1,30 @@
 package com.mascill.keutrack.feature.dashboard.presentation.model
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AttachMoney
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.LocalHospital
+import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.mascill.keutrack.core.domain.model.SyncStatus
 
 enum class TransactionCategoryIcon {
     Restaurant,
     Transport,
     Payout,
     Utilities,
+    School,
+    Entertainment,
+    Health,
+    Shopping,
+    Investment,
+    Other,
 }
 
 data class TransactionRowUi(
@@ -22,8 +35,13 @@ data class TransactionRowUi(
     val isExpense: Boolean,
     val walletLabel: String,
     val categoryIcon: TransactionCategoryIcon,
-)
+    val syncStatus: SyncStatus = SyncStatus.SYNCED,
+) {
+    val isLocalOnly: Boolean
+        get() = syncStatus != SyncStatus.SYNCED
+}
 
+/** Preview-only mock content — not used as a runtime data source. */
 data class DashboardMockContent(
     val userFirstName: String,
     val avatar: String?,
@@ -45,8 +63,14 @@ fun TransactionCategoryIcon.toImageVector(): ImageVector =
     when (this) {
         TransactionCategoryIcon.Restaurant -> Icons.Filled.Restaurant
         TransactionCategoryIcon.Transport -> Icons.Filled.DirectionsCar
-        TransactionCategoryIcon.Payout -> Icons.Filled.AttachMoney
+        TransactionCategoryIcon.Payout -> Icons.Filled.Payments
         TransactionCategoryIcon.Utilities -> Icons.Filled.ReceiptLong
+        TransactionCategoryIcon.School -> Icons.Filled.School
+        TransactionCategoryIcon.Entertainment -> Icons.Filled.Movie
+        TransactionCategoryIcon.Health -> Icons.Filled.LocalHospital
+        TransactionCategoryIcon.Shopping -> Icons.Filled.ShoppingCart
+        TransactionCategoryIcon.Investment -> Icons.AutoMirrored.Filled.TrendingUp
+        TransactionCategoryIcon.Other -> Icons.Filled.MoreHoriz
     }
 
 val DefaultDashboardMockContent =
@@ -74,6 +98,7 @@ val DefaultDashboardMockContent =
                     isExpense = true,
                     walletLabel = "Personal",
                     categoryIcon = TransactionCategoryIcon.Restaurant,
+                    syncStatus = SyncStatus.PENDING,
                 ),
                 TransactionRowUi(
                     title = "GoRide — Office",
@@ -101,6 +126,23 @@ val DefaultDashboardMockContent =
                     isExpense = true,
                     walletLabel = "Family",
                     categoryIcon = TransactionCategoryIcon.Utilities,
+                    syncStatus = SyncStatus.FAILED,
                 ),
             ),
+    )
+
+/** Preview helper: mock content → production [DashboardUIState]. */
+fun DashboardMockContent.toPreviewUiState(): DashboardUIState =
+    DashboardUIState(
+        isLoading = false,
+        userFirstName = userFirstName,
+        avatarUrl = avatar,
+        pageTitle = pageTitle,
+        personalBalance = 12_450_000L,
+        familyBalance = 45_820_500L,
+        familySharedSummary = familySharedSummary,
+        monthChangeLabel = personalMonthChangeLabel,
+        incomeTotal = 8_200_000L,
+        expenseTotal = 3_500_000L,
+        recentTransactions = transactions,
     )

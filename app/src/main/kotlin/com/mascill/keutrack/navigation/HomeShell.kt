@@ -17,6 +17,7 @@ import com.mascill.keutrack.core.designsystem.component.KeuTrackBottomNav
 import com.mascill.keutrack.feature.family.presentation.navigation.familyGraph
 import com.mascill.keutrack.feature.dashboard.presentation.navigation.DashboardRoute
 import com.mascill.keutrack.feature.dashboard.presentation.navigation.dashboardGraph
+import com.mascill.keutrack.feature.settings.presentation.navigation.SettingsRoute
 import com.mascill.keutrack.feature.settings.presentation.navigation.settingsGraph
 
 /**
@@ -30,11 +31,15 @@ import com.mascill.keutrack.feature.settings.presentation.navigation.settingsGra
 @Composable
 fun HomeShell(
     onSignOutSuccess: () -> Unit = {},
+    onAddTransaction: () -> Unit = {},
+    onViewAllTransactions: () -> Unit = {},
 ) {
     val homeNavController = rememberNavController()
     HomeShellContent(
         homeNavController = homeNavController,
         onSignOutSuccess = onSignOutSuccess,
+        onAddTransaction = onAddTransaction,
+        onViewAllTransactions = onViewAllTransactions,
     )
 }
 
@@ -42,6 +47,8 @@ fun HomeShell(
 private fun HomeShellContent(
     homeNavController: NavHostController,
     onSignOutSuccess: () -> Unit,
+    onAddTransaction: () -> Unit,
+    onViewAllTransactions: () -> Unit,
 ) {
     val backStackEntry by homeNavController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
@@ -81,6 +88,8 @@ private fun HomeShellContent(
             navController = homeNavController,
             modifier = Modifier.padding(innerPadding),
             onSignOutSuccess = onSignOutSuccess,
+            onAddTransaction = onAddTransaction,
+            onViewAllTransactions = onViewAllTransactions,
         )
     }
 }
@@ -94,14 +103,31 @@ private fun HomeNavHost(
     navController: NavHostController,
     modifier: Modifier = Modifier,
     onSignOutSuccess: () -> Unit,
+    onAddTransaction: () -> Unit,
+    onViewAllTransactions: () -> Unit,
 ) {
     NavHost(
         navController = navController,
         startDestination = DashboardRoute,
         modifier = modifier,
     ) {
-        dashboardGraph()
-        familyGraph()
+        dashboardGraph(
+            onSettingsClick = {
+                navController.navigate(SettingsRoute) {
+                    popUpTo(navController.graph.findStartDestination().id) {
+                        saveState = true
+                    }
+                    launchSingleTop = true
+                    restoreState = true
+                }
+            },
+            onAddTransaction = onAddTransaction,
+            onViewAllTransactions = onViewAllTransactions,
+        )
+        familyGraph(
+            onAddTransaction = onAddTransaction,
+            onViewAllTransactions = onViewAllTransactions,
+        )
         settingsGraph(
             onSignOutSuccess = onSignOutSuccess,
         )

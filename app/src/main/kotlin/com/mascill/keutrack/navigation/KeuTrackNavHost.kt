@@ -9,6 +9,8 @@ import com.mascill.keutrack.feature.auth.navigation.navigateToLogin
 import com.mascill.keutrack.feature.auth.navigation.navigateToRegister
 import com.mascill.keutrack.feature.splashscreen.navigation.SplashRoute
 import com.mascill.keutrack.feature.splashscreen.navigation.splashGraph
+import com.mascill.keutrack.feature.transaction.navigation.navigateToTransaction
+import com.mascill.keutrack.feature.transaction.navigation.navigateToTransactionHistory
 import com.mascill.keutrack.feature.transaction.navigation.transactionGraph
 
 /**
@@ -60,12 +62,15 @@ fun KeuTrackNavHost(
                     appState.navigateAndResetStack { navOpt ->
                         navController.navigateToLogin(navOptions = navOpt)
                     }
-                }
+                },
+                onAddTransaction = { navController.navigateToTransaction() },
+                onViewAllTransactions = { navController.navigateToTransactionHistory() },
             )
         }
 
         transactionGraph(
-            onBack = { navController.popBackStack() }
+            onBack = { navController.popBackStack() },
+            onAddTransaction = { navController.navigateToTransaction() },
         )
     }
 }

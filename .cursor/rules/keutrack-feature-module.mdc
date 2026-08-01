@@ -1,0 +1,116 @@
+---
+description: Conventions for feature modules — screen composables, ViewModels, UI state, navigation, and components
+globs: features/*/src/**/*.kt
+alwaysApply: false
+---
+
+# Feature Module Conventions
+
+## Directory Structure
+
+```
+features/{name}/src/main/kotlin/.../feature/{name}/
+├── data/              ← Feature-local repository/data source (optional, rare)
+├── di/                ← Feature-level Hilt modules
+├── domain/            ← Feature-specific use cases (optional)
+├── presentation/
+│   ├── components/    ← Small composable building blocks
+│   ├── model/         ← UIState data classes, UI-only models
+│   ├── navigation/    ← Route definition + NavGraphBuilder extension
+│   ├── {Name}Screen.kt
+│   ├── {Name}Routing.kt  ← Wires ViewModel → Screen (hiltViewModel)
+│   └── {Name}ViewModel.kt
+```
+
+## ViewModel
+
+```kotlin
+@HiltViewModel
+class DashboardViewModel @Inject constructor(
+    private val getWalletSummaryUseCase: GetWalletSummaryUseCase,
+    private val dispatcher: CommonDispatcher,
+) : ViewModel() {
+
+    private val _uiState = MutableStateFlow(DashboardUIState())
+    val uiState: StateFlow<DashboardUIState> = _uiState.asStateFlow()
+
+    init {
+        viewModelScope.launch(dispatcher.io) { loadData() }
+    }
+}
+```
+
+Rules:
+- `@HiltViewModel` + `@Inject constructor`
+- Expose `StateFlow<UIState>` — never expose `MutableStateFlow`
+- Use `CommonDispatcher` (not hardcoded `Dispatchers.IO`)
+- Prefer use cases over direct repository calls
+- Never hold `Context` — use `@ApplicationContext` only if absolutely needed
+
+## UI State
+
+```kotlin
+data class DashboardUIState(
+    val isLoading: Boolean = false,
+    val walletSummary: WalletSummary? = null,
+    val recentTransactions: List<Transaction> = emptyList(),
+    val error: String? = null,
+)
+```
+
+Rules:
+- Single data class per screen — all UI state in one place
+- Sensible defaults (empty lists, false, null)
+- Sealed class variants for distinct screen states are also acceptable
+
+## Screen + Routing Pattern
+
+```kotlin
+// {Name}Routing.kt — wiring layer
+@Composable
+fun DashboardRouting(viewModel: DashboardViewModel = hiltViewModel()) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    DashboardScreen(uiState = uiState, onAction = viewModel::handleAction)
+}
+
+// {Name}Screen.kt — pure composable (no ViewModel dependency)
+@Composable
+fun DashboardScreen(uiState: DashboardUIState, onAction: (Action) -> Unit) { ... }
+```
+
+Rules:
+- Screen composable is stateless — receives state + callbacks
+- Routing composable connects ViewModel → Screen
+- Screen must have `@Preview` annotations (light and dark)
+- Use `collectAsStateWithLifecycle()` (not `collectAsState()`)
+
+## Navigation
+
+```kotlin
+// Route definition
+@Serializable
+object DashboardRoute
+
+// NavGraphBuilder extension
+fun NavGraphBuilder.dashboardGraph() {
+    composable<DashboardRoute> { DashboardRouting() }
+}
+
+// Navigate extension (if needed)
+fun NavController.navigateToDashboard(navOptions: NavOptions? = null) {
+    navigate(DashboardRoute, navOptions)
+}
+```
+
+Rules:
+- Routes are `@Serializable object` (type-safe navigation)
+- Each feature exposes a `NavGraphBuilder.{name}Graph()` extension
+- Navigation functions go in `navigation/` package
+- The `:app` module orchestrates all feature graphs in `KeuTrackNavHost`
+
+## Compose
+
+- Use `KeuTrackTheme` for all `@Preview` — never bare `MaterialTheme`
+- Use Material 2 (`androidx.compose.material`) — the project does not use Material 3
+- Extract reusable components to `components/` sub-package
+- Prefix project-wide components with `KeuTrack` (e.g., `KeuTrackButton`)

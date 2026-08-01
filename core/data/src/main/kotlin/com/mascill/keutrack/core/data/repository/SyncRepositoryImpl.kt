@@ -1,0 +1,211 @@
+package com.mascill.keutrack.core.data.repository
+
+import com.mascill.keutrack.core.data.datasource.firestore.BudgetFirestoreDataSource
+import com.mascill.keutrack.core.data.datasource.firestore.CategorySummaryFirestoreDataSource
+import com.mascill.keutrack.core.data.datasource.firestore.TransactionFirestoreDataSource
+import com.mascill.keutrack.core.data.datasource.firestore.WalletFirestoreDataSource
+import com.mascill.keutrack.core.data.datasource.local.BudgetLocalDataSource
+import com.mascill.keutrack.core.data.datasource.local.CategorySummaryLocalDataSource
+import com.mascill.keutrack.core.data.datasource.local.TransactionLocalDataSource
+import com.mascill.keutrack.core.data.datasource.local.WalletLocalDataSource
+import com.mascill.keutrack.core.data.mapper.BudgetMapper
+import com.mascill.keutrack.core.data.mapper.CategorySummaryMapper
+import com.mascill.keutrack.core.data.mapper.TransactionMapper
+import com.mascill.keutrack.core.data.mapper.WalletMapper
+import com.mascill.keutrack.core.data.sync.SyncScheduler
+import com.mascill.keutrack.core.domain.model.CategorySummary
+import com.mascill.keutrack.core.domain.model.SyncStatus
+import com.mascill.keutrack.core.domain.model.TransactionType
+import com.mascill.keutrack.core.domain.model.WalletType
+import com.mascill.keutrack.core.domain.repository.SyncRepository
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import javax.inject.Inject
+import javax.inject.Singleton
+import kotlin.coroutines.cancellation.CancellationException
+
+@Singleton
+class SyncRepositoryImpl @Inject constructor(
+    private val transactionLocal: TransactionLocalDataSource,
+    private val walletLocal: WalletLocalDataSource,
+    private val budgetLocal: BudgetLocalDataSource,
+    private val summaryLocal: CategorySummaryLocalDataSource,
+    private val transactionRemote: TransactionFirestoreDataSource,
+    private val walletRemote: WalletFirestoreDataSource,
+    private val budgetRemote: BudgetFirestoreDataSource,
+    private val summaryRemote: CategorySummaryFirestoreDataSource,
+    private val transactionMapper: TransactionMapper,
+    private val walletMapper: WalletMapper,
+    private val budgetMapper: BudgetMapper,
+    private val summaryMapper: CategorySummaryMapper,
+    private val syncScheduler: SyncScheduler,
+) : SyncRepository {
+
+    override suspend fun syncPendingWallets() {
+        try {
+            var hasFailure = false
+            walletLocal.getPending().forEach { entity ->
+                try {
+                    walletRemote.upsertWallet(walletMapper.toDomain(entity))
+                    walletLocal.updateSyncStatus(entity.id, SyncStatus.SYNCED)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    walletLocal.updateSyncStatus(entity.id, SyncStatus.FAILED)
+                    hasFailure = true
+                }
+            }
+            if (hasFailure) throw IllegalStateException("One or more wallets failed to sync")
+        } catch (e: CancellationException) {
+            throw e
+        }
+    }
+
+    override suspend fun syncPendingBudgets() {
+        try {
+            var hasFailure = false
+            budgetLocal.getPending().forEach { entity ->
+                try {
+                    budgetRemote.upsertBudget(budgetMapper.toDomain(entity))
+                    budgetLocal.updateSyncStatus(entity.id, SyncStatus.SYNCED)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    budgetLocal.updateSyncStatus(entity.id, SyncStatus.FAILED)
+                    hasFailure = true
+                }
+            }
+            if (hasFailure) throw IllegalStateException("One or more budgets failed to sync")
+        } catch (e: CancellationException) {
+            throw e
+        }
+    }
+
+    override suspend fun syncPendingTransactions() {
+        try {
+            var hasFailure = false
+            transactionLocal.getPending().forEach { entity ->
+                try {
+                    val transaction = transactionMapper.toDomain(entity)
+                    val month = MONTH_FORMATTER.format(
+                        transaction.date.atZone(ZoneId.systemDefault()),
+                    )
+                    val summary = summaryLocal.getByPeriod(month, transaction.userId)
+                        ?.let(summaryMapper::toDomain)
+                        ?: CategorySummary(
+                            period = month,
+                            userId = transaction.userId,
+                            familyId = transaction.familyId,
+                            totalIncome = 0L,
+                            totalExpense = 0L,
+                            byCategory = emptyMap(),
+                        )
+
+                    val budget = if (transaction.type == TransactionType.EXPENSE) {
+                        budgetLocal.getByMonthAndCategory(month, transaction.categoryId)
+                    } else {
+                        null
+                    }
+
+                    val walletDelta = transactionRemote.walletDeltaFor(transaction)
+                    val budgetSpentDelta =
+                        if (budget != null && transaction.type == TransactionType.EXPENSE) {
+                            transaction.amount
+                        } else {
+                            0L
+                        }
+
+                    transactionRemote.upsertTransactionWithSideEffects(
+                        transaction = transaction,
+                        walletBalanceDelta = walletDelta,
+                        budgetId = budget?.id,
+                        budgetSpentDelta = budgetSpentDelta,
+                        summary = summary,
+                    )
+                    summaryRemote.upsertSummary(summary)
+                    transactionLocal.updateSyncStatus(entity.id, SyncStatus.SYNCED)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    transactionLocal.updateSyncStatus(entity.id, SyncStatus.FAILED)
+                    hasFailure = true
+                }
+            }
+            if (hasFailure) throw IllegalStateException("One or more transactions failed to sync")
+        } catch (e: CancellationException) {
+            throw e
+        }
+    }
+
+    override suspend fun syncAll() {
+        try {
+            // Wallets/budgets first so remote docs exist before transaction increments.
+            syncPendingWallets()
+            syncPendingBudgets()
+            syncPendingTransactions()
+        } catch (e: CancellationException) {
+            throw e
+        }
+    }
+
+    override suspend fun syncFamilyData(familyId: String) {
+        try {
+            if (familyId.isBlank()) return
+
+            val remoteWallets = walletRemote.getByFamilyId(familyId)
+            remoteWallets.forEach { wallet ->
+                val existing = walletLocal.getById(wallet.id)
+                if (existing != null && existing.syncStatus == SyncStatus.PENDING.name) {
+                    return@forEach
+                }
+                walletLocal.upsert(
+                    walletMapper.toEntity(wallet.copy(syncStatus = SyncStatus.SYNCED)),
+                )
+            }
+
+            // Keep one canonical wallet locally (oldest FAMILY). Drop extras even if remote
+            // still has split-brain W_B from an earlier join race — new writes should target W_A.
+            if (remoteWallets.isNotEmpty()) {
+                val familyTyped =
+                    remoteWallets.filter { it.type == WalletType.FAMILY }.ifEmpty { remoteWallets }
+                val canonicalId =
+                    familyTyped.minByOrNull { it.createdAt }?.id
+                if (canonicalId != null) {
+                    walletLocal.getByFamilyId(familyId)
+                        .filter { it.id != canonicalId }
+                        .forEach { extra -> walletLocal.delete(extra.id) }
+                }
+            }
+
+            val remoteTransactions =
+                transactionRemote.getByFamilyId(familyId, limit = FAMILY_TX_PULL_LIMIT)
+            remoteTransactions.forEach { transaction ->
+                val existing = transactionLocal.getById(transaction.id)
+                if (existing != null && existing.syncStatus == SyncStatus.PENDING.name) {
+                    return@forEach
+                }
+                transactionLocal.upsert(
+                    transactionMapper.toEntity(
+                        transaction.copy(syncStatus = SyncStatus.SYNCED),
+                    ),
+                )
+            }
+        } catch (e: CancellationException) {
+            throw e
+        }
+    }
+
+    override suspend fun hasPendingSync(): Boolean =
+        walletLocal.getPending().isNotEmpty() ||
+            budgetLocal.getPending().isNotEmpty() ||
+            transactionLocal.getPending().isNotEmpty()
+
+    override fun enqueuePendingSync(force: Boolean) {
+        syncScheduler.enqueueSync(force = force)
+    }
+
+    private companion object {
+        val MONTH_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM")
+        const val FAMILY_TX_PULL_LIMIT = 200
+    }
+}

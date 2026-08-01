@@ -60,6 +60,26 @@ class FirestoreNetworkDataSource @Inject constructor(
         )
     }
 
+    /**
+     * Dedicated membership write — does not touch identity fields used by auth upsert.
+     */
+    suspend fun updateFamilyMembership(
+        uid: String,
+        familyId: String?,
+        familyRole: String?,
+    ) {
+        firestore.collection(COLLECTION_USERS)
+            .document(uid)
+            .update(
+                mapOf(
+                    FIELD_FAMILY_ID to familyId,
+                    FIELD_FAMILY_ROLE to familyRole,
+                    FIELD_UPDATED_AT to FieldValue.serverTimestamp(),
+                ),
+            )
+            .await()
+    }
+
     private companion object {
         const val COLLECTION_USERS = "users"
         const val FIELD_UID = "uid"

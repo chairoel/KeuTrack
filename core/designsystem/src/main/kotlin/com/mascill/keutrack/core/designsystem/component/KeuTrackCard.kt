@@ -1,19 +1,23 @@
 package com.mascill.keutrack.core.designsystem.component
 
+import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.Text
 import androidx.compose.material.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
 
@@ -60,5 +64,22 @@ fun KeuTrackCard(
                 .padding(contentPadding),
     ) {
         content()
+    }
+}
+
+@Preview(name = "Light", showBackground = true)
+@Preview(name = "Dark", uiMode = Configuration.UI_MODE_NIGHT_YES, showBackground = true)
+@Composable
+private fun KeuTrackCardPreview() {
+    KeuTrackTheme {
+        Column(modifier = Modifier.padding(16.dp)) {
+            KeuTrackCard {
+                Text(
+                    text = "Default card",
+                    style = KeuTrackTheme.typography.bodyBold16,
+                    color = KeuTrackTheme.textColors.title,
+                )
+            }
+        }
     }
 }

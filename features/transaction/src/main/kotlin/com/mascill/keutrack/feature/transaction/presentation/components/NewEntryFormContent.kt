@@ -1,0 +1,405 @@
+package com.mascill.keutrack.feature.transaction.presentation.components
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.Icon
+import androidx.compose.material.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AccountBalanceWallet
+import androidx.compose.material.icons.outlined.CalendarToday
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import com.mascill.keutrack.core.designsystem.component.KeuTrackAmountKeypad
+import com.mascill.keutrack.core.designsystem.component.KeuTrackButton
+import com.mascill.keutrack.core.designsystem.component.KeuTrackCard
+import com.mascill.keutrack.core.designsystem.component.KeuTrackCategoryChip
+import com.mascill.keutrack.core.designsystem.component.KeuTrackCurrencyText
+import com.mascill.keutrack.core.designsystem.component.KeuTrackSegmentedControl
+import com.mascill.keutrack.core.designsystem.component.KeuTrackTextField
+import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
+import com.mascill.keutrack.feature.transaction.presentation.model.EntryTransactionKind
+import com.mascill.keutrack.feature.transaction.presentation.model.NewEntryCategoryUI
+import com.mascill.keutrack.feature.transaction.presentation.model.NewEntryUIState
+import com.mascill.keutrack.feature.transaction.presentation.model.TransactionUiMapper
+
+private const val NEW_ENTRY_SUBTITLE = "Add a transaction to your ledger"
+private const val NEW_ENTRY_AMOUNT_SECTION = "AMOUNT"
+private const val NEW_ENTRY_WALLET_TYPE_LABEL = "WALLET"
+private const val NEW_ENTRY_DATE_LABEL = "DATE"
+private const val NEW_ENTRY_CATEGORY_SECTION = "CATEGORY"
+private const val NEW_ENTRY_SEE_ALL = "See all"
+private const val NEW_ENTRY_NOTE_LABEL = "Note (optional)"
+private const val NEW_ENTRY_NOTE_PLACEHOLDER = "e.g. Lunch with team"
+private const val NEW_ENTRY_ADD_TRANSACTION = "Add transaction"
+private const val NEW_ENTRY_EXPENSE = "Expense"
+private const val NEW_ENTRY_INCOME = "Income"
+private const val NEW_ENTRY_NO_WALLET = "Buat dompet dulu sebelum menambah transaksi"
+private const val NEW_ENTRY_NO_CATEGORIES = "Belum ada kategori"
+private const val NEW_ENTRY_WALLET_FALLBACK = "Pilih dompet"
+
+private const val NEW_ENTRY_PH = 20
+private const val NEW_ENTRY_PB = 8
+private const val NEW_ENTRY_SUBTITLE_PT = 4
+private const val NEW_ENTRY_SECTION_SPACER_LG = 20
+private const val NEW_ENTRY_AMOUNT_LABEL_PB = 8
+private const val NEW_ENTRY_AMOUNT_CARD_PV = 20
+private const val NEW_ENTRY_AMOUNT_CARD_PH = 16
+private const val NEW_ENTRY_AFTER_AMOUNT_CARD_SPACER = 16
+private const val NEW_ENTRY_WALLET_ROW_SPACING = 12
+private const val NEW_ENTRY_CATEGORY_HEADER_PB = 12
+private const val NEW_ENTRY_CATEGORY_ROW_SPACING = 12
+private const val NEW_ENTRY_BEFORE_KEYPAD_SPACER = 20
+private const val NEW_ENTRY_AFTER_KEYPAD_SPACER = 12
+private const val NEW_ENTRY_AFTER_NOTE_SPACER = 20
+private const val NEW_ENTRY_WALLET_CHIP_LABEL_GAP = 6
+private const val NEW_ENTRY_WALLET_CHIP_PH = 12
+private const val NEW_ENTRY_WALLET_CHIP_PV = 12
+private const val NEW_ENTRY_WALLET_CHIP_ICON_TEXT_SPACING = 8
+private const val NEW_ENTRY_WALLET_CHIP_ICON = 20
+private const val NEW_ENTRY_ERROR_PT = 8
+
+@Composable
+fun NewEntryFormContent(
+    uiState: NewEntryUIState,
+    onKindChanged: (EntryTransactionKind) -> Unit,
+    onDigit: (Long) -> Unit,
+    onTripleZero: () -> Unit,
+    onBackspace: () -> Unit,
+    onCategorySelected: (String) -> Unit,
+    onWalletChipClick: () -> Unit,
+    onDateChipClick: () -> Unit,
+    onSeeAllCategories: () -> Unit,
+    onNoteChanged: (String) -> Unit,
+    onSave: () -> Unit,
+    onClearError: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val semantic = KeuTrackTheme.semanticColors
+    val textColors = KeuTrackTheme.textColors
+    val typography = KeuTrackTheme.typography
+    val danger = KeuTrackTheme.dangerColors
+
+    val walletLabel =
+        uiState.selectedWallet?.name?.takeIf { it.isNotBlank() }
+            ?: NEW_ENTRY_WALLET_FALLBACK
+    val dateLabel = TransactionUiMapper.formatDateChip(uiState.selectedDate)
+
+    Column(
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = NEW_ENTRY_PH.dp)
+                .padding(bottom = NEW_ENTRY_PB.dp),
+    ) {
+        Text(
+            text = NEW_ENTRY_SUBTITLE,
+            style = typography.bodyRegular14,
+            color = textColors.body,
+            modifier = Modifier.padding(top = NEW_ENTRY_SUBTITLE_PT.dp),
+        )
+
+        Spacer(modifier = Modifier.height(NEW_ENTRY_SECTION_SPACER_LG.dp))
+
+        KeuTrackSegmentedControl(
+            leftLabel = NEW_ENTRY_EXPENSE,
+            rightLabel = NEW_ENTRY_INCOME,
+            leftSelected = uiState.kind == EntryTransactionKind.Expense,
+            onLeftClick = {
+                onClearError()
+                onKindChanged(EntryTransactionKind.Expense)
+            },
+            onRightClick = {
+                onClearError()
+                onKindChanged(EntryTransactionKind.Income)
+            },
+        )
+
+        Spacer(modifier = Modifier.height(NEW_ENTRY_SECTION_SPACER_LG.dp))
+
+        Text(
+            text = NEW_ENTRY_AMOUNT_SECTION,
+            style = typography.bodyBold10,
+            color = textColors.body,
+            modifier = Modifier.fillMaxWidth(),
+            textAlign = TextAlign.Center,
+            letterSpacing = typography.bodyBold10.letterSpacing,
+        )
+        Spacer(modifier = Modifier.height(NEW_ENTRY_AMOUNT_LABEL_PB.dp))
+
+        KeuTrackCard(
+            modifier = Modifier.fillMaxWidth(),
+            highlighted = true,
+            contentPadding =
+                PaddingValues(
+                    vertical = NEW_ENTRY_AMOUNT_CARD_PV.dp,
+                    horizontal = NEW_ENTRY_AMOUNT_CARD_PH.dp,
+                ),
+            onClick = null,
+        ) {
+            KeuTrackCurrencyText(
+                amount = uiState.amount,
+                style = typography.headingBold36,
+                color = semantic.primary,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center,
+            )
+        }
+
+        Spacer(modifier = Modifier.height(NEW_ENTRY_AFTER_AMOUNT_CARD_SPACER.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(NEW_ENTRY_WALLET_ROW_SPACING.dp),
+        ) {
+            WalletDateChip(
+                modifier = Modifier.weight(1f),
+                label = NEW_ENTRY_WALLET_TYPE_LABEL,
+                icon = Icons.Outlined.AccountBalanceWallet,
+                value = walletLabel,
+                showTrailingChevron = true,
+                onClick = onWalletChipClick,
+            )
+            WalletDateChip(
+                modifier = Modifier.weight(1f),
+                label = NEW_ENTRY_DATE_LABEL,
+                icon = Icons.Outlined.CalendarToday,
+                value = dateLabel,
+                showTrailingChevron = true,
+                onClick = onDateChipClick,
+            )
+        }
+
+        Spacer(modifier = Modifier.height(NEW_ENTRY_SECTION_SPACER_LG.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = NEW_ENTRY_CATEGORY_SECTION,
+                style = typography.bodyBold10,
+                color = textColors.body,
+            )
+            Text(
+                text = NEW_ENTRY_SEE_ALL,
+                style = typography.bodyBold14,
+                color = textColors.link,
+                modifier = Modifier.clickable(onClick = onSeeAllCategories),
+            )
+        }
+
+        Spacer(modifier = Modifier.height(NEW_ENTRY_CATEGORY_HEADER_PB.dp))
+
+        if (uiState.categories.isEmpty()) {
+            Text(
+                text = NEW_ENTRY_NO_CATEGORIES,
+                style = typography.bodyRegular14,
+                color = textColors.body,
+            )
+        } else {
+            CategoryChipRow(
+                categories = uiState.categories,
+                selectedCategoryId = uiState.selectedCategoryId,
+                onCategorySelected = { id ->
+                    onClearError()
+                    onCategorySelected(id)
+                },
+            )
+        }
+
+        Spacer(modifier = Modifier.height(NEW_ENTRY_BEFORE_KEYPAD_SPACER.dp))
+
+        KeuTrackAmountKeypad(
+            onDigit = { d ->
+                onClearError()
+                onDigit(d)
+            },
+            onTripleZero = {
+                onClearError()
+                onTripleZero()
+            },
+            onBackspace = {
+                onClearError()
+                onBackspace()
+            },
+        )
+
+        Spacer(modifier = Modifier.height(NEW_ENTRY_AFTER_KEYPAD_SPACER.dp))
+
+        KeuTrackTextField(
+            value = uiState.note,
+            onValueChange = onNoteChanged,
+            label = NEW_ENTRY_NOTE_LABEL,
+            placeholder = NEW_ENTRY_NOTE_PLACEHOLDER,
+            singleLine = true,
+        )
+
+        val displayError =
+            uiState.errorMessage
+                ?: if (!uiState.hasWallet) NEW_ENTRY_NO_WALLET else null
+
+        if (displayError != null) {
+            Text(
+                text = displayError,
+                style = typography.bodyRegular12,
+                color = danger.d500,
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(top = NEW_ENTRY_ERROR_PT.dp),
+                textAlign = TextAlign.Center,
+            )
+        }
+
+        Spacer(modifier = Modifier.height(NEW_ENTRY_AFTER_NOTE_SPACER.dp))
+
+        KeuTrackButton(
+            text = NEW_ENTRY_ADD_TRANSACTION,
+            onClick = onSave,
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding(),
+            enabled = uiState.hasWallet && !uiState.isSaving && uiState.categories.isNotEmpty(),
+            isLoading = uiState.isSaving,
+        )
+    }
+}
+
+@Composable
+private fun CategoryChipRow(
+    categories: List<NewEntryCategoryUI>,
+    selectedCategoryId: String?,
+    onCategorySelected: (String) -> Unit,
+) {
+    val pinnedOther = categories.firstOrNull { it.isOther }
+    val scrollable = categories.filterNot { it.isOther }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(NEW_ENTRY_CATEGORY_ROW_SPACING.dp),
+    ) {
+        Row(
+            modifier =
+                Modifier
+                    .weight(1f)
+                    .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(NEW_ENTRY_CATEGORY_ROW_SPACING.dp),
+        ) {
+            scrollable.forEach { cat ->
+                CategoryChipItem(
+                    category = cat,
+                    selected = selectedCategoryId == cat.id,
+                    onClick = { onCategorySelected(cat.id) },
+                )
+            }
+        }
+        if (pinnedOther != null) {
+            CategoryChipItem(
+                category = pinnedOther,
+                selected = selectedCategoryId == pinnedOther.id,
+                onClick = { onCategorySelected(pinnedOther.id) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun CategoryChipItem(
+    category: NewEntryCategoryUI,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    KeuTrackCategoryChip(
+        label = category.label,
+        icon = category.icon,
+        containerColor = category.accent,
+        selected = selected,
+        onClick = onClick,
+    )
+}
+
+@Composable
+private fun WalletDateChip(
+    label: String,
+    icon: ImageVector,
+    value: String,
+    showTrailingChevron: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val semantic = KeuTrackTheme.semanticColors
+    val textColors = KeuTrackTheme.textColors
+    val typography = KeuTrackTheme.typography
+    val shapes = KeuTrackTheme.shapeTokens
+
+    Column(modifier = modifier) {
+        Text(
+            text = label,
+            style = typography.bodyBold10,
+            color = textColors.body,
+        )
+        Spacer(modifier = Modifier.height(NEW_ENTRY_WALLET_CHIP_LABEL_GAP.dp))
+        Row(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(shapes.radiusMd))
+                    .background(semantic.surfaceContainerLow)
+                    .clickable(onClick = onClick)
+                    .padding(
+                        horizontal = NEW_ENTRY_WALLET_CHIP_PH.dp,
+                        vertical = NEW_ENTRY_WALLET_CHIP_PV.dp,
+                    ),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(NEW_ENTRY_WALLET_CHIP_ICON_TEXT_SPACING.dp),
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = semantic.onSurfaceVariant,
+                modifier = Modifier.size(NEW_ENTRY_WALLET_CHIP_ICON.dp),
+            )
+            Text(
+                text = value,
+                style = typography.bodyBold14,
+                color = textColors.title,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            if (showTrailingChevron) {
+                Icon(
+                    imageVector = Icons.Outlined.KeyboardArrowDown,
+                    contentDescription = null,
+                    tint = semantic.onSurfaceVariant,
+                    modifier = Modifier.size(NEW_ENTRY_WALLET_CHIP_ICON.dp),
+                )
+            }
+        }
+    }
+}

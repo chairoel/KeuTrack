@@ -9,16 +9,15 @@ import androidx.compose.material.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
-import com.mascill.keutrack.feature.dashboard.presentation.model.DefaultDashboardMockContent
 import com.mascill.keutrack.feature.dashboard.presentation.model.TransactionRowUi
 
 private const val DASH_TXN_SECTION_ROW_SPACING = 10
 private const val DASH_RECENT_SECTION_TITLE = "Recent Transactions"
 private const val DASH_RECENT_VIEW_ALL = "View All"
 private const val DASH_RECENT_TITLE_WEIGHT = 1f
+private const val DASH_RECENT_EMPTY = "Belum ada transaksi. Tap + untuk menambah."
 
 @Composable
 fun RecentTransactionsSection(
@@ -49,9 +48,17 @@ fun RecentTransactionsSection(
             }
         }
 
-        Column(verticalArrangement = Arrangement.spacedBy(DASH_TXN_SECTION_ROW_SPACING.dp)) {
-            transactions.forEach { row ->
-                TransactionRowCard(row = row)
+        if (transactions.isEmpty()) {
+            Text(
+                text = DASH_RECENT_EMPTY,
+                style = typography.bodyRegular14,
+                color = textColors.body,
+            )
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(DASH_TXN_SECTION_ROW_SPACING.dp)) {
+                transactions.forEach { row ->
+                    TransactionRowCard(row = row)
+                }
             }
         }
     }

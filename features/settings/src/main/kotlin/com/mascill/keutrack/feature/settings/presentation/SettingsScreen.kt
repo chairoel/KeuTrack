@@ -1,6 +1,9 @@
 package com.mascill.keutrack.feature.settings.presentation
 
-import android.content.res.Configuration.UI_MODE_NIGHT_YES
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -16,8 +19,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.Icon
 import androidx.compose.material.Scaffold
+import androidx.compose.material.Snackbar
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
+import androidx.compose.material.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.outlined.MoreHoriz
@@ -28,7 +33,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -47,6 +54,8 @@ import com.mascill.keutrack.feature.settings.presentation.components.SettingsPri
 import com.mascill.keutrack.feature.settings.presentation.components.SettingsProfileCard
 import com.mascill.keutrack.feature.settings.presentation.components.SettingsSectionHeader
 import com.mascill.keutrack.feature.settings.presentation.components.SettingsStatusChip
+import com.mascill.keutrack.feature.settings.presentation.membership.SettingsFamilyMembershipDialog
+import com.mascill.keutrack.feature.settings.presentation.membership.SettingsFamilyMembershipMode
 import com.mascill.keutrack.feature.settings.presentation.model.DefaultSettingsMockContent
 import com.mascill.keutrack.feature.settings.presentation.model.SettingsScreenContent
 import com.mascill.keutrack.feature.settings.presentation.model.SignOutState
@@ -72,15 +81,32 @@ fun SettingsRouting(
 ) {
     val signOutState by viewModel.signOutState.collectAsStateWithLifecycle()
     val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
+    val currentFamily by viewModel.currentFamily.collectAsStateWithLifecycle()
+    val membershipLoading by viewModel.membershipLoading.collectAsStateWithLifecycle()
+    val membershipMessage by viewModel.membershipMessage.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    var dialogMode by remember { mutableStateOf<SettingsFamilyMembershipMode?>(null) }
+
+    val familyCode =
+        currentFamily?.inviteCode
+            ?: currentUser?.familyId
+            ?: "Belum bergabung"
+    val inFamily = !currentUser?.familyId.isNullOrBlank()
 
     val content =
-        remember(currentUser) {
+        remember(currentUser, familyCode, inFamily) {
             DefaultSettingsMockContent.copy(
-                profile =  DefaultSettingsMockContent.profile.copy(
-                    displayName = currentUser.greetingFirstNameOrFallback(DefaultSettingsMockContent.profile.displayName),
-                    email = currentUser?.email ?: DefaultSettingsMockContent.profile.email,
-                    avatar = currentUser?.photoUrl
-                )
+                profile =
+                    DefaultSettingsMockContent.profile.copy(
+                        displayName =
+                            currentUser.greetingFirstNameOrFallback(
+                                DefaultSettingsMockContent.profile.displayName,
+                            ),
+                        email = currentUser?.email ?: DefaultSettingsMockContent.profile.email,
+                        avatar = currentUser?.photoUrl,
+                    ),
+                familyNetworkActive = inFamily,
+                familyIdCode = familyCode,
             )
         }
 
@@ -90,17 +116,104 @@ fun SettingsRouting(
         }
     }
 
-    SettingsScreen(
-        content = content,
-        signOutState = signOutState,
-        onSignOutClick = { viewModel.signOut() },
-        onCopyFamilyId = {},
-        onInviteMember = {},
-        onManageCircle = {},
-        onCurrencySelected = {},
-        onSheetsSyncChange = {},
-        onExportSheets = {},
-    )
+    LaunchedEffect(membershipLoading, inFamily) {
+        if (dialogMode != null && !membershipLoading && inFamily) {
+            dialogMode = null
+        }
+    }
+
+    BoxWithMembershipSnackbar(
+        membershipMessage = membershipMessage,
+        onDismissMembershipMessage = viewModel::dismissMembershipMessage,
+    ) {
+        SettingsScreen(
+            content = content,
+            signOutState = signOutState,
+            onSignOutClick = { viewModel.signOut() },
+            onCopyFamilyId = {
+                if (!inFamily) {
+                    Toast.makeText(context, "Belum bergabung dengan keluarga", Toast.LENGTH_SHORT)
+                        .show()
+                    return@SettingsScreen
+                }
+                copyToClipboard(context, familyCode)
+                Toast.makeText(context, "Kode keluarga disalin", Toast.LENGTH_SHORT).show()
+            },
+            onInviteMember = {
+                if (inFamily) {
+                    copyToClipboard(context, familyCode)
+                    Toast.makeText(
+                        context,
+                        "Bagikan kode $familyCode ke anggota baru",
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                } else {
+                    dialogMode = SettingsFamilyMembershipMode.Join
+                }
+            },
+            onManageCircle = {
+                if (inFamily) {
+                    Toast.makeText(
+                        context,
+                        currentFamily?.name ?: "Keluarga aktif",
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                } else {
+                    dialogMode = SettingsFamilyMembershipMode.Create
+                }
+            },
+            onCurrencySelected = {},
+            onSheetsSyncChange = {},
+            onExportSheets = {},
+        )
+    }
+
+    dialogMode?.let { mode ->
+        SettingsFamilyMembershipDialog(
+            mode = mode,
+            isLoading = membershipLoading,
+            onDismiss = {
+                if (!membershipLoading) dialogMode = null
+            },
+            onSubmit = { value ->
+                when (mode) {
+                    SettingsFamilyMembershipMode.Create -> viewModel.createFamily(value)
+                    SettingsFamilyMembershipMode.Join -> viewModel.joinFamily(value)
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun BoxWithMembershipSnackbar(
+    membershipMessage: String?,
+    onDismissMembershipMessage: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    androidx.compose.foundation.layout.Box(modifier = Modifier.fillMaxSize()) {
+        content()
+        membershipMessage?.let { message ->
+            Snackbar(
+                modifier =
+                    Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(16.dp),
+                action = {
+                    TextButton(onClick = onDismissMembershipMessage) {
+                        Text("Tutup")
+                    }
+                },
+            ) {
+                Text(message)
+            }
+        }
+    }
+}
+
+private fun copyToClipboard(context: Context, text: String) {
+    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    clipboard.setPrimaryClip(ClipData.newPlainText("family_invite_code", text))
 }
 
 @Composable

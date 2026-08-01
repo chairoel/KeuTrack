@@ -1,0 +1,66 @@
+---
+description: Gradle and build configuration conventions for KeuTrack modules
+globs: "**/{build.gradle.kts,settings.gradle.kts,libs.versions.toml}"
+alwaysApply: false
+---
+
+# Gradle Conventions
+
+## Convention Plugins
+
+Use project convention plugins instead of raw Gradle plugin IDs:
+
+| Plugin | Use for |
+|--------|---------|
+| `keutrack.application` | `:app` module |
+| `keutrack.app.compose` | `:app` Compose setup |
+| `keutrack.app.flavor` | `:app` build flavors (dev/prod) |
+| `keutrack.app.firebase` | `:app` Firebase (google-services) |
+| `keutrack.feature` | Feature modules — auto-includes library, compose, hilt, serialization, and core deps |
+| `keutrack.library` | Library/core modules |
+| `keutrack.lib.compose` | Library modules with Compose |
+| `keutrack.lib.firebase` | Library modules with Firebase |
+| `keutrack.hilt` | Hilt DI setup (hilt + ksp) |
+
+## Feature Module build.gradle.kts Template
+
+```kotlin
+plugins {
+    alias(libs.plugins.keutrack.feature)
+}
+
+android {
+    namespace = "com.mascill.keutrack.feature.{name}"
+}
+
+dependencies {
+    // keutrack.feature already includes :core:common, :core:designsystem,
+    // :core:domain, :core:network — only add extras here
+    implementation(projects.core.data)  // if feature needs data layer
+}
+```
+
+## Core Module build.gradle.kts Template
+
+```kotlin
+plugins {
+    alias(libs.plugins.keutrack.library)
+    alias(libs.plugins.keutrack.hilt)
+}
+
+android {
+    namespace = "com.mascill.keutrack.core.{name}"
+}
+
+dependencies {
+    implementation(projects.core.domain) // only what's needed
+}
+```
+
+## Version Catalog
+
+- All dependency versions live in `gradle/libs.versions.toml`
+- Use `libs.plugins.keutrack.*` for convention plugins
+- Use `libs.*` for library references
+- Use typesafe project accessors: `projects.core.domain` (not `project(":core:domain")`)
+- When adding a new library, add to version catalog first — never hardcode versions in build.gradle.kts

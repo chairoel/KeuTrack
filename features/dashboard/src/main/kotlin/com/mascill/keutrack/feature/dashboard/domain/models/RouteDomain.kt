@@ -1,7 +1,9 @@
 package com.mascill.keutrack.feature.dashboard.domain.models
 
 /**
- * data class to defined Route Domain
+ * Sample domain model for a Retrofit API response mapped from [com.mascill.keutrack.feature.dashboard.data.models.RouteResponse].
+ *
+ * Kept as a reference for DTO → domain modeling. Not used by the production Dashboard.
  */
 data class RouteDomain(
     val countTrip: Int,

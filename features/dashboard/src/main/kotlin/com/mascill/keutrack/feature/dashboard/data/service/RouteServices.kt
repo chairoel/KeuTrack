@@ -6,13 +6,17 @@ import retrofit2.http.GET
 import retrofit2.http.Query
 
 /**
- * Representation interface of the SMPOB-Mobile route API endpoints.
+ * Sample Retrofit service interface for a REST list endpoint.
+ *
+ * Kept as a reference for declaring API methods with `@GET` / `@Query` and a shared
+ * [GenericListResponse] envelope. Not called by the production Dashboard.
  */
 interface RouteServices {
+
     /**
-     * Get SMPOB-mobile route list.
+     * Sample: GET a paginated list from a remote API.
      *
-     * Note: currently this used as example, please update success response if this turn to real api
+     * Update the path and response type when adapting this pattern to a real endpoint.
      */
     @GET("api/v1/smpob-mobile/routes")
     suspend fun getRoutes(

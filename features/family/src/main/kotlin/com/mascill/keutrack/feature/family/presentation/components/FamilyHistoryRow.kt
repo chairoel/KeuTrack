@@ -24,7 +24,6 @@ import com.mascill.keutrack.core.designsystem.component.KeuTrackCard
 import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
 import com.mascill.keutrack.feature.family.presentation.model.FamilyHistoryCategoryIcon
 import com.mascill.keutrack.feature.family.presentation.model.FamilyHistoryRowUi
-import com.mascill.keutrack.feature.family.presentation.model.FamilyMemberAttribution
 import com.mascill.keutrack.feature.family.presentation.model.toImageVector
 
 private const val FAM_HIST_ROW_PH = 14
@@ -40,8 +39,7 @@ private const val FAM_HIST_DOT = 6
 private const val FAM_HIST_PILL_ICON_SPACING = 6
 private const val FAM_HIST_ICON_BG_ALPHA_PRIMARY = 0.12f
 private const val FAM_HIST_ICON_BG_ALPHA_TERTIARY = 0.15f
-private const val FAM_HIST_ADDED_BY_WIFE = "Added by Istri"
-private const val FAM_HIST_ADDED_BY_HUSBAND = "Added by Suami"
+private const val FAM_HIST_ADDED_BY_PREFIX = "Added by "
 
 @Composable
 fun FamilyHistoryRow(
@@ -56,12 +54,21 @@ fun FamilyHistoryRow(
 
     val (iconBg, iconTint) =
         when (row.categoryIcon) {
-            FamilyHistoryCategoryIcon.Groceries ->
-                success.s100 to semantic.secondary
-            FamilyHistoryCategoryIcon.Utilities ->
-                semantic.primary.copy(alpha = FAM_HIST_ICON_BG_ALPHA_PRIMARY) to semantic.primary
-            FamilyHistoryCategoryIcon.School ->
-                semantic.tertiary.copy(alpha = FAM_HIST_ICON_BG_ALPHA_TERTIARY) to semantic.tertiary
+            FamilyHistoryCategoryIcon.Shopping,
+            FamilyHistoryCategoryIcon.Restaurant,
+            -> success.s100 to semantic.secondary
+
+            FamilyHistoryCategoryIcon.Utilities,
+            FamilyHistoryCategoryIcon.Payout,
+            FamilyHistoryCategoryIcon.Transport,
+            -> semantic.primary.copy(alpha = FAM_HIST_ICON_BG_ALPHA_PRIMARY) to semantic.primary
+
+            FamilyHistoryCategoryIcon.School,
+            FamilyHistoryCategoryIcon.Entertainment,
+            FamilyHistoryCategoryIcon.Health,
+            FamilyHistoryCategoryIcon.Investment,
+            FamilyHistoryCategoryIcon.Other,
+            -> semantic.tertiary.copy(alpha = FAM_HIST_ICON_BG_ALPHA_TERTIARY) to semantic.tertiary
         }
 
     KeuTrackCard(
@@ -124,7 +131,7 @@ fun FamilyHistoryRow(
                     maxLines = 1,
                 )
                 FamilyAddedByPill(
-                    addedBy = row.addedBy,
+                    addedByLabel = row.addedByLabel,
                     modifier = Modifier.padding(top = FAM_HIST_PILL_PT.dp),
                 )
             }
@@ -134,25 +141,13 @@ fun FamilyHistoryRow(
 
 @Composable
 private fun FamilyAddedByPill(
-    addedBy: FamilyMemberAttribution,
+    addedByLabel: String,
     modifier: Modifier = Modifier,
 ) {
     val semantic = KeuTrackTheme.semanticColors
     val shapes = KeuTrackTheme.shapeTokens
     val typography = KeuTrackTheme.typography
     val textColors = KeuTrackTheme.textColors
-
-    val label =
-        when (addedBy) {
-            FamilyMemberAttribution.Wife -> FAM_HIST_ADDED_BY_WIFE
-            FamilyMemberAttribution.Husband -> FAM_HIST_ADDED_BY_HUSBAND
-        }
-
-    val dotColor =
-        when (addedBy) {
-            FamilyMemberAttribution.Wife -> semantic.secondary
-            FamilyMemberAttribution.Husband -> semantic.primary
-        }
 
     Row(
         modifier =
@@ -168,10 +163,10 @@ private fun FamilyAddedByPill(
                 Modifier
                     .size(FAM_HIST_DOT.dp)
                     .clip(CircleShape)
-                    .background(dotColor),
+                    .background(semantic.primary),
         )
         Text(
-            text = label,
+            text = FAM_HIST_ADDED_BY_PREFIX + addedByLabel,
             style = typography.bodyBold10,
             color = textColors.title,
             maxLines = 1,

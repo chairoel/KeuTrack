@@ -3,11 +3,9 @@ package com.mascill.keutrack.feature.family.presentation.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -18,12 +16,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.unit.dp
+import com.mascill.keutrack.core.designsystem.component.KeuTrackProgressBar
+import com.mascill.keutrack.core.designsystem.model.KeuTrackProgressTone
 import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
 import com.mascill.keutrack.feature.family.presentation.model.FamilyBudgetBarTone
 import com.mascill.keutrack.feature.family.presentation.model.FamilyBudgetRowUi
-import com.mascill.keutrack.feature.family.presentation.model.FamilyInsightsMockContent
 
 private const val FAM_BUDGET_SECTION_PH = 24
 private const val FAM_BUDGET_SECTION_PV = 24
@@ -32,10 +30,13 @@ private const val FAM_BUDGET_ROW_INNER = 8
 private const val FAM_BUDGET_FOOTNOTE_PT = 4
 private const val FAM_BUDGET_MUTED_ALPHA = 0.8f
 private const val FAM_BUDGET_SPENT_CAP_SEPARATOR = " / "
+private const val FAM_SHARED_BUDGETS_TITLE = "Shared Budgets"
+private const val FAM_BUDGETS_EMPTY =
+    "Belum ada shared budget bulan ini. Buat budget dengan dompet keluarga untuk memantau progress bersama."
 
 @Composable
 fun FamilySharedBudgetsCard(
-    content: FamilyInsightsMockContent,
+    budgetRows: List<FamilyBudgetRowUi>,
     modifier: Modifier = Modifier,
 ) {
     val semantic = KeuTrackTheme.semanticColors
@@ -43,7 +44,6 @@ fun FamilySharedBudgetsCard(
     val effects = KeuTrackTheme.effectTokens
     val typography = KeuTrackTheme.typography
     val textColors = KeuTrackTheme.textColors
-    val success = KeuTrackTheme.successColors
 
     val shape = RoundedCornerShape(shapes.radiusXl)
 
@@ -61,24 +61,22 @@ fun FamilySharedBudgetsCard(
                 .padding(horizontal = FAM_BUDGET_SECTION_PH.dp, vertical = FAM_BUDGET_SECTION_PV.dp),
     ) {
         Text(
-            text = content.sharedBudgetsTitle,
+            text = FAM_SHARED_BUDGETS_TITLE,
             style = typography.headingBold20,
             color = textColors.title,
         )
         Spacer(modifier = Modifier.height(FAM_BUDGET_ROW_SPACING.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(FAM_BUDGET_ROW_SPACING.dp)) {
-            content.budgetRows.forEach { row ->
-                FamilyBudgetRow(
-                    row = row,
-                    successBrush =
-                        Brush.horizontalGradient(
-                            colors = listOf(semantic.secondary, success.s700),
-                        ),
-                    errorBrush =
-                        Brush.horizontalGradient(
-                            colors = listOf(semantic.error, semantic.tertiary),
-                        ),
-                )
+        if (budgetRows.isEmpty()) {
+            Text(
+                text = FAM_BUDGETS_EMPTY,
+                style = typography.bodyRegular14,
+                color = semantic.onSurfaceVariant,
+            )
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(FAM_BUDGET_ROW_SPACING.dp)) {
+                budgetRows.forEach { row ->
+                    FamilyBudgetRow(row = row)
+                }
             }
         }
     }
@@ -87,12 +85,9 @@ fun FamilySharedBudgetsCard(
 @Composable
 private fun FamilyBudgetRow(
     row: FamilyBudgetRowUi,
-    successBrush: Brush,
-    errorBrush: Brush,
     modifier: Modifier = Modifier,
 ) {
     val semantic = KeuTrackTheme.semanticColors
-    val shapes = KeuTrackTheme.shapeTokens
     val typography = KeuTrackTheme.typography
     val textColors = KeuTrackTheme.textColors
 
@@ -101,6 +96,13 @@ private fun FamilyBudgetRow(
             FamilyBudgetBarTone.Success -> semantic.secondary
             FamilyBudgetBarTone.Error -> semantic.error
             FamilyBudgetBarTone.Primary -> semantic.onSurfaceVariant
+        }
+
+    val progressTone =
+        when (row.tone) {
+            FamilyBudgetBarTone.Success -> KeuTrackProgressTone.Success
+            FamilyBudgetBarTone.Error -> KeuTrackProgressTone.Danger
+            FamilyBudgetBarTone.Primary -> KeuTrackProgressTone.Primary
         }
 
     Column(
@@ -126,32 +128,11 @@ private fun FamilyBudgetRow(
             )
         }
         Spacer(modifier = Modifier.height(FAM_BUDGET_ROW_INNER.dp))
-        Box(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .height(shapes.progressThickness)
-                    .clip(RoundedCornerShape(shapes.radiusXl))
-                    .background(semantic.surfaceContainerHighest),
-        ) {
-            val fillBrush =
-                when (row.tone) {
-                    FamilyBudgetBarTone.Success -> successBrush
-                    FamilyBudgetBarTone.Error -> errorBrush
-                    FamilyBudgetBarTone.Primary ->
-                        Brush.horizontalGradient(
-                            colors = listOf(semantic.primary, semantic.primaryContainer),
-                        )
-                }
-            Box(
-                modifier =
-                    Modifier
-                        .fillMaxHeight()
-                        .fillMaxWidth(row.progress.coerceIn(0f, 1f))
-                        .clip(RoundedCornerShape(shapes.radiusXl))
-                        .background(fillBrush),
-            )
-        }
+        KeuTrackProgressBar(
+            progress = row.progress,
+            tone = progressTone,
+            isOverLimit = row.tone == FamilyBudgetBarTone.Error,
+        )
         row.footnote?.let { note ->
             Text(
                 text = note,

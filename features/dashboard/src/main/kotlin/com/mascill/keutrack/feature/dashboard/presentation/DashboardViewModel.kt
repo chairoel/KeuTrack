@@ -1,42 +1,113 @@
 package com.mascill.keutrack.feature.dashboard.presentation
 
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mascill.keutrack.core.common.utils.CommonDispatcher
-import com.mascill.keutrack.core.domain.model.User
 import com.mascill.keutrack.core.domain.repository.UserRepository
-import com.mascill.keutrack.core.network.model.DomainResult
-import com.mascill.keutrack.feature.dashboard.domain.repository.RouteRepository
+import com.mascill.keutrack.core.domain.usecase.GetCategoriesUseCase
+import com.mascill.keutrack.core.domain.usecase.GetMonthlySummaryUseCase
+import com.mascill.keutrack.core.domain.usecase.GetTransactionsUseCase
+import com.mascill.keutrack.core.domain.usecase.GetWalletSummaryUseCase
+import com.mascill.keutrack.core.domain.usecase.RetryPendingSyncUseCase
+import com.mascill.keutrack.feature.dashboard.presentation.model.DashboardUIState
+import com.mascill.keutrack.feature.dashboard.presentation.model.DashboardUiMapper
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.time.YearMonth
 import javax.inject.Inject
+import kotlin.coroutines.cancellation.CancellationException
 
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
-    private val repository: RouteRepository,
+    userRepository: UserRepository,
+    getWalletSummary: GetWalletSummaryUseCase,
+    getTransactions: GetTransactionsUseCase,
+    getMonthlySummary: GetMonthlySummaryUseCase,
+    getCategories: GetCategoriesUseCase,
+    private val retryPendingSync: RetryPendingSyncUseCase,
     private val dispatcher: CommonDispatcher,
-    private val userRepository: UserRepository,
 ) : ViewModel() {
 
-    private val _currentUser = MutableStateFlow<User?>(null)
-    val currentUser: StateFlow<User?> = _currentUser.asStateFlow()
+    private val currentMonth = YearMonth.now()
+    private val priorMonth = currentMonth.minusMonths(1)
+    private val currentMonthKey = currentMonth.toString()
+    private val priorMonthKey = priorMonth.toString()
 
-    init {
-        viewModelScope.launch {
-            userRepository.getCurrentUser().collect { _currentUser.value = it }
+    val uiState: StateFlow<DashboardUIState> =
+        combine(
+            userRepository.getCurrentUser(),
+            getWalletSummary(),
+            getTransactions(GetTransactionsUseCase.Params(limit = RECENT_TX_LIMIT)),
+            getMonthlySummary(
+                currentMonth = currentMonthKey,
+                trendMonths = listOf(priorMonthKey),
+            ),
+            getCategories(),
+        ) { user, walletSummary, transactions, monthlySummary, categories ->
+            val categoriesById = categories.associateBy { it.id }
+            val walletTypes = DashboardUiMapper.mapWalletTypes(walletSummary)
+            val prior =
+                DashboardUiMapper.priorFromTrend(monthlySummary, priorMonthKey)
+
+            DashboardUIState(
+                isLoading = false,
+                errorMessage = null,
+                userFirstName = DashboardUiMapper.greetingFirstName(user),
+                avatarUrl = user?.photoUrl,
+                personalBalance = walletSummary.totalPersonalBalance,
+                familyBalance = walletSummary.totalFamilyBalance,
+                familySharedSummary =
+                    DashboardUiMapper.familySharedSummary(walletSummary.familyWallets.size),
+                monthChangeLabel =
+                    DashboardUiMapper.monthChangeLabel(
+                        current = monthlySummary.currentMonth,
+                        prior = prior,
+                    ),
+                incomeTotal = monthlySummary.currentMonth?.totalIncome ?: 0L,
+                expenseTotal = monthlySummary.currentMonth?.totalExpense ?: 0L,
+                recentTransactions =
+                    DashboardUiMapper.toTransactionRows(
+                        transactions = transactions,
+                        categoriesById = categoriesById,
+                        walletsById = walletTypes,
+                    ),
+            )
+        }.catch { e ->
+            emit(
+                DashboardUIState(
+                    isLoading = false,
+                    errorMessage = e.message ?: ERR_LOAD_FAILED,
+                ),
+            )
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = DashboardUIState(),
+        )
+
+    /**
+     * Called when the dashboard becomes visible. Retries sync only if Room still
+     * has PENDING/FAILED items; otherwise no WorkManager work is enqueued.
+     */
+    fun onScreenRendered() {
+        viewModelScope.launch(dispatcher.io) {
+            try {
+                retryPendingSync()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // Best-effort; UI already shows local sync badges.
+            }
         }
-        fetchRoute()
     }
 
-    fun fetchRoute() = viewModelScope.launch(dispatcher.io) {
-        val result = repository.getRouteList()
-        when (result) {
-            is DomainResult.Success -> Log.d("TAG", "fetchRoute: result size ${result.data.size}")
-            else -> Log.d("TAG", "fetchRoute: result $result")
-        }
+    private companion object {
+        const val RECENT_TX_LIMIT = 5
+        const val ERR_LOAD_FAILED = "Gagal memuat dashboard"
     }
 }
