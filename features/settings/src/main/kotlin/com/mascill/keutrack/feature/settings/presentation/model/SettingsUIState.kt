@@ -20,6 +20,8 @@ data class SettingsUIState(
     val familyNetworkActive: Boolean = false,
     val familyIdCode: String = "",
     val familyDisplayName: String? = null,
+    /** Uppercase role chip label, e.g. OWNER / MEMBER; null when not in a family. */
+    val familyRoleLabel: String? = null,
     val primaryCurrencyOptions: List<String> = listOf("IDR", "USD", "EUR"),
     val primaryCurrencySelected: String = "IDR",
     val isCurrencyUpdating: Boolean = false,

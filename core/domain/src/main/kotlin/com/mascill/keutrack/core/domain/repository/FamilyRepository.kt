@@ -11,4 +11,10 @@ interface FamilyRepository {
     suspend fun joinFamily(inviteCode: String, userId: String): Result<FamilyGroup>
 
     suspend fun getFamilyById(familyId: String): FamilyGroup?
+
+    /** Remove [userId] from [familyId] memberIds (arrayRemove). */
+    suspend fun removeMember(familyId: String, userId: String): Result<Unit>
+
+    /** Delete family group document (owner-only on Firestore rules). */
+    suspend fun deleteFamily(familyId: String): Result<Unit>
 }

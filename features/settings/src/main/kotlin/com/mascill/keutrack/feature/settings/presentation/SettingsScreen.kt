@@ -57,6 +57,7 @@ import com.mascill.keutrack.feature.settings.presentation.components.SettingsSec
 import com.mascill.keutrack.feature.settings.presentation.components.SettingsStatusChip
 import com.mascill.keutrack.feature.settings.presentation.membership.SettingsFamilyMembershipDialog
 import com.mascill.keutrack.feature.settings.presentation.membership.SettingsFamilyMembershipMode
+import com.mascill.keutrack.feature.settings.presentation.membership.SettingsLeaveFamilyDialog
 import com.mascill.keutrack.feature.settings.presentation.model.DefaultSettingsMockContent
 import com.mascill.keutrack.feature.settings.presentation.model.SettingsUIState
 import com.mascill.keutrack.feature.settings.presentation.model.SignOutState
@@ -73,6 +74,9 @@ private const val SETTINGS_LIST_SECTION_SPACING = 16
 private const val SETTINGS_SIGN_OUT_PT = 24
 private const val SETTINGS_EMPTY_WALLETS =
     "Belum ada wallet. Tambah transaksi dari Dashboard untuk membuat wallet."
+private const val MSG_NOT_IN_FAMILY = "Belum bergabung dengan keluarga"
+private const val MSG_FAMILY_CODE_COPIED = "Kode keluarga disalin"
+private const val MSG_SHARE_FAMILY_CODE_PREFIX = "Bagikan kode"
 
 /**
  * Home routing to handle screen that will be showing and to handle view model flow /
@@ -86,6 +90,7 @@ fun SettingsRouting(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var dialogMode by remember { mutableStateOf<SettingsFamilyMembershipMode?>(null) }
+    var showLeaveDialog by remember { mutableStateOf(false) }
 
     val inFamily = uiState.familyNetworkActive
     val familyCode = uiState.familyIdCode
@@ -102,6 +107,9 @@ fun SettingsRouting(
         if (dialogMode != null && !uiState.membershipLoading && inFamily) {
             dialogMode = null
         }
+        if (showLeaveDialog && !uiState.membershipLoading && !inFamily) {
+            showLeaveDialog = false
+        }
     }
 
     BoxWithSettingsSnackbar(
@@ -113,19 +121,18 @@ fun SettingsRouting(
             onSignOutClick = viewModel::signOut,
             onCopyFamilyId = {
                 if (!inFamily) {
-                    Toast.makeText(context, "Belum bergabung dengan keluarga", Toast.LENGTH_SHORT)
-                        .show()
+                    Toast.makeText(context, MSG_NOT_IN_FAMILY, Toast.LENGTH_SHORT).show()
                     return@SettingsScreen
                 }
                 copyToClipboard(context, familyCode)
-                Toast.makeText(context, "Kode keluarga disalin", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, MSG_FAMILY_CODE_COPIED, Toast.LENGTH_SHORT).show()
             },
             onInviteMember = {
                 if (inFamily) {
                     copyToClipboard(context, familyCode)
                     Toast.makeText(
                         context,
-                        "Bagikan kode $familyCode ke anggota baru",
+                        "$MSG_SHARE_FAMILY_CODE_PREFIX $familyCode ke anggota baru",
                         Toast.LENGTH_SHORT,
                     ).show()
                 } else {
@@ -134,11 +141,7 @@ fun SettingsRouting(
             },
             onManageCircle = {
                 if (inFamily) {
-                    Toast.makeText(
-                        context,
-                        uiState.familyDisplayName ?: "Keluarga aktif",
-                        Toast.LENGTH_SHORT,
-                    ).show()
+                    showLeaveDialog = true
                 } else {
                     dialogMode = SettingsFamilyMembershipMode.Create
                 }
@@ -162,6 +165,17 @@ fun SettingsRouting(
                     SettingsFamilyMembershipMode.Join -> viewModel.joinFamily(value)
                 }
             },
+        )
+    }
+
+    if (showLeaveDialog) {
+        SettingsLeaveFamilyDialog(
+            familyName = uiState.familyDisplayName.orEmpty(),
+            isLoading = uiState.membershipLoading,
+            onDismiss = {
+                if (!uiState.membershipLoading) showLeaveDialog = false
+            },
+            onConfirm = viewModel::leaveFamily,
         )
     }
 }
@@ -262,7 +276,12 @@ fun SettingsScreen(
                     title = "Family Network",
                     trailing = {
                         if (uiState.familyNetworkActive) {
-                            SettingsStatusChip(label = "ACTIVE")
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                uiState.familyRoleLabel?.let { role ->
+                                    SettingsStatusChip(label = role)
+                                }
+                                SettingsStatusChip(label = "ACTIVE")
+                            }
                         }
                     },
                 )
@@ -272,6 +291,7 @@ fun SettingsScreen(
                 SettingsFamilyIdHeroCard(
                     familyIdCode = uiState.familyIdCode,
                     onCopyClick = onCopyFamilyId,
+                    copyEnabled = uiState.familyNetworkActive,
                 )
             }
 
@@ -282,13 +302,21 @@ fun SettingsScreen(
                 ) {
                     SettingsFamilyActionTile(
                         imageVector = Icons.Outlined.PersonAdd,
-                        label = "Invite Member",
+                        label = if (uiState.familyNetworkActive) {
+                            "Invite Member"
+                        } else {
+                            "Join Family"
+                        },
                         onClick = onInviteMember,
                         modifier = Modifier.weight(1f),
                     )
                     SettingsFamilyActionTile(
                         imageVector = Icons.Outlined.MoreHoriz,
-                        label = "Manage Circle",
+                        label = if (uiState.familyNetworkActive) {
+                            "Leave Family"
+                        } else {
+                            "Create Family"
+                        },
                         onClick = onManageCircle,
                         modifier = Modifier.weight(1f),
                     )

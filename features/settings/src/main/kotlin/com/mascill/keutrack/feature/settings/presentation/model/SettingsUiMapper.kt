@@ -5,6 +5,7 @@ import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Groups
 import com.mascill.keutrack.core.designsystem.format.CurrencyFormat
 import com.mascill.keutrack.core.domain.model.FamilyGroup
+import com.mascill.keutrack.core.domain.model.FamilyRole
 import com.mascill.keutrack.core.domain.model.User
 import com.mascill.keutrack.core.domain.model.Wallet
 import com.mascill.keutrack.core.domain.model.WalletType
@@ -21,9 +22,13 @@ internal object SettingsUiMapper {
     ): SettingsUIState {
         val inFamily = !user?.familyId.isNullOrBlank()
         val familyCode =
-            family?.inviteCode?.takeIf { it.isNotBlank() }
-                ?: user?.familyId?.takeIf { it.isNotBlank() }
-                ?: EMPTY_FAMILY_CODE
+            if (inFamily) {
+                family?.inviteCode?.takeIf { it.isNotBlank() }
+                    ?: user?.familyId?.takeIf { it.isNotBlank() }
+                    ?: EMPTY_FAMILY_CODE
+            } else {
+                EMPTY_FAMILY_CODE
+            }
 
         return SettingsUIState(
             isLoading = false,
@@ -35,12 +40,19 @@ internal object SettingsUiMapper {
                 ),
             familyNetworkActive = inFamily,
             familyIdCode = familyCode,
-            familyDisplayName = family?.name,
+            familyDisplayName = family?.name?.takeIf { it.isNotBlank() },
+            familyRoleLabel = familyRoleLabel(user, inFamily),
             primaryCurrencyOptions = currencyOptions,
             primaryCurrencySelected = normalizeCurrency(user?.currency),
             connectedWallets = mapConnectedWallets(walletSummary),
             sheetsSyncEnabled = false,
         )
+    }
+
+    private fun familyRoleLabel(user: User?, inFamily: Boolean): String? {
+        if (!inFamily) return null
+        val raw = user?.familyRole?.takeIf { it.isNotBlank() } ?: return null
+        return FamilyRole.fromValue(raw).name
     }
 
     fun greetingFirstName(user: User?, fallback: String = ""): String {

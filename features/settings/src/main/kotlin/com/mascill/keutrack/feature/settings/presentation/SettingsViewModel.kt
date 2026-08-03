@@ -10,6 +10,7 @@ import com.mascill.keutrack.core.domain.repository.UserRepository
 import com.mascill.keutrack.core.domain.usecase.CreateFamilyGroupUseCase
 import com.mascill.keutrack.core.domain.usecase.GetWalletSummaryUseCase
 import com.mascill.keutrack.core.domain.usecase.JoinFamilyGroupUseCase
+import com.mascill.keutrack.core.domain.usecase.LeaveFamilyGroupUseCase
 import com.mascill.keutrack.core.domain.usecase.UpdateCurrencyUseCase
 import com.mascill.keutrack.core.domain.usecase.WalletSummary
 import com.mascill.keutrack.feature.settings.presentation.model.SettingsUIState
@@ -35,6 +36,7 @@ class SettingsViewModel @Inject constructor(
     private val updateCurrency: UpdateCurrencyUseCase,
     private val createFamilyGroup: CreateFamilyGroupUseCase,
     private val joinFamilyGroup: JoinFamilyGroupUseCase,
+    private val leaveFamilyGroup: LeaveFamilyGroupUseCase,
     private val dispatcher: CommonDispatcher,
 ) : ViewModel() {
 
@@ -165,6 +167,29 @@ class SettingsViewModel @Inject constructor(
                 throw e
             } catch (e: Exception) {
                 _membershipMessage.value = e.message ?: "Gagal bergabung ke keluarga"
+            } finally {
+                _membershipLoading.value = false
+            }
+        }
+    }
+
+    fun leaveFamily() {
+        viewModelScope.launch(dispatcher.io) {
+            _membershipLoading.value = true
+            _membershipMessage.value = null
+            try {
+                leaveFamilyGroup()
+                    .onSuccess {
+                        _membershipMessage.value = "Anda telah keluar dari keluarga"
+                    }
+                    .onFailure { e ->
+                        _membershipMessage.value =
+                            e.message ?: "Gagal keluar dari keluarga"
+                    }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _membershipMessage.value = e.message ?: "Gagal keluar dari keluarga"
             } finally {
                 _membershipLoading.value = false
             }

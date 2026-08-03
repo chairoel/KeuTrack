@@ -83,6 +83,28 @@ class FamilyRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun removeMember(familyId: String, userId: String): Result<Unit> {
+        return try {
+            remote.removeMember(familyId, userId)
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun deleteFamily(familyId: String): Result<Unit> {
+        return try {
+            remote.deleteFamily(familyId)
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     private fun generateInviteCode(): String {
         val alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
         fun chunk(n: Int) =
