@@ -11,7 +11,6 @@ import com.mascill.keutrack.core.domain.usecase.CreateFamilyGroupUseCase
 import com.mascill.keutrack.core.domain.usecase.GetWalletSummaryUseCase
 import com.mascill.keutrack.core.domain.usecase.JoinFamilyGroupUseCase
 import com.mascill.keutrack.core.domain.usecase.LeaveFamilyGroupUseCase
-import com.mascill.keutrack.core.domain.usecase.UpdateCurrencyUseCase
 import com.mascill.keutrack.core.domain.usecase.WalletSummary
 import com.mascill.keutrack.feature.settings.presentation.model.SettingsUIState
 import com.mascill.keutrack.feature.settings.presentation.model.SettingsUiMapper
@@ -33,7 +32,6 @@ class SettingsViewModel @Inject constructor(
     private val userRepository: UserRepository,
     familyRepository: FamilyRepository,
     getWalletSummary: GetWalletSummaryUseCase,
-    private val updateCurrency: UpdateCurrencyUseCase,
     private val createFamilyGroup: CreateFamilyGroupUseCase,
     private val joinFamilyGroup: JoinFamilyGroupUseCase,
     private val leaveFamilyGroup: LeaveFamilyGroupUseCase,
@@ -43,8 +41,6 @@ class SettingsViewModel @Inject constructor(
     private val _signOutState = MutableStateFlow<SignOutState>(SignOutState.Idle)
     private val _membershipLoading = MutableStateFlow(false)
     private val _membershipMessage = MutableStateFlow<String?>(null)
-    private val _isCurrencyUpdating = MutableStateFlow(false)
-    private val _currencyError = MutableStateFlow<String?>(null)
     private val _infoMessage = MutableStateFlow<String?>(null)
 
     private val contentFlow =
@@ -69,25 +65,13 @@ class SettingsViewModel @Inject constructor(
             _signOutState,
             _membershipLoading,
             _membershipMessage,
-            combine(
-                _isCurrencyUpdating,
-                _currencyError,
-                _infoMessage,
-            ) { updating, currencyError, infoMessage ->
-                TransientFlags(
-                    isCurrencyUpdating = updating,
-                    currencyError = currencyError,
-                    infoMessage = infoMessage,
-                )
-            },
-        ) { content, signOutState, membershipLoading, membershipMessage, flags ->
+            _infoMessage,
+        ) { content, signOutState, membershipLoading, membershipMessage, infoMessage ->
             content.copy(
                 signOutState = signOutState,
                 membershipLoading = membershipLoading,
                 membershipMessage = membershipMessage,
-                isCurrencyUpdating = flags.isCurrencyUpdating,
-                currencyError = flags.currencyError,
-                infoMessage = flags.infoMessage,
+                infoMessage = infoMessage,
             )
         }.stateIn(
             scope = viewModelScope,
@@ -98,26 +82,6 @@ class SettingsViewModel @Inject constructor(
     init {
         viewModelScope.launch(dispatcher.io) {
             runCatching { userRepository.syncUserProfile() }
-        }
-    }
-
-    fun onCurrencySelected(code: String) {
-        viewModelScope.launch(dispatcher.io) {
-            _isCurrencyUpdating.value = true
-            _currencyError.value = null
-            try {
-                updateCurrency(code)
-                    .onFailure { e ->
-                        _currencyError.value =
-                            e.message ?: "Gagal menyimpan currency"
-                    }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                _currencyError.value = e.message ?: "Gagal menyimpan currency"
-            } finally {
-                _isCurrencyUpdating.value = false
-            }
         }
     }
 
@@ -198,7 +162,6 @@ class SettingsViewModel @Inject constructor(
 
     fun dismissSnackbar() {
         _membershipMessage.update { null }
-        _currencyError.update { null }
         _infoMessage.update { null }
     }
 
@@ -215,12 +178,6 @@ class SettingsViewModel @Inject constructor(
             }
         }
     }
-
-    private data class TransientFlags(
-        val isCurrencyUpdating: Boolean,
-        val currencyError: String?,
-        val infoMessage: String?,
-    )
 
     private companion object {
         const val ERR_LOAD_FAILED = "Gagal memuat settings"

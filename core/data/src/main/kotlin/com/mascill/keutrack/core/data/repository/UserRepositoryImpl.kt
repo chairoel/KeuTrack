@@ -147,28 +147,6 @@ class UserRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun updateCurrency(currency: String): Result<Unit> {
-        val authUser = mapper.mapToDomainOrNull(authDataSource.getCurrentUser())
-            ?: return Result.failure(IllegalStateException("User belum masuk"))
-        return try {
-            firestoreDataSource.updateCurrency(
-                uid = authUser.uid,
-                currency = currency,
-            )
-            val local = userProfileLocalDataSource.getSignedInUser()
-            val base = local ?: authUser
-            userProfileLocalDataSource.persist(
-                base.copy(currency = currency),
-            )
-            Result.success(Unit)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            logFailure("updateCurrency", e)
-            Result.failure(e)
-        }
-    }
-
     private suspend fun resolveUserForPersist(authUser: User): User {
         val existing = firestoreDataSource.getUserProfile(authUser.uid)
         return existing?.copy(

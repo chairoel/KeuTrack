@@ -13,8 +13,6 @@ import com.mascill.keutrack.core.domain.usecase.WalletSummary
 
 internal object SettingsUiMapper {
 
-    private val currencyOptions = listOf("IDR", "USD", "EUR")
-
     fun from(
         user: User?,
         family: FamilyGroup?,
@@ -24,7 +22,6 @@ internal object SettingsUiMapper {
         val familyCode =
             if (inFamily) {
                 family?.inviteCode?.takeIf { it.isNotBlank() }
-                    ?: user?.familyId?.takeIf { it.isNotBlank() }
                     ?: EMPTY_FAMILY_CODE
             } else {
                 EMPTY_FAMILY_CODE
@@ -42,8 +39,6 @@ internal object SettingsUiMapper {
             familyIdCode = familyCode,
             familyDisplayName = family?.name?.takeIf { it.isNotBlank() },
             familyRoleLabel = familyRoleLabel(user, inFamily),
-            primaryCurrencyOptions = currencyOptions,
-            primaryCurrencySelected = normalizeCurrency(user?.currency),
             connectedWallets = mapConnectedWallets(walletSummary),
             sheetsSyncEnabled = false,
         )
@@ -56,10 +51,10 @@ internal object SettingsUiMapper {
     }
 
     fun greetingFirstName(user: User?, fallback: String = ""): String {
-        val u = user ?: return fallback
-        val fromDisplay = u.displayName.trim().split(" ").firstOrNull().orEmpty()
+        val data = user ?: return fallback
+        val fromDisplay = data.displayName.trim().split(" ").firstOrNull().orEmpty()
         if (fromDisplay.isNotEmpty()) return fromDisplay
-        val fromEmail = u.email.substringBefore('@').trim()
+        val fromEmail = data.email.substringBefore('@').trim()
         if (fromEmail.isNotEmpty()) {
             return fromEmail.replaceFirstChar { c -> c.titlecaseChar() }
         }
@@ -91,6 +86,7 @@ internal object SettingsUiMapper {
                     icon = Icons.Filled.AccountBalance,
                     leadingAccent = false,
                 )
+
             WalletType.FAMILY ->
                 ConnectedWalletUi(
                     id = wallet.id,
@@ -103,11 +99,6 @@ internal object SettingsUiMapper {
                     leadingAccent = true,
                 )
         }
-
-    private fun normalizeCurrency(raw: String?): String {
-        val code = raw?.trim()?.uppercase().orEmpty()
-        return if (code in currencyOptions) code else "IDR"
-    }
 
     private const val EMPTY_FAMILY_CODE = "Belum bergabung"
 }

@@ -34,8 +34,6 @@ data class SettingsScreenContent(
     val profile: SettingsProfileUi,
     val familyNetworkActive: Boolean,
     val familyIdCode: String,
-    val primaryCurrencyOptions: List<String>,
-    val primaryCurrencySelected: String,
     val connectedWallets: List<ConnectedWalletUi>,
     val sheetsSyncEnabled: Boolean,
 )
@@ -48,8 +46,6 @@ fun SettingsScreenContent.toPreviewUiState(): SettingsUIState =
         familyIdCode = familyIdCode,
         familyDisplayName = if (familyNetworkActive) "Keluarga Preview" else null,
         familyRoleLabel = if (familyNetworkActive) "OWNER" else null,
-        primaryCurrencyOptions = primaryCurrencyOptions,
-        primaryCurrencySelected = primaryCurrencySelected,
         connectedWallets = connectedWallets,
         sheetsSyncEnabled = sheetsSyncEnabled,
     )
@@ -64,8 +60,6 @@ val DefaultSettingsMockContent =
             ),
         familyNetworkActive = true,
         familyIdCode = "KEU-992-KRT",
-        primaryCurrencyOptions = listOf("IDR", "USD", "EUR"),
-        primaryCurrencySelected = "IDR",
         connectedWallets =
             listOf(
                 ConnectedWalletUi(

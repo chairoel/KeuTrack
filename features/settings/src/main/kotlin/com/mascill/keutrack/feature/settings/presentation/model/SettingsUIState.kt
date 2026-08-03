@@ -8,7 +8,7 @@ sealed class SignOutState {
 }
 
 /**
- * Single UI state for Settings screen (profile, family, currency, wallets, sign-out).
+ * Single UI state for Settings screen (profile, family, wallets, sign-out).
  */
 data class SettingsUIState(
     val isLoading: Boolean = true,
@@ -22,10 +22,6 @@ data class SettingsUIState(
     val familyDisplayName: String? = null,
     /** Uppercase role chip label, e.g. OWNER / MEMBER; null when not in a family. */
     val familyRoleLabel: String? = null,
-    val primaryCurrencyOptions: List<String> = listOf("IDR", "USD", "EUR"),
-    val primaryCurrencySelected: String = "IDR",
-    val isCurrencyUpdating: Boolean = false,
-    val currencyError: String? = null,
     val connectedWallets: List<ConnectedWalletUi> = emptyList(),
     val sheetsSyncEnabled: Boolean = false,
     val signOutState: SignOutState = SignOutState.Idle,

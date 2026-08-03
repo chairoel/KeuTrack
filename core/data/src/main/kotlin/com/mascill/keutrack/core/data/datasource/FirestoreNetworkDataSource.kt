@@ -80,21 +80,6 @@ class FirestoreNetworkDataSource @Inject constructor(
             .await()
     }
 
-    /**
-     * Dedicated currency preference write — does not touch identity or membership fields.
-     */
-    suspend fun updateCurrency(uid: String, currency: String) {
-        firestore.collection(COLLECTION_USERS)
-            .document(uid)
-            .update(
-                mapOf(
-                    FIELD_CURRENCY to currency,
-                    FIELD_UPDATED_AT to FieldValue.serverTimestamp(),
-                ),
-            )
-            .await()
-    }
-
     private companion object {
         const val COLLECTION_USERS = "users"
         const val FIELD_UID = "uid"

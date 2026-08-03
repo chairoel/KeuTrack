@@ -51,7 +51,6 @@ import com.mascill.keutrack.feature.settings.presentation.components.SettingsCon
 import com.mascill.keutrack.feature.settings.presentation.components.SettingsFamilyActionTile
 import com.mascill.keutrack.feature.settings.presentation.components.SettingsFamilyIdHeroCard
 import com.mascill.keutrack.feature.settings.presentation.components.SettingsGoogleSheetsCard
-import com.mascill.keutrack.feature.settings.presentation.components.SettingsPrimaryCurrencyRow
 import com.mascill.keutrack.feature.settings.presentation.components.SettingsProfileCard
 import com.mascill.keutrack.feature.settings.presentation.components.SettingsSectionHeader
 import com.mascill.keutrack.feature.settings.presentation.components.SettingsStatusChip
@@ -94,8 +93,7 @@ fun SettingsRouting(
 
     val inFamily = uiState.familyNetworkActive
     val familyCode = uiState.familyIdCode
-    val snackbarMessage =
-        uiState.currencyError ?: uiState.membershipMessage ?: uiState.infoMessage
+    val snackbarMessage = uiState.membershipMessage ?: uiState.infoMessage
 
     LaunchedEffect(uiState.signOutState) {
         if (uiState.signOutState is SignOutState.Success) {
@@ -146,7 +144,6 @@ fun SettingsRouting(
                     dialogMode = SettingsFamilyMembershipMode.Create
                 }
             },
-            onCurrencySelected = viewModel::onCurrencySelected,
             onSheetsSyncChange = { viewModel.onSheetsComingSoon() },
             onExportSheets = viewModel::onSheetsComingSoon,
         )
@@ -218,7 +215,6 @@ fun SettingsScreen(
     onCopyFamilyId: () -> Unit = {},
     onInviteMember: () -> Unit = {},
     onManageCircle: () -> Unit = {},
-    onCurrencySelected: (String) -> Unit = {},
     onSheetsSyncChange: (Boolean) -> Unit = {},
     onExportSheets: () -> Unit = {},
 ) {
@@ -321,17 +317,6 @@ fun SettingsScreen(
                         modifier = Modifier.weight(1f),
                     )
                 }
-            }
-
-            item {
-                SettingsPrimaryCurrencyRow(
-                    title = "Primary Currency",
-                    subtitle = "Saved on your profile · balances stay the same",
-                    options = uiState.primaryCurrencyOptions,
-                    selectedCode = uiState.primaryCurrencySelected,
-                    onCurrencySelected = onCurrencySelected,
-                    enabled = !uiState.isCurrencyUpdating,
-                )
             }
 
             item {
