@@ -1,0 +1,101 @@
+package com.mascill.keutrack.feature.settings.presentation.model
+
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.Groups
+import com.mascill.keutrack.core.designsystem.format.CurrencyFormat
+import com.mascill.keutrack.core.domain.model.FamilyGroup
+import com.mascill.keutrack.core.domain.model.User
+import com.mascill.keutrack.core.domain.model.Wallet
+import com.mascill.keutrack.core.domain.model.WalletType
+import com.mascill.keutrack.core.domain.usecase.WalletSummary
+
+internal object SettingsUiMapper {
+
+    private val currencyOptions = listOf("IDR", "USD", "EUR")
+
+    fun from(
+        user: User?,
+        family: FamilyGroup?,
+        walletSummary: WalletSummary,
+    ): SettingsUIState {
+        val inFamily = !user?.familyId.isNullOrBlank()
+        val familyCode =
+            family?.inviteCode?.takeIf { it.isNotBlank() }
+                ?: user?.familyId?.takeIf { it.isNotBlank() }
+                ?: EMPTY_FAMILY_CODE
+
+        return SettingsUIState(
+            isLoading = false,
+            profile =
+                SettingsProfileUi(
+                    avatar = user?.photoUrl,
+                    displayName = greetingFirstName(user),
+                    email = user?.email.orEmpty(),
+                ),
+            familyNetworkActive = inFamily,
+            familyIdCode = familyCode,
+            familyDisplayName = family?.name,
+            primaryCurrencyOptions = currencyOptions,
+            primaryCurrencySelected = normalizeCurrency(user?.currency),
+            connectedWallets = mapConnectedWallets(walletSummary),
+            sheetsSyncEnabled = false,
+        )
+    }
+
+    fun greetingFirstName(user: User?, fallback: String = ""): String {
+        val u = user ?: return fallback
+        val fromDisplay = u.displayName.trim().split(" ").firstOrNull().orEmpty()
+        if (fromDisplay.isNotEmpty()) return fromDisplay
+        val fromEmail = u.email.substringBefore('@').trim()
+        if (fromEmail.isNotEmpty()) {
+            return fromEmail.replaceFirstChar { c -> c.titlecaseChar() }
+        }
+        return fallback
+    }
+
+    fun mapConnectedWallets(summary: WalletSummary): List<ConnectedWalletUi> {
+        val personal =
+            summary.personalWallet?.let { wallet ->
+                toConnectedWalletUi(wallet)
+            }
+        val family = summary.familyWallets.map { toConnectedWalletUi(it) }
+        return buildList {
+            if (personal != null) add(personal)
+            addAll(family)
+        }
+    }
+
+    private fun toConnectedWalletUi(wallet: Wallet): ConnectedWalletUi =
+        when (wallet.type) {
+            WalletType.PERSONAL ->
+                ConnectedWalletUi(
+                    id = wallet.id,
+                    title = wallet.name,
+                    subtitle = "Personal",
+                    amountLabel = CurrencyFormat.formatIdr(wallet.balance),
+                    statusLabel = "Active",
+                    statusKind = ConnectedWalletStatusKind.Active,
+                    icon = Icons.Filled.AccountBalance,
+                    leadingAccent = false,
+                )
+            WalletType.FAMILY ->
+                ConnectedWalletUi(
+                    id = wallet.id,
+                    title = wallet.name,
+                    subtitle = "Family Vault",
+                    amountLabel = CurrencyFormat.formatIdr(wallet.balance),
+                    statusLabel = "Shared",
+                    statusKind = ConnectedWalletStatusKind.Shared,
+                    icon = Icons.Filled.Groups,
+                    leadingAccent = true,
+                )
+        }
+
+    private fun normalizeCurrency(raw: String?): String {
+        val code = raw?.trim()?.uppercase().orEmpty()
+        return if (code in currencyOptions) code else "IDR"
+    }
+
+    private const val EMPTY_FAMILY_CODE = "Belum bergabung"
+}

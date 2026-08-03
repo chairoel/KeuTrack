@@ -41,6 +41,7 @@ fun SettingsPrimaryCurrencyRow(
     selectedCode: String,
     onCurrencySelected: (String) -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     val semantic = KeuTrackTheme.semanticColors
     val typography = KeuTrackTheme.typography
@@ -74,7 +75,10 @@ fun SettingsPrimaryCurrencyRow(
                 )
             }
             Box {
-                TextButton(onClick = { expanded = true }) {
+                TextButton(
+                    onClick = { expanded = true },
+                    enabled = enabled,
+                ) {
                     Text(
                         text = selectedCode,
                         style = typography.bodyBold14,

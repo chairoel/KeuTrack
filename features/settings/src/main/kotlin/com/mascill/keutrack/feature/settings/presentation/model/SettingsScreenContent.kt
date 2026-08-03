@@ -17,6 +17,7 @@ enum class ConnectedWalletStatusKind {
 }
 
 data class ConnectedWalletUi(
+    val id: String,
     val title: String,
     val subtitle: String,
     val amountLabel: String,
@@ -26,6 +27,9 @@ data class ConnectedWalletUi(
     val leadingAccent: Boolean = false,
 )
 
+/**
+ * Preview-only fixture. Runtime Settings must use [SettingsUIState] from the ViewModel.
+ */
 data class SettingsScreenContent(
     val profile: SettingsProfileUi,
     val familyNetworkActive: Boolean,
@@ -35,6 +39,18 @@ data class SettingsScreenContent(
     val connectedWallets: List<ConnectedWalletUi>,
     val sheetsSyncEnabled: Boolean,
 )
+
+fun SettingsScreenContent.toPreviewUiState(): SettingsUIState =
+    SettingsUIState(
+        isLoading = false,
+        profile = profile,
+        familyNetworkActive = familyNetworkActive,
+        familyIdCode = familyIdCode,
+        primaryCurrencyOptions = primaryCurrencyOptions,
+        primaryCurrencySelected = primaryCurrencySelected,
+        connectedWallets = connectedWallets,
+        sheetsSyncEnabled = sheetsSyncEnabled,
+    )
 
 val DefaultSettingsMockContent =
     SettingsScreenContent(
@@ -51,6 +67,7 @@ val DefaultSettingsMockContent =
         connectedWallets =
             listOf(
                 ConnectedWalletUi(
+                    id = "preview-personal",
                     title = "Main Savings",
                     subtitle = "Personal",
                     amountLabel = "Rp 12.450.000",
@@ -60,6 +77,7 @@ val DefaultSettingsMockContent =
                     leadingAccent = false,
                 ),
                 ConnectedWalletUi(
+                    id = "preview-family",
                     title = "Emergency Fund",
                     subtitle = "Family Vault",
                     amountLabel = "Rp 45.000.000",
@@ -69,5 +87,5 @@ val DefaultSettingsMockContent =
                     leadingAccent = true,
                 ),
             ),
-        sheetsSyncEnabled = true,
+        sheetsSyncEnabled = false,
     )

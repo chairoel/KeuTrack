@@ -1,6 +1,5 @@
 package com.mascill.keutrack.feature.settings.presentation.model
 
-
 sealed class SignOutState {
     object Idle : SignOutState()
     object Loading : SignOutState()
@@ -9,8 +8,27 @@ sealed class SignOutState {
 }
 
 /**
- * Data class for Settings Screen UI State
+ * Single UI state for Settings screen (profile, family, currency, wallets, sign-out).
  */
 data class SettingsUIState(
-    val signOutState: SignOutState = SignOutState.Idle
+    val isLoading: Boolean = true,
+    val profile: SettingsProfileUi = SettingsProfileUi(
+        avatar = null,
+        displayName = "",
+        email = "",
+    ),
+    val familyNetworkActive: Boolean = false,
+    val familyIdCode: String = "",
+    val familyDisplayName: String? = null,
+    val primaryCurrencyOptions: List<String> = listOf("IDR", "USD", "EUR"),
+    val primaryCurrencySelected: String = "IDR",
+    val isCurrencyUpdating: Boolean = false,
+    val currencyError: String? = null,
+    val connectedWallets: List<ConnectedWalletUi> = emptyList(),
+    val sheetsSyncEnabled: Boolean = false,
+    val signOutState: SignOutState = SignOutState.Idle,
+    val membershipLoading: Boolean = false,
+    val membershipMessage: String? = null,
+    val infoMessage: String? = null,
+    val errorMessage: String? = null,
 )

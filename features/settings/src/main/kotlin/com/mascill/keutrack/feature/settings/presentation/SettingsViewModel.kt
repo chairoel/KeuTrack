@@ -1,6 +1,5 @@
 package com.mascill.keutrack.feature.settings.presentation
 
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mascill.keutrack.core.common.utils.CommonDispatcher
@@ -9,13 +8,19 @@ import com.mascill.keutrack.core.domain.model.User
 import com.mascill.keutrack.core.domain.repository.FamilyRepository
 import com.mascill.keutrack.core.domain.repository.UserRepository
 import com.mascill.keutrack.core.domain.usecase.CreateFamilyGroupUseCase
+import com.mascill.keutrack.core.domain.usecase.GetWalletSummaryUseCase
 import com.mascill.keutrack.core.domain.usecase.JoinFamilyGroupUseCase
+import com.mascill.keutrack.core.domain.usecase.UpdateCurrencyUseCase
+import com.mascill.keutrack.core.domain.usecase.WalletSummary
+import com.mascill.keutrack.feature.settings.presentation.model.SettingsUIState
+import com.mascill.keutrack.feature.settings.presentation.model.SettingsUiMapper
 import com.mascill.keutrack.feature.settings.presentation.model.SignOutState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -26,40 +31,96 @@ import kotlin.coroutines.cancellation.CancellationException
 class SettingsViewModel @Inject constructor(
     private val userRepository: UserRepository,
     familyRepository: FamilyRepository,
+    getWalletSummary: GetWalletSummaryUseCase,
+    private val updateCurrency: UpdateCurrencyUseCase,
     private val createFamilyGroup: CreateFamilyGroupUseCase,
     private val joinFamilyGroup: JoinFamilyGroupUseCase,
     private val dispatcher: CommonDispatcher,
 ) : ViewModel() {
 
     private val _signOutState = MutableStateFlow<SignOutState>(SignOutState.Idle)
-    val signOutState: StateFlow<SignOutState> = _signOutState.asStateFlow()
-
     private val _membershipLoading = MutableStateFlow(false)
-    val membershipLoading: StateFlow<Boolean> = _membershipLoading.asStateFlow()
-
     private val _membershipMessage = MutableStateFlow<String?>(null)
-    val membershipMessage: StateFlow<String?> = _membershipMessage.asStateFlow()
+    private val _isCurrencyUpdating = MutableStateFlow(false)
+    private val _currencyError = MutableStateFlow<String?>(null)
+    private val _infoMessage = MutableStateFlow<String?>(null)
 
-    val currentUser: StateFlow<User?> =
-        userRepository.getCurrentUser()
-            .stateIn(
-                scope = viewModelScope,
-                started = SharingStarted.WhileSubscribed(5_000),
-                initialValue = null,
+    private val contentFlow =
+        combine(
+            userRepository.getCurrentUser(),
+            familyRepository.observeCurrentFamily(),
+            getWalletSummary(),
+        ) { user: User?, family: FamilyGroup?, walletSummary: WalletSummary ->
+            SettingsUiMapper.from(user, family, walletSummary)
+        }.catch { e ->
+            emit(
+                SettingsUIState(
+                    isLoading = false,
+                    errorMessage = e.message ?: ERR_LOAD_FAILED,
+                ),
             )
+        }
 
-    val currentFamily: StateFlow<FamilyGroup?> =
-        familyRepository.observeCurrentFamily()
-            .stateIn(
-                scope = viewModelScope,
-                started = SharingStarted.WhileSubscribed(5_000),
-                initialValue = null,
+    val uiState: StateFlow<SettingsUIState> =
+        combine(
+            contentFlow,
+            _signOutState,
+            _membershipLoading,
+            _membershipMessage,
+            combine(
+                _isCurrencyUpdating,
+                _currencyError,
+                _infoMessage,
+            ) { updating, currencyError, infoMessage ->
+                TransientFlags(
+                    isCurrencyUpdating = updating,
+                    currencyError = currencyError,
+                    infoMessage = infoMessage,
+                )
+            },
+        ) { content, signOutState, membershipLoading, membershipMessage, flags ->
+            content.copy(
+                signOutState = signOutState,
+                membershipLoading = membershipLoading,
+                membershipMessage = membershipMessage,
+                isCurrencyUpdating = flags.isCurrencyUpdating,
+                currencyError = flags.currencyError,
+                infoMessage = flags.infoMessage,
             )
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = SettingsUIState(),
+        )
 
     init {
         viewModelScope.launch(dispatcher.io) {
             runCatching { userRepository.syncUserProfile() }
         }
+    }
+
+    fun onCurrencySelected(code: String) {
+        viewModelScope.launch(dispatcher.io) {
+            _isCurrencyUpdating.value = true
+            _currencyError.value = null
+            try {
+                updateCurrency(code)
+                    .onFailure { e ->
+                        _currencyError.value =
+                            e.message ?: "Gagal menyimpan currency"
+                    }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _currencyError.value = e.message ?: "Gagal menyimpan currency"
+            } finally {
+                _isCurrencyUpdating.value = false
+            }
+        }
+    }
+
+    fun onSheetsComingSoon() {
+        _infoMessage.value = MSG_SHEETS_COMING_SOON
     }
 
     fun createFamily(name: String) {
@@ -110,8 +171,10 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun dismissMembershipMessage() {
+    fun dismissSnackbar() {
         _membershipMessage.update { null }
+        _currencyError.update { null }
+        _infoMessage.update { null }
     }
 
     fun signOut() {
@@ -120,11 +183,22 @@ class SettingsViewModel @Inject constructor(
             try {
                 userRepository.signOut()
                 _signOutState.value = SignOutState.Success
-                Log.d("TAG", "signOut: success")
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _signOutState.value = SignOutState.Error(e.message ?: "Sign out failed")
-                Log.e("TAG", "signOut: failed", e)
             }
         }
+    }
+
+    private data class TransientFlags(
+        val isCurrencyUpdating: Boolean,
+        val currencyError: String?,
+        val infoMessage: String?,
+    )
+
+    private companion object {
+        const val ERR_LOAD_FAILED = "Gagal memuat settings"
+        const val MSG_SHEETS_COMING_SOON = "Segera hadir"
     }
 }

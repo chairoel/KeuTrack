@@ -3,12 +3,14 @@ package com.mascill.keutrack.feature.settings.presentation
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.res.Configuration.UI_MODE_NIGHT_YES
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -45,7 +47,6 @@ import com.mascill.keutrack.core.designsystem.component.KeuTrackCard
 import com.mascill.keutrack.core.designsystem.component.KeuTrackTopBar
 import com.mascill.keutrack.core.designsystem.model.KeuTrackButtonStyle
 import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
-import com.mascill.keutrack.core.domain.model.User
 import com.mascill.keutrack.feature.settings.presentation.components.SettingsConnectedWalletCard
 import com.mascill.keutrack.feature.settings.presentation.components.SettingsFamilyActionTile
 import com.mascill.keutrack.feature.settings.presentation.components.SettingsFamilyIdHeroCard
@@ -57,8 +58,9 @@ import com.mascill.keutrack.feature.settings.presentation.components.SettingsSta
 import com.mascill.keutrack.feature.settings.presentation.membership.SettingsFamilyMembershipDialog
 import com.mascill.keutrack.feature.settings.presentation.membership.SettingsFamilyMembershipMode
 import com.mascill.keutrack.feature.settings.presentation.model.DefaultSettingsMockContent
-import com.mascill.keutrack.feature.settings.presentation.model.SettingsScreenContent
+import com.mascill.keutrack.feature.settings.presentation.model.SettingsUIState
 import com.mascill.keutrack.feature.settings.presentation.model.SignOutState
+import com.mascill.keutrack.feature.settings.presentation.model.toPreviewUiState
 
 private const val SETTINGS_TOP_BAR_ELEVATION = 4
 private const val SETTINGS_TOP_BAR_PH = 20
@@ -69,6 +71,8 @@ private const val SETTINGS_CONTENT_PB_EXTRA = 24
 private const val SETTINGS_BOTTOM_NAV_CLEARANCE = 72
 private const val SETTINGS_LIST_SECTION_SPACING = 16
 private const val SETTINGS_SIGN_OUT_PT = 24
+private const val SETTINGS_EMPTY_WALLETS =
+    "Belum ada wallet. Tambah transaksi dari Dashboard untuk membuat wallet."
 
 /**
  * Home routing to handle screen that will be showing and to handle view model flow /
@@ -79,57 +83,34 @@ fun SettingsRouting(
     viewModel: SettingsViewModel = hiltViewModel(),
     onSignOutSuccess: () -> Unit = {},
 ) {
-    val signOutState by viewModel.signOutState.collectAsStateWithLifecycle()
-    val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
-    val currentFamily by viewModel.currentFamily.collectAsStateWithLifecycle()
-    val membershipLoading by viewModel.membershipLoading.collectAsStateWithLifecycle()
-    val membershipMessage by viewModel.membershipMessage.collectAsStateWithLifecycle()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var dialogMode by remember { mutableStateOf<SettingsFamilyMembershipMode?>(null) }
 
-    val familyCode =
-        currentFamily?.inviteCode
-            ?: currentUser?.familyId
-            ?: "Belum bergabung"
-    val inFamily = !currentUser?.familyId.isNullOrBlank()
+    val inFamily = uiState.familyNetworkActive
+    val familyCode = uiState.familyIdCode
+    val snackbarMessage =
+        uiState.currencyError ?: uiState.membershipMessage ?: uiState.infoMessage
 
-    val content =
-        remember(currentUser, familyCode, inFamily) {
-            DefaultSettingsMockContent.copy(
-                profile =
-                    DefaultSettingsMockContent.profile.copy(
-                        displayName =
-                            currentUser.greetingFirstNameOrFallback(
-                                DefaultSettingsMockContent.profile.displayName,
-                            ),
-                        email = currentUser?.email ?: DefaultSettingsMockContent.profile.email,
-                        avatar = currentUser?.photoUrl,
-                    ),
-                familyNetworkActive = inFamily,
-                familyIdCode = familyCode,
-            )
-        }
-
-    LaunchedEffect(signOutState) {
-        if (signOutState is SignOutState.Success) {
+    LaunchedEffect(uiState.signOutState) {
+        if (uiState.signOutState is SignOutState.Success) {
             onSignOutSuccess()
         }
     }
 
-    LaunchedEffect(membershipLoading, inFamily) {
-        if (dialogMode != null && !membershipLoading && inFamily) {
+    LaunchedEffect(uiState.membershipLoading, inFamily) {
+        if (dialogMode != null && !uiState.membershipLoading && inFamily) {
             dialogMode = null
         }
     }
 
-    BoxWithMembershipSnackbar(
-        membershipMessage = membershipMessage,
-        onDismissMembershipMessage = viewModel::dismissMembershipMessage,
+    BoxWithSettingsSnackbar(
+        snackbarMessage = snackbarMessage,
+        onDismiss = viewModel::dismissSnackbar,
     ) {
         SettingsScreen(
-            content = content,
-            signOutState = signOutState,
-            onSignOutClick = { viewModel.signOut() },
+            uiState = uiState,
+            onSignOutClick = viewModel::signOut,
             onCopyFamilyId = {
                 if (!inFamily) {
                     Toast.makeText(context, "Belum bergabung dengan keluarga", Toast.LENGTH_SHORT)
@@ -155,25 +136,25 @@ fun SettingsRouting(
                 if (inFamily) {
                     Toast.makeText(
                         context,
-                        currentFamily?.name ?: "Keluarga aktif",
+                        uiState.familyDisplayName ?: "Keluarga aktif",
                         Toast.LENGTH_SHORT,
                     ).show()
                 } else {
                     dialogMode = SettingsFamilyMembershipMode.Create
                 }
             },
-            onCurrencySelected = {},
-            onSheetsSyncChange = {},
-            onExportSheets = {},
+            onCurrencySelected = viewModel::onCurrencySelected,
+            onSheetsSyncChange = { viewModel.onSheetsComingSoon() },
+            onExportSheets = viewModel::onSheetsComingSoon,
         )
     }
 
     dialogMode?.let { mode ->
         SettingsFamilyMembershipDialog(
             mode = mode,
-            isLoading = membershipLoading,
+            isLoading = uiState.membershipLoading,
             onDismiss = {
-                if (!membershipLoading) dialogMode = null
+                if (!uiState.membershipLoading) dialogMode = null
             },
             onSubmit = { value ->
                 when (mode) {
@@ -186,21 +167,21 @@ fun SettingsRouting(
 }
 
 @Composable
-private fun BoxWithMembershipSnackbar(
-    membershipMessage: String?,
-    onDismissMembershipMessage: () -> Unit,
+private fun BoxWithSettingsSnackbar(
+    snackbarMessage: String?,
+    onDismiss: () -> Unit,
     content: @Composable () -> Unit,
 ) {
-    androidx.compose.foundation.layout.Box(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = Modifier.fillMaxSize()) {
         content()
-        membershipMessage?.let { message ->
+        snackbarMessage?.let { message ->
             Snackbar(
                 modifier =
                     Modifier
                         .align(Alignment.BottomCenter)
                         .padding(16.dp),
                 action = {
-                    TextButton(onClick = onDismissMembershipMessage) {
+                    TextButton(onClick = onDismiss) {
                         Text("Tutup")
                     }
                 },
@@ -218,8 +199,7 @@ private fun copyToClipboard(context: Context, text: String) {
 
 @Composable
 fun SettingsScreen(
-    content: SettingsScreenContent,
-    signOutState: SignOutState = SignOutState.Idle,
+    uiState: SettingsUIState,
     onSignOutClick: () -> Unit,
     onCopyFamilyId: () -> Unit = {},
     onInviteMember: () -> Unit = {},
@@ -228,16 +208,10 @@ fun SettingsScreen(
     onSheetsSyncChange: (Boolean) -> Unit = {},
     onExportSheets: () -> Unit = {},
 ) {
-    val isLoading = signOutState is SignOutState.Loading
-    val errorMessage = (signOutState as? SignOutState.Error)?.message
+    val isLoading = uiState.signOutState is SignOutState.Loading
+    val errorMessage =
+        (uiState.signOutState as? SignOutState.Error)?.message ?: uiState.errorMessage
     val pageBg = KeuTrackTheme.contentColors.pageColor
-
-    var selectedCurrency by remember(content.primaryCurrencySelected) {
-        mutableStateOf(content.primaryCurrencySelected)
-    }
-    var sheetsEnabled by remember(content.sheetsSyncEnabled) {
-        mutableStateOf(content.sheetsSyncEnabled)
-    }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -275,19 +249,19 @@ fun SettingsScreen(
                     top = SETTINGS_CONTENT_PT.dp,
                     bottom =
                         SETTINGS_CONTENT_PB_EXTRA.dp +
-                                SETTINGS_BOTTOM_NAV_CLEARANCE.dp,
+                            SETTINGS_BOTTOM_NAV_CLEARANCE.dp,
                 ),
             verticalArrangement = Arrangement.spacedBy(SETTINGS_LIST_SECTION_SPACING.dp),
         ) {
             item {
-                SettingsProfileCard(profile = content.profile)
+                SettingsProfileCard(profile = uiState.profile)
             }
 
             item {
                 SettingsSectionHeader(
                     title = "Family Network",
                     trailing = {
-                        if (content.familyNetworkActive) {
+                        if (uiState.familyNetworkActive) {
                             SettingsStatusChip(label = "ACTIVE")
                         }
                     },
@@ -296,7 +270,7 @@ fun SettingsScreen(
 
             item {
                 SettingsFamilyIdHeroCard(
-                    familyIdCode = content.familyIdCode,
+                    familyIdCode = uiState.familyIdCode,
                     onCopyClick = onCopyFamilyId,
                 )
             }
@@ -324,13 +298,11 @@ fun SettingsScreen(
             item {
                 SettingsPrimaryCurrencyRow(
                     title = "Primary Currency",
-                    subtitle = "Used for global reporting",
-                    options = content.primaryCurrencyOptions,
-                    selectedCode = selectedCurrency,
-                    onCurrencySelected = { code ->
-                        selectedCurrency = code
-                        onCurrencySelected(code)
-                    },
+                    subtitle = "Saved on your profile · balances stay the same",
+                    options = uiState.primaryCurrencyOptions,
+                    selectedCode = uiState.primaryCurrencySelected,
+                    onCurrencySelected = onCurrencySelected,
+                    enabled = !uiState.isCurrencyUpdating,
                 )
             }
 
@@ -338,20 +310,27 @@ fun SettingsScreen(
                 SettingsSectionHeader(title = "Connected Wallets")
             }
 
-            items(
-                items = content.connectedWallets,
-                key = { it.title },
-            ) { wallet ->
-                SettingsConnectedWalletCard(wallet = wallet)
+            if (uiState.connectedWallets.isEmpty()) {
+                item {
+                    Text(
+                        text = SETTINGS_EMPTY_WALLETS,
+                        style = KeuTrackTheme.typography.bodyRegular14,
+                        color = KeuTrackTheme.textColors.body,
+                    )
+                }
+            } else {
+                items(
+                    items = uiState.connectedWallets,
+                    key = { it.id },
+                ) { wallet ->
+                    SettingsConnectedWalletCard(wallet = wallet)
+                }
             }
 
             item {
                 SettingsGoogleSheetsCard(
-                    syncEnabled = sheetsEnabled,
-                    onSyncChange = { enabled ->
-                        sheetsEnabled = enabled
-                        onSheetsSyncChange(enabled)
-                    },
+                    syncEnabled = uiState.sheetsSyncEnabled,
+                    onSyncChange = onSheetsSyncChange,
                     onExportClick = onExportSheets,
                 )
             }
@@ -389,39 +368,28 @@ fun SettingsScreen(
     }
 }
 
-private fun User?.greetingFirstNameOrFallback(fallback: String): String {
-    val user = this ?: return fallback
-    val fromDisplay = user.displayName.trim().split(" ").firstOrNull().orEmpty()
-    if (fromDisplay.isNotEmpty()) return fromDisplay
-    val fromEmail = user.email.substringBefore('@').trim()
-    if (fromEmail.isNotEmpty()) {
-        return fromEmail.replaceFirstChar { c -> c.titlecaseChar() }
-    }
-    return fallback
-}
-
 @Preview(showBackground = true, name = "Settings — Light")
 @Composable
 private fun SettingsScreenLightPreview() {
     KeuTrackTheme(darkTheme = false) {
         SettingsScreen(
-            content = DefaultSettingsMockContent,
+            uiState = DefaultSettingsMockContent.toPreviewUiState(),
             onSignOutClick = {},
         )
     }
 }
 
-//@Preview(
-//    name = "Settings — Dark",
-//    showBackground = true,
-//    uiMode = UI_MODE_NIGHT_YES,
-//)
-//@Composable
-//private fun SettingsScreenDarkPreview() {
-//    KeuTrackTheme(darkTheme = true) {
-//        SettingsScreen(
-//            content = DefaultSettingsMockContent,
-//            onSignOutClick = {},
-//        )
-//    }
-//}
+@Preview(
+    name = "Settings — Dark",
+    showBackground = true,
+    uiMode = UI_MODE_NIGHT_YES,
+)
+@Composable
+private fun SettingsScreenDarkPreview() {
+    KeuTrackTheme(darkTheme = true) {
+        SettingsScreen(
+            uiState = DefaultSettingsMockContent.toPreviewUiState(),
+            onSignOutClick = {},
+        )
+    }
+}

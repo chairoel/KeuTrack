@@ -29,4 +29,10 @@ interface UserRepository {
         familyId: String?,
         familyRole: String?,
     ): Result<Unit>
+
+    /**
+     * Explicit currency preference write for Phase 7 settings.
+     * Does not go through auth sign-in upsert paths.
+     */
+    suspend fun updateCurrency(currency: String): Result<Unit>
 }

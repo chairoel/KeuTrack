@@ -36,7 +36,7 @@ private const val SETTINGS_SHEETS_CONTENT_DESC_PADDING = 2
 private const val SETTINGS_SHEETS_EXPORT_PT = 12
 private const val SETTINGS_SHEETS_EXPORT_ICON = 20
 private const val SETTINGS_SHEETS_TITLE = "Google Sheets"
-private const val SETTINGS_SHEETS_SUBTITLE = "Real-time sync enabled"
+private const val SETTINGS_SHEETS_SUBTITLE = "Segera hadir"
 private const val SETTINGS_SHEETS_EXPORT_CTA = "Export Now"
 
 @Composable
