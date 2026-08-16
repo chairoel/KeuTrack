@@ -19,12 +19,15 @@ internal fun Project.configureKotlinAndroid(
             minSdk = BuildAndroidConfig.MIN_SDK_VERSION
             testInstrumentationRunner = BuildAndroidConfig.TEST_INSTRUMENTATION_RUNNER
 
-
             externalNativeBuild {
                 cmake {
                     cppFlags("")
                 }
             }
+        }
+
+        testOptions {
+            unitTests.isReturnDefaultValues = true
         }
 
         kotlinOptions {
