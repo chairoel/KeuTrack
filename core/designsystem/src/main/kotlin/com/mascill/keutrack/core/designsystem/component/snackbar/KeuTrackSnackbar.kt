@@ -22,27 +22,41 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalAccessibilityManager
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import com.mascill.keutrack.core.designsystem.component.snackbar.model.KeuTrackSnackbarDuration
+import com.mascill.keutrack.core.designsystem.component.snackbar.util.toMillis
 import com.mascill.keutrack.core.designsystem.model.KeuTrackSnackbarData
 import com.mascill.keutrack.core.designsystem.model.KeuTrackSnackbarTone
 import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
+import kotlinx.coroutines.delay
 
 private const val SB_MARGIN = 16
+private const val SB_MARGIN_TOP = 64
 private const val SB_Z_INDEX = 100f
 private const val SB_PADDING = 16
 private const val SB_CONTENT_GAP = 12
 private const val SB_IC_SIZE = 24
 private const val SB_ACTION_PAD = 8
 private const val SB_MAX_WIDTH = 560
+
+private val DefaultSnackbarMargin
+    get() = PaddingValues(
+        start = SB_MARGIN.dp,
+        top = SB_MARGIN_TOP.dp,
+        end = SB_MARGIN.dp,
+        bottom = SB_MARGIN.dp,
+    )
 
 /**
  * Custom snackbar with leading icon, message, and optional trailing action.
@@ -54,8 +68,8 @@ fun BoxScope.KeuTrackSnackbar(
     textColor: Color,
     backgroundColor: Color,
     actionText: String? = null,
-    position: Alignment = Alignment.BottomCenter,
-    margin: PaddingValues = PaddingValues(SB_MARGIN.dp),
+    position: Alignment = Alignment.TopCenter,
+    margin: PaddingValues = DefaultSnackbarMargin,
     onClick: () -> Unit = {},
 ) {
     val isShowAction = !actionText.isNullOrEmpty()
@@ -116,7 +130,7 @@ fun BoxScope.KeuTrackSnackbar(
 @Composable
 fun BoxScope.KeuTrackSnackbar(
     data: KeuTrackSnackbarData,
-    position: Alignment = Alignment.BottomCenter,
+    position: Alignment = Alignment.TopCenter,
     onAction: () -> Unit = {},
 ) {
     val visuals = data.tone.visuals()
@@ -127,7 +141,7 @@ fun BoxScope.KeuTrackSnackbar(
         backgroundColor = data.backgroundColor ?: visuals.backgroundColor,
         actionText = data.actionLabel,
         position = position,
-        margin = data.margin ?: PaddingValues(SB_MARGIN.dp),
+        margin = data.margin ?: DefaultSnackbarMargin,
         onClick = onAction,
     )
 }
@@ -141,8 +155,17 @@ fun BoxScope.KeuTrackInlineSnackbar(
     onDismiss: () -> Unit,
     actionLabel: String,
     tone: KeuTrackSnackbarTone = KeuTrackSnackbarTone.Danger,
-    position: Alignment = Alignment.BottomCenter,
+    position: Alignment = Alignment.TopCenter,
 ) {
+    val accessibilityManager = LocalAccessibilityManager.current
+    LaunchedEffect(message) {
+        val duration = KeuTrackSnackbarDuration.Short.toMillis(
+            hasAction = actionLabel.isNotEmpty(),
+            accessibilityManager = accessibilityManager,
+        )
+        delay(duration)
+        onDismiss()
+    }
     KeuTrackSnackbar(
         data = KeuTrackSnackbarData(
             message = message,

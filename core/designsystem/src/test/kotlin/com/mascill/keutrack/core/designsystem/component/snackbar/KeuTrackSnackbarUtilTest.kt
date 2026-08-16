@@ -8,9 +8,9 @@ import org.junit.Test
 class KeuTrackSnackbarUtilTest {
 
     @Test
-    fun `short duration is 4 seconds without accessibility manager`() {
+    fun `short duration is 3 seconds without accessibility manager`() {
         assertThat(KeuTrackSnackbarDuration.Short.toMillis(hasAction = false, accessibilityManager = null))
-            .isEqualTo(4_000L)
+            .isEqualTo(3_000L)
     }
 
     @Test

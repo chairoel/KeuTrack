@@ -30,7 +30,7 @@ class KeuTrackSnackbarHostState {
      */
     suspend fun showSnackbar(
         data: KeuTrackSnackbarData,
-        position: Alignment = Alignment.BottomCenter,
+        position: Alignment = Alignment.TopCenter,
     ): KeuTrackSnackbarResult = mutex.withLock {
         try {
             return suspendCancellableCoroutine { continuation ->

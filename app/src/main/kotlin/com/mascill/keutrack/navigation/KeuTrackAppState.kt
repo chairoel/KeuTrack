@@ -105,7 +105,7 @@ class KeuTrackAppState(
      */
     fun showSnackbar(
         data: KeuTrackSnackbarData,
-        position: Alignment = Alignment.BottomCenter,
+        position: Alignment = Alignment.TopCenter,
         snackBarAction: (() -> Unit)? = null,
     ) {
         coroutineScope.launch {
@@ -133,7 +133,7 @@ class KeuTrackAppState(
         actionLabel: String? = "X",
         duration: KeuTrackSnackbarDuration = KeuTrackSnackbarDuration.Short,
         tone: KeuTrackSnackbarTone = KeuTrackSnackbarTone.Danger,
-        position: Alignment = Alignment.BottomCenter,
+        position: Alignment = Alignment.TopCenter,
         snackBarAction: (() -> Unit)? = null,
     ) {
         showSnackbar(
