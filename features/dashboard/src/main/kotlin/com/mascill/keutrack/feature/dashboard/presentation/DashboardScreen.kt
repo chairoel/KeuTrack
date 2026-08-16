@@ -204,6 +204,7 @@ fun DashboardScreen(
                                 balanceLabel = DASH_BALANCE_LABEL_FAMILY,
                                 balanceAmount = CurrencyFormat.formatIdr(uiState.familyBalance),
                                 isBalanceVisible = uiState.isFamilyBalanceVisible,
+                                isLoading = uiState.isFamilyWalletSyncing,
                                 onToggleBalanceVisibility = onToggleFamilyBalanceVisibility,
                                 onHistoryClick = onViewAllFamilyHistory,
                             ) {

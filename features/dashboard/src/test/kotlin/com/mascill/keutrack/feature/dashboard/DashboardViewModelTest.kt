@@ -1,5 +1,6 @@
 package com.mascill.keutrack.feature.dashboard
 
+import app.cash.turbine.ReceiveTurbine
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import com.mascill.keutrack.core.domain.model.User
@@ -15,11 +16,13 @@ import com.mascill.keutrack.core.domain.usecase.MonthlySummaryResult
 import com.mascill.keutrack.core.domain.usecase.ObserveWalletUiPreferencesUseCase
 import com.mascill.keutrack.core.domain.usecase.RetryPendingSyncUseCase
 import com.mascill.keutrack.core.domain.usecase.SetWalletBalanceVisibilityUseCase
+import com.mascill.keutrack.core.domain.usecase.SyncFamilyDataUseCase
 import com.mascill.keutrack.core.domain.usecase.SyncPersonalDataUseCase
 import com.mascill.keutrack.core.domain.usecase.WalletSummary
 import com.mascill.keutrack.core.testing.MainDispatcherRule
 import com.mascill.keutrack.core.testing.testCommonDispatcher
 import com.mascill.keutrack.feature.dashboard.presentation.DashboardViewModel
+import com.mascill.keutrack.feature.dashboard.presentation.model.DashboardUIState
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -50,6 +53,7 @@ class DashboardViewModelTest {
     private val setWalletBalanceVisibility = mockk<SetWalletBalanceVisibilityUseCase>()
     private val retryPendingSync = mockk<RetryPendingSyncUseCase>()
     private val syncPersonalData = mockk<SyncPersonalDataUseCase>()
+    private val syncFamilyData = mockk<SyncFamilyDataUseCase>()
 
     @Test
     fun `initial state is loading`() = runTest(mainDispatcherRule.testDispatcher) {
@@ -96,17 +100,16 @@ class DashboardViewModelTest {
         }
 
     @Test
-    fun `onScreenRendered pulls personal data then retries pending sync`() =
+    fun `onScreenRendered pulls personal and family data then retries pending sync`() =
         runTest(mainDispatcherRule.testDispatcher) {
             stubHappyPath()
-            coEvery { syncPersonalData() } returns Result.success(Unit)
-            coEvery { retryPendingSync() } just runs
             val vm = createViewModel()
 
             vm.onScreenRendered()
             advanceUntilIdle()
 
             coVerify(exactly = 1) { syncPersonalData() }
+            coVerify(exactly = 1) { syncFamilyData() }
             coVerify(exactly = 1) { retryPendingSync() }
         }
 
@@ -119,21 +122,49 @@ class DashboardViewModelTest {
                 pullGate.await()
                 Result.success(Unit)
             }
-            coEvery { retryPendingSync() } just runs
             val vm = createViewModel()
 
             vm.uiState.test {
                 assertThat(awaitItem().isLoading).isTrue()
                 advanceUntilIdle()
-                assertThat(awaitItem().isPersonalWalletSyncing).isFalse()
+                awaitUntil { !it.isLoading }
 
                 vm.onScreenRendered()
                 advanceUntilIdle()
-                assertThat(awaitItem().isPersonalWalletSyncing).isTrue()
+                assertThat(awaitUntil { it.isPersonalWalletSyncing }.isPersonalWalletSyncing)
+                    .isTrue()
 
                 pullGate.complete(Unit)
                 advanceUntilIdle()
-                assertThat(awaitItem().isPersonalWalletSyncing).isFalse()
+                assertThat(awaitUntil { !it.isPersonalWalletSyncing }.isPersonalWalletSyncing)
+                    .isFalse()
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `onScreenRendered shows family wallet syncing then clears it`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            stubHappyPath()
+            val pullGate = CompletableDeferred<Unit>()
+            coEvery { syncFamilyData() } coAnswers {
+                pullGate.await()
+                Result.success(Unit)
+            }
+            val vm = createViewModel()
+
+            vm.uiState.test {
+                assertThat(awaitItem().isLoading).isTrue()
+                advanceUntilIdle()
+                awaitUntil { !it.isLoading }
+
+                vm.onScreenRendered()
+                advanceUntilIdle()
+                assertThat(awaitUntil { it.isFamilyWalletSyncing }.isFamilyWalletSyncing).isTrue()
+
+                pullGate.complete(Unit)
+                advanceUntilIdle()
+                assertThat(awaitUntil { !it.isFamilyWalletSyncing }.isFamilyWalletSyncing).isFalse()
                 cancelAndIgnoreRemainingEvents()
             }
         }
@@ -143,13 +174,28 @@ class DashboardViewModelTest {
         runTest(mainDispatcherRule.testDispatcher) {
             stubHappyPath()
             coEvery { syncPersonalData() } returns Result.failure(IllegalStateException("offline"))
-            coEvery { retryPendingSync() } just runs
             val vm = createViewModel()
 
             vm.onScreenRendered()
             advanceUntilIdle()
 
             coVerify(exactly = 1) { syncPersonalData() }
+            coVerify(exactly = 1) { syncFamilyData() }
+            coVerify(exactly = 1) { retryPendingSync() }
+        }
+
+    @Test
+    fun `onScreenRendered still retries push when family pull fails`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            stubHappyPath()
+            coEvery { syncFamilyData() } returns Result.failure(IllegalStateException("offline"))
+            val vm = createViewModel()
+
+            vm.onScreenRendered()
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { syncPersonalData() }
+            coVerify(exactly = 1) { syncFamilyData() }
             coVerify(exactly = 1) { retryPendingSync() }
         }
 
@@ -172,6 +218,9 @@ class DashboardViewModelTest {
         )
         every { getCategories() } returns flowOf(emptyList())
         every { observeWalletUiPreferences() } returns flowOf(WalletUiPreferences())
+        coEvery { syncPersonalData() } returns Result.success(Unit)
+        coEvery { syncFamilyData() } returns Result.success(Unit)
+        coEvery { retryPendingSync() } just runs
     }
 
     private fun createViewModel() = DashboardViewModel(
@@ -185,6 +234,17 @@ class DashboardViewModelTest {
         setWalletBalanceVisibility = setWalletBalanceVisibility,
         retryPendingSync = retryPendingSync,
         syncPersonalData = syncPersonalData,
+        syncFamilyData = syncFamilyData,
         dispatcher = testCommonDispatcher(mainDispatcherRule.testDispatcher),
     )
+
+    private suspend fun ReceiveTurbine<DashboardUIState>.awaitUntil(
+        predicate: (DashboardUIState) -> Boolean,
+    ): DashboardUIState {
+        var item = awaitItem()
+        while (!predicate(item)) {
+            item = awaitItem()
+        }
+        return item
+    }
 }

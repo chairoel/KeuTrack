@@ -21,4 +21,5 @@ data class DashboardUIState(
     val isPersonalBalanceVisible: Boolean = true,
     val isFamilyBalanceVisible: Boolean = true,
     val isPersonalWalletSyncing: Boolean = false,
+    val isFamilyWalletSyncing: Boolean = false,
 )

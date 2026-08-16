@@ -16,10 +16,12 @@ import com.mascill.keutrack.core.domain.usecase.GetWalletSummaryUseCase
 import com.mascill.keutrack.core.domain.usecase.ObserveWalletUiPreferencesUseCase
 import com.mascill.keutrack.core.domain.usecase.RetryPendingSyncUseCase
 import com.mascill.keutrack.core.domain.usecase.SetWalletBalanceVisibilityUseCase
+import com.mascill.keutrack.core.domain.usecase.SyncFamilyDataUseCase
 import com.mascill.keutrack.core.domain.usecase.SyncPersonalDataUseCase
 import com.mascill.keutrack.feature.dashboard.presentation.model.DashboardUIState
 import com.mascill.keutrack.feature.dashboard.presentation.model.DashboardUiMapper
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -44,6 +46,7 @@ class DashboardViewModel @Inject constructor(
     private val setWalletBalanceVisibility: SetWalletBalanceVisibilityUseCase,
     private val retryPendingSync: RetryPendingSyncUseCase,
     private val syncPersonalData: SyncPersonalDataUseCase,
+    private val syncFamilyData: SyncFamilyDataUseCase,
     private val dispatcher: CommonDispatcher,
 ) : ViewModel() {
 
@@ -54,6 +57,7 @@ class DashboardViewModel @Inject constructor(
 
     private val _syncError = MutableStateFlow<String?>(null)
     private val _isPersonalWalletSyncing = MutableStateFlow(false)
+    private val _isFamilyWalletSyncing = MutableStateFlow(false)
 
     val uiState: StateFlow<DashboardUIState> =
         combine(
@@ -62,14 +66,20 @@ class DashboardViewModel @Inject constructor(
                 familyRepository.observeCurrentFamily(),
                 observeWalletUiPreferences(),
                 _syncError,
-                _isPersonalWalletSyncing,
-            ) { user, family, walletUiPreferences, syncError, isPersonalWalletSyncing ->
+                combine(
+                    _isPersonalWalletSyncing,
+                    _isFamilyWalletSyncing,
+                ) { personal, family ->
+                    WalletSyncFlags(personal, family)
+                },
+            ) { user, family, walletUiPreferences, syncError, walletSyncFlags ->
                 DashboardSession(
                     user = user,
                     family = family,
                     walletUiPreferences = walletUiPreferences,
                     syncError = syncError,
-                    isPersonalWalletSyncing = isPersonalWalletSyncing,
+                    isPersonalWalletSyncing = walletSyncFlags.isPersonalWalletSyncing,
+                    isFamilyWalletSyncing = walletSyncFlags.isFamilyWalletSyncing,
                 )
             },
             getWalletSummary(),
@@ -112,6 +122,7 @@ class DashboardViewModel @Inject constructor(
                 isPersonalBalanceVisible = session.walletUiPreferences.isPersonalBalanceVisible,
                 isFamilyBalanceVisible = session.walletUiPreferences.isFamilyBalanceVisible,
                 isPersonalWalletSyncing = session.isPersonalWalletSyncing,
+                isFamilyWalletSyncing = session.isFamilyWalletSyncing,
             )
         }.catch { e ->
             emit(
@@ -127,25 +138,54 @@ class DashboardViewModel @Inject constructor(
         )
 
     /**
-     * Called when the dashboard becomes visible. Pulls the canonical personal
-     * wallet first, then retries push only if Room still has PENDING/FAILED items.
+     * Called when the dashboard becomes visible. Pulls personal and family
+     * slices in parallel, then retries push only if Room still has PENDING/FAILED items.
      */
     fun onScreenRendered() {
         viewModelScope.launch(dispatcher.io) {
-            _isPersonalWalletSyncing.value = true
             try {
-                syncPersonalData()
-                    .onFailure {
-                        _syncError.value = ERR_SYNC_PERSONAL
-                    }
+                coroutineScope {
+                    launch { pullPersonalWallet() }
+                    launch { pullFamilyWallet() }
+                }
                 retryPendingSync()
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
                 _syncError.value = ERR_SYNC_PERSONAL
-            } finally {
-                _isPersonalWalletSyncing.value = false
             }
+        }
+    }
+
+    private suspend fun pullPersonalWallet() {
+        _isPersonalWalletSyncing.value = true
+        try {
+            syncPersonalData()
+                .onFailure {
+                    _syncError.value = ERR_SYNC_PERSONAL
+                }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            _syncError.value = ERR_SYNC_PERSONAL
+        } finally {
+            _isPersonalWalletSyncing.value = false
+        }
+    }
+
+    private suspend fun pullFamilyWallet() {
+        _isFamilyWalletSyncing.value = true
+        try {
+            syncFamilyData()
+                .onFailure {
+                    _syncError.value = ERR_SYNC_FAMILY
+                }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            _syncError.value = ERR_SYNC_FAMILY
+        } finally {
+            _isFamilyWalletSyncing.value = false
         }
     }
 
@@ -159,6 +199,12 @@ class DashboardViewModel @Inject constructor(
         val walletUiPreferences: WalletUiPreferences,
         val syncError: String?,
         val isPersonalWalletSyncing: Boolean,
+        val isFamilyWalletSyncing: Boolean,
+    )
+
+    private data class WalletSyncFlags(
+        val isPersonalWalletSyncing: Boolean,
+        val isFamilyWalletSyncing: Boolean,
     )
 
     fun onTogglePersonalBalanceVisibility() {
@@ -195,5 +241,7 @@ class DashboardViewModel @Inject constructor(
         const val ERR_LOAD_FAILED = "Gagal memuat dashboard"
         const val ERR_SYNC_PERSONAL =
             "Gagal memuat dompet. Coba buka ulang Dashboard."
+        const val ERR_SYNC_FAMILY =
+            "Gagal memuat dompet keluarga. Coba buka ulang Dashboard."
     }
 }
