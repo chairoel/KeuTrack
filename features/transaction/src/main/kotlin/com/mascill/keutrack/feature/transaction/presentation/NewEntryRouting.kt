@@ -6,9 +6,13 @@ import androidx.compose.runtime.getValue
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
+/**
+ * @param transactionId Optional deep-link id. Form is create-only until edit UI exists.
+ */
 @Composable
 fun NewEntryRouting(
     onBack: () -> Unit,
+    @Suppress("UNUSED_PARAMETER") transactionId: String? = null,
     viewModel: NewEntryViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()

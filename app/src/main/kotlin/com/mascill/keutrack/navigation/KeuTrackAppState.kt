@@ -50,6 +50,17 @@ class KeuTrackAppState(
 ) {
 
     private var snackBarJob: Job? = null
+    private var pendingDeepLinkRoute: Any? = null
+
+    fun stashPendingDeepLink(route: Any) {
+        pendingDeepLinkRoute = route
+    }
+
+    fun consumePendingDeepLink(): Any? {
+        val route = pendingDeepLinkRoute
+        pendingDeepLinkRoute = null
+        return route
+    }
 
     /**
      * Method that handle backstack clearance after navigating

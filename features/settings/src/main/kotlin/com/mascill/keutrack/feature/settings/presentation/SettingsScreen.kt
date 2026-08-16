@@ -31,9 +31,10 @@ import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.PersonAdd
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -88,8 +89,15 @@ fun SettingsRouting(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    var dialogMode by remember { mutableStateOf<SettingsFamilyMembershipMode?>(null) }
-    var showLeaveDialog by remember { mutableStateOf(false) }
+    var dialogMode by rememberSaveable { mutableStateOf<SettingsFamilyMembershipMode?>(null) }
+    var showLeaveDialog by rememberSaveable { mutableStateOf(false) }
+
+    BackHandler(enabled = dialogMode != null || showLeaveDialog) {
+        if (!uiState.membershipLoading) {
+            dialogMode = null
+            showLeaveDialog = false
+        }
+    }
 
     val inFamily = uiState.familyNetworkActive
     val familyCode = uiState.familyIdCode
