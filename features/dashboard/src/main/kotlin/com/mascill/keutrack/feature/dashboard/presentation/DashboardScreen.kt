@@ -62,6 +62,7 @@ fun DashboardRouting(
     onSettingsClick: () -> Unit = {},
     onAddTransaction: () -> Unit = {},
     onViewAllTransactions: () -> Unit = {},
+    onViewAllPersonalHistory: () -> Unit = {},
     onViewAllFamilyHistory: () -> Unit = {},
     viewModel: DashboardViewModel = hiltViewModel(),
 ) {
@@ -75,6 +76,7 @@ fun DashboardRouting(
         uiState = uiState,
         onSettingsClick = onSettingsClick,
         onViewAllTransactions = onViewAllTransactions,
+        onViewAllPersonalHistory = onViewAllPersonalHistory,
         onViewAllFamilyHistory = onViewAllFamilyHistory,
         onTogglePersonalBalanceVisibility = viewModel::onTogglePersonalBalanceVisibility,
         onToggleFamilyBalanceVisibility = viewModel::onToggleFamilyBalanceVisibility,
@@ -91,6 +93,7 @@ fun DashboardScreen(
     uiState: DashboardUIState,
     onSettingsClick: () -> Unit,
     onViewAllTransactions: () -> Unit,
+    onViewAllPersonalHistory: () -> Unit = {},
     onViewAllFamilyHistory: () -> Unit = {},
     onTogglePersonalBalanceVisibility: () -> Unit = {},
     onToggleFamilyBalanceVisibility: () -> Unit = {},
@@ -186,7 +189,7 @@ fun DashboardScreen(
                                 balanceAmount = CurrencyFormat.formatIdr(uiState.personalBalance),
                                 isBalanceVisible = uiState.isPersonalBalanceVisible,
                                 onToggleBalanceVisibility = onTogglePersonalBalanceVisibility,
-                                onHistoryClick = onViewAllTransactions,
+                                onHistoryClick = onViewAllPersonalHistory,
                             ) {
                                 uiState.monthChangeLabel?.let { label ->
                                     WalletSummaryPersonalMonthChangeFooter(label)

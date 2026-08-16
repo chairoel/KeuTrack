@@ -6,6 +6,8 @@ import com.google.common.truth.Truth.assertThat
 import com.mascill.keutrack.core.domain.model.Transaction
 import com.mascill.keutrack.core.domain.model.TransactionType
 import com.mascill.keutrack.core.domain.model.User
+import com.mascill.keutrack.core.domain.model.Wallet
+import com.mascill.keutrack.core.domain.model.WalletType
 import com.mascill.keutrack.core.domain.repository.UserRepository
 import com.mascill.keutrack.core.domain.usecase.GetCategoriesUseCase
 import com.mascill.keutrack.core.domain.usecase.GetTransactionsUseCase
@@ -15,6 +17,7 @@ import com.mascill.keutrack.core.domain.usecase.WalletSummary
 import com.mascill.keutrack.core.testing.MainDispatcherRule
 import com.mascill.keutrack.core.testing.testCommonDispatcher
 import com.mascill.keutrack.feature.transaction.presentation.history.TransactionHistoryViewModel
+import com.mascill.keutrack.feature.transaction.presentation.model.HistoryScope
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -56,7 +59,7 @@ class TransactionHistoryViewModelTest {
             val state = awaitItem()
             assertThat(state.isLoading).isFalse()
             assertThat(state.items).isEmpty()
-            assertThat(state.isFamilyOnly).isFalse()
+            assertThat(state.scope).isEqualTo(HistoryScope.All)
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -119,7 +122,7 @@ class TransactionHistoryViewModelTest {
                 skipItems(1)
                 advanceUntilIdle()
                 val state = awaitItem()
-                assertThat(state.isFamilyOnly).isTrue()
+                assertThat(state.scope).isEqualTo(HistoryScope.Family)
                 assertThat(state.items).hasSize(1)
                 assertThat(state.items.first().title).isEqualTo("Belanja keluarga")
                 cancelAndIgnoreRemainingEvents()
@@ -144,7 +147,67 @@ class TransactionHistoryViewModelTest {
                 skipItems(1)
                 advanceUntilIdle()
                 val state = awaitItem()
-                assertThat(state.isFamilyOnly).isTrue()
+                assertThat(state.scope).isEqualTo(HistoryScope.Family)
+                assertThat(state.items).isEmpty()
+                cancelAndIgnoreRemainingEvents()
+            }
+
+            verify(exactly = 0) { getTransactions(any()) }
+        }
+
+    @Test
+    fun `personal only loads transactions for personal wallet`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            stub(
+                transactions =
+                    listOf(
+                        Transaction(
+                            id = "tx-p",
+                            walletId = "w-p",
+                            userId = "u",
+                            type = TransactionType.EXPENSE,
+                            amount = 9_000L,
+                            categoryId = "c",
+                            note = "Kopi personal",
+                            date = Instant.parse("2026-08-01T00:00:00Z"),
+                            addedByName = "Irul",
+                        ),
+                    ),
+                personalOnly = true,
+                personalWalletId = "w-p",
+            )
+            val vm = createViewModel(personalOnly = true)
+
+            vm.uiState.test {
+                skipItems(1)
+                advanceUntilIdle()
+                val state = awaitItem()
+                assertThat(state.scope).isEqualTo(HistoryScope.Personal)
+                assertThat(state.items).hasSize(1)
+                assertThat(state.items.first().title).isEqualTo("Kopi personal")
+                cancelAndIgnoreRemainingEvents()
+            }
+
+            verify {
+                getTransactions(
+                    match { params ->
+                        params.walletId == "w-p" && params.limit == 50
+                    },
+                )
+            }
+        }
+
+    @Test
+    fun `personal only without wallet emits empty list`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            stub(emptyList(), personalOnly = true)
+            val vm = createViewModel(personalOnly = true)
+
+            vm.uiState.test {
+                skipItems(1)
+                advanceUntilIdle()
+                val state = awaitItem()
+                assertThat(state.scope).isEqualTo(HistoryScope.Personal)
                 assertThat(state.items).isEmpty()
                 cancelAndIgnoreRemainingEvents()
             }
@@ -156,24 +219,55 @@ class TransactionHistoryViewModelTest {
         transactions: List<Transaction>,
         familyId: String? = null,
         familyOnly: Boolean = false,
+        personalOnly: Boolean = false,
+        personalWalletId: String? = null,
     ) {
         every { userRepository.getCurrentUser() } returns flowOf(
             User("u", "Irul", "a@b.c", null, familyId = familyId),
         )
-        if (!familyOnly || !familyId.isNullOrBlank()) {
+        val shouldLoadTransactions =
+            when {
+                familyOnly -> !familyId.isNullOrBlank()
+                personalOnly -> !personalWalletId.isNullOrBlank()
+                else -> true
+            }
+        if (shouldLoadTransactions) {
             every { getTransactions(any()) } returns flowOf(transactions)
         }
         every { getCategories() } returns flowOf(emptyList())
-        every { getWalletSummary() } returns flowOf(WalletSummary(null, emptyList(), 0L, 0L))
+        every { getWalletSummary() } returns flowOf(
+            WalletSummary(
+                personalWallet = personalWalletId?.let { personalWallet(it) },
+                familyWallets = emptyList(),
+                totalPersonalBalance = 0L,
+                totalFamilyBalance = 0L,
+            ),
+        )
     }
 
-    private fun createViewModel(familyOnly: Boolean = false) = TransactionHistoryViewModel(
-        savedStateHandle = SavedStateHandle(mapOf("familyOnly" to familyOnly)),
+    private fun createViewModel(
+        familyOnly: Boolean = false,
+        personalOnly: Boolean = false,
+    ) = TransactionHistoryViewModel(
+        savedStateHandle = SavedStateHandle(
+            mapOf(
+                "familyOnly" to familyOnly,
+                "personalOnly" to personalOnly,
+            ),
+        ),
         userRepository = userRepository,
         getTransactions = getTransactions,
         getCategories = getCategories,
         getWalletSummary = getWalletSummary,
         retryPendingSync = retryPendingSync,
         dispatcher = testCommonDispatcher(mainDispatcherRule.testDispatcher),
+    )
+
+    private fun personalWallet(id: String) = Wallet(
+        id = id,
+        ownerId = "u",
+        name = "Personal",
+        type = WalletType.PERSONAL,
+        balance = 0L,
     )
 }

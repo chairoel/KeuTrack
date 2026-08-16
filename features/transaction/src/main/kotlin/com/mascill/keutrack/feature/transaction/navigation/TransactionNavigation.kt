@@ -14,7 +14,10 @@ import kotlinx.serialization.Serializable
 data class TransactionRoute(val transactionId: String? = null)
 
 @Serializable
-data class TransactionHistoryRoute(val familyOnly: Boolean = false)
+data class TransactionHistoryRoute(
+    val familyOnly: Boolean = false,
+    val personalOnly: Boolean = false,
+)
 
 object TransactionDeepLinks {
     const val SCHEME = "keutrack"
@@ -30,9 +33,13 @@ fun NavController.navigateToTransaction(
 
 fun NavController.navigateToTransactionHistory(
     familyOnly: Boolean = false,
+    personalOnly: Boolean = false,
     navOptions: NavOptions? = null,
 ) = navigate(
-    route = TransactionHistoryRoute(familyOnly = familyOnly),
+    route = TransactionHistoryRoute(
+        familyOnly = familyOnly,
+        personalOnly = personalOnly,
+    ),
     navOptions = navOptions,
 )
 

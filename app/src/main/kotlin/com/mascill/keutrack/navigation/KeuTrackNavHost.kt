@@ -108,6 +108,9 @@ fun KeuTrackNavHost(
                 },
                 onAddTransaction = { navController.navigateToTransaction() },
                 onViewAllTransactions = { navController.navigateToTransactionHistory() },
+                onViewAllPersonalHistory = {
+                    navController.navigateToTransactionHistory(personalOnly = true)
+                },
                 onViewAllFamilyHistory = {
                     navController.navigateToTransactionHistory(familyOnly = true)
                 },
