@@ -1,6 +1,13 @@
 package com.mascill.keutrack.core.designsystem.component.snackbar
 
 import android.content.res.Configuration
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -23,7 +30,10 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -72,13 +82,36 @@ fun BoxScope.KeuTrackSnackbar(
     margin: PaddingValues = DefaultSnackbarMargin,
     onClick: () -> Unit = {},
 ) {
+    KeuTrackSnackbarContent(
+        icon = icon,
+        text = text,
+        textColor = textColor,
+        backgroundColor = backgroundColor,
+        actionText = actionText,
+        margin = margin,
+        onClick = onClick,
+        modifier = Modifier
+            .align(position)
+            .zIndex(SB_Z_INDEX),
+    )
+}
+
+@Composable
+internal fun KeuTrackSnackbarContent(
+    icon: ImageVector,
+    text: String,
+    textColor: Color,
+    backgroundColor: Color,
+    modifier: Modifier = Modifier,
+    actionText: String? = null,
+    margin: PaddingValues = DefaultSnackbarMargin,
+    onClick: () -> Unit = {},
+) {
     val isShowAction = !actionText.isNullOrEmpty()
 
     Row(
-        modifier = Modifier
+        modifier = modifier
             .padding(margin)
-            .align(position)
-            .zIndex(SB_Z_INDEX)
             .widthIn(max = SB_MAX_WIDTH.dp)
             .fillMaxWidth()
             .clip(RoundedCornerShape(KeuTrackTheme.shapeTokens.radiusMd))
@@ -157,24 +190,46 @@ fun BoxScope.KeuTrackInlineSnackbar(
     tone: KeuTrackSnackbarTone = KeuTrackSnackbarTone.Danger,
     position: Alignment = Alignment.TopCenter,
 ) {
+    var visible by remember { mutableStateOf(false) }
     val accessibilityManager = LocalAccessibilityManager.current
+    val visuals = tone.visuals()
+
     LaunchedEffect(message) {
+        visible = true
         val duration = KeuTrackSnackbarDuration.Short.toMillis(
             hasAction = actionLabel.isNotEmpty(),
             accessibilityManager = accessibilityManager,
         )
         delay(duration)
+        visible = false
+        delay(SNACKBAR_SLIDE_OUT_MILLIS.toLong())
         onDismiss()
     }
-    KeuTrackSnackbar(
-        data = KeuTrackSnackbarData(
-            message = message,
-            actionLabel = actionLabel,
-            tone = tone,
-        ),
-        position = position,
-        onAction = onDismiss,
-    )
+
+    AnimatedVisibility(
+        visible = visible,
+        modifier = Modifier
+            .align(position)
+            .zIndex(SB_Z_INDEX)
+            .fillMaxWidth(),
+        enter = slideInVertically(
+            animationSpec = tween(SNACKBAR_SLIDE_IN_MILLIS, easing = FastOutSlowInEasing),
+            initialOffsetY = { -it },
+        ) + fadeIn(animationSpec = tween(SNACKBAR_SLIDE_IN_MILLIS)),
+        exit = slideOutVertically(
+            animationSpec = tween(SNACKBAR_SLIDE_OUT_MILLIS, easing = FastOutSlowInEasing),
+            targetOffsetY = { -it },
+        ) + fadeOut(animationSpec = tween(SNACKBAR_SLIDE_OUT_MILLIS)),
+    ) {
+        KeuTrackSnackbarContent(
+            icon = visuals.icon,
+            text = message,
+            textColor = visuals.textColor,
+            backgroundColor = visuals.backgroundColor,
+            actionText = actionLabel,
+            onClick = { visible = false },
+        )
+    }
 }
 
 @Composable

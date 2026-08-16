@@ -18,6 +18,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalAccessibilityManager
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.dismiss
 import androidx.compose.ui.semantics.liveRegion
@@ -26,13 +28,13 @@ import com.mascill.keutrack.core.designsystem.component.snackbar.model.BaseKeuTr
 import com.mascill.keutrack.core.designsystem.component.snackbar.util.toMillis
 import kotlinx.coroutines.delay
 
-private const val SNACKBAR_FADE_IN_MILLIS = 150
-private const val SNACKBAR_FADE_OUT_MILLIS = 75
+internal const val SNACKBAR_SLIDE_IN_MILLIS = 280
+internal const val SNACKBAR_SLIDE_OUT_MILLIS = 180
 private const val SNACKBAR_IN_BETWEEN_DELAY_MILLIS = 0
-private const val SNACKBAR_SCALE_COLLAPSED = 0.8f
+private const val SNACKBAR_SLIDE_OFFSET_DP = 48
 
 /**
- * Host that manages duration and fade/scale animation for [KeuTrackSnackbar].
+ * Host that manages duration and slide-from-top animation for [KeuTrackSnackbar].
  */
 @Composable
 fun KeuTrackSnackbarHost(
@@ -95,8 +97,8 @@ private fun FadeInFadeOutWithScale(
         state.items += keys.filterNotNull().map { key ->
             FadeInFadeOutAnimationItem(key) { children ->
                 val isVisible = key == current
-                val duration = if (isVisible) SNACKBAR_FADE_IN_MILLIS else SNACKBAR_FADE_OUT_MILLIS
-                val delay = SNACKBAR_FADE_OUT_MILLIS + SNACKBAR_IN_BETWEEN_DELAY_MILLIS
+                val duration = if (isVisible) SNACKBAR_SLIDE_IN_MILLIS else SNACKBAR_SLIDE_OUT_MILLIS
+                val delay = SNACKBAR_SLIDE_OUT_MILLIS + SNACKBAR_IN_BETWEEN_DELAY_MILLIS
                 val animationDelay = if (isVisible && keys.filterNotNull().size != 1) {
                     delay
                 } else {
@@ -116,7 +118,7 @@ private fun FadeInFadeOutWithScale(
                         }
                     },
                 )
-                val scale = animatedScale(
+                val offsetY = animatedSlideY(
                     animation = tween(
                         easing = FastOutSlowInEasing,
                         delayMillis = animationDelay,
@@ -127,8 +129,7 @@ private fun FadeInFadeOutWithScale(
                 Box(
                     modifier
                         .graphicsLayer(
-                            scaleX = scale.value,
-                            scaleY = scale.value,
+                            translationY = offsetY.value,
                             alpha = opacity.value,
                         )
                         .semantics {
@@ -185,13 +186,14 @@ private fun animatedOpacity(
 }
 
 @Composable
-private fun animatedScale(animation: AnimationSpec<Float>, visible: Boolean): State<Float> {
-    val scale = remember { Animatable(if (!visible) 1f else SNACKBAR_SCALE_COLLAPSED) }
+private fun animatedSlideY(animation: AnimationSpec<Float>, visible: Boolean): State<Float> {
+    val offsetPx = with(LocalDensity.current) { SNACKBAR_SLIDE_OFFSET_DP.dp.toPx() }
+    val translation = remember { Animatable(if (!visible) 0f else -offsetPx) }
     LaunchedEffect(visible) {
-        scale.animateTo(
-            if (visible) 1f else SNACKBAR_SCALE_COLLAPSED,
+        translation.animateTo(
+            if (visible) 0f else -offsetPx,
             animationSpec = animation,
         )
     }
-    return scale.asState()
+    return translation.asState()
 }
