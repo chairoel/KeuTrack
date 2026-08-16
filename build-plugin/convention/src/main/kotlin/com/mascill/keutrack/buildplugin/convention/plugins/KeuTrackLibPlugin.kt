@@ -3,10 +3,12 @@ package com.mascill.keutrack.buildplugin.convention.plugins
 import com.android.build.gradle.LibraryExtension
 import com.mascill.keutrack.buildplugin.convention.utils.configureFlavors
 import com.mascill.keutrack.buildplugin.convention.utils.configureKotlinAndroid
+import com.mascill.keutrack.buildplugin.convention.utils.libs
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.kotlin.dsl.apply
 import org.gradle.kotlin.dsl.configure
+import org.gradle.kotlin.dsl.dependencies
 
 /**
  * A subclass of [Plugin] to handle all project library module plugin / gradle configuration
@@ -16,6 +18,7 @@ class KeuTrackLibPlugin : Plugin<Project> {
         with(target) {
             setLibPlugin()
             setLibAndroidConfig()
+            setLibTestDependencies()
         }
     }
 
@@ -28,6 +31,12 @@ class KeuTrackLibPlugin : Plugin<Project> {
         extensions.configure<LibraryExtension> {
             configureKotlinAndroid(this@configure)
             configureFlavors(this@configure)
+        }
+    }
+
+    private fun Project.setLibTestDependencies() {
+        dependencies {
+            add("testImplementation", libs.findBundle("unit-test").get())
         }
     }
 }

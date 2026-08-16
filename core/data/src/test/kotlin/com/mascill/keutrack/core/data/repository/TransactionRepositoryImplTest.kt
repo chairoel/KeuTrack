@@ -1,0 +1,131 @@
+package com.mascill.keutrack.core.data.repository
+
+import app.cash.turbine.test
+import com.google.common.truth.Truth.assertThat
+import com.mascill.keutrack.core.data.datasource.local.BudgetLocalDataSource
+import com.mascill.keutrack.core.data.datasource.local.CategoryLocalDataSource
+import com.mascill.keutrack.core.data.datasource.local.CategorySummaryLocalDataSource
+import com.mascill.keutrack.core.data.datasource.local.TransactionLocalDataSource
+import com.mascill.keutrack.core.data.datasource.local.WalletLocalDataSource
+import com.mascill.keutrack.core.data.db.entity.TransactionEntity
+import com.mascill.keutrack.core.data.mapper.CategorySummaryMapper
+import com.mascill.keutrack.core.data.mapper.TransactionMapper
+import com.mascill.keutrack.core.data.sync.SyncScheduler
+import com.mascill.keutrack.core.domain.model.SyncStatus
+import com.mascill.keutrack.core.domain.model.Transaction
+import com.mascill.keutrack.core.domain.model.TransactionType
+import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.every
+import io.mockk.just
+import io.mockk.mockk
+import io.mockk.runs
+import io.mockk.verify
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.runTest
+import org.junit.Test
+import java.time.Instant
+
+class TransactionRepositoryImplTest {
+
+    private val local = mockk<TransactionLocalDataSource>(relaxed = true)
+    private val walletLocal = mockk<WalletLocalDataSource>(relaxed = true)
+    private val budgetLocal = mockk<BudgetLocalDataSource>(relaxed = true)
+    private val summaryLocal = mockk<CategorySummaryLocalDataSource>(relaxed = true)
+    private val categoryLocal = mockk<CategoryLocalDataSource>(relaxed = true)
+    private val mapper = TransactionMapper()
+    private val summaryMapper = CategorySummaryMapper()
+    private val syncScheduler = mockk<SyncScheduler>(relaxed = true)
+    private val repo = TransactionRepositoryImpl(
+        local = local,
+        walletLocal = walletLocal,
+        budgetLocal = budgetLocal,
+        summaryLocal = summaryLocal,
+        categoryLocal = categoryLocal,
+        mapper = mapper,
+        summaryMapper = summaryMapper,
+        syncScheduler = syncScheduler,
+    )
+
+    @Test
+    fun `addTransaction inserts entity via DAO and enqueues sync`() = runTest {
+        val transaction = domainTransaction()
+        coEvery { budgetLocal.getByMonthAndCategory(any(), any()) } returns null
+        coEvery { summaryLocal.getByPeriod(any(), any()) } returns null
+        coEvery { categoryLocal.getById(any()) } returns null
+        coEvery { local.applyNewTransactionAtomically(any(), any(), any(), any()) } just runs
+
+        repo.addTransaction(transaction)
+
+        coVerify {
+            local.applyNewTransactionAtomically(
+                transaction = match { it.id == "tx-1" && it.syncStatus == SyncStatus.PENDING.name },
+                walletDelta = -15_000L,
+                budgetIdToIncrement = null,
+                summaryUpsert = any(),
+            )
+        }
+        verify { syncScheduler.enqueueSync() }
+    }
+
+    @Test
+    fun `observeTransactions emits mapped domain`() = runTest {
+        val entity = mapper.toEntity(domainTransaction())
+        every {
+            local.observeFiltered(
+                walletId = "wallet-1",
+                familyId = null,
+                type = null,
+                categoryId = null,
+                startMs = null,
+                endMs = null,
+                limit = 20,
+            )
+        } returns flowOf(listOf(entity))
+
+        repo.observeTransactions(walletId = "wallet-1", limit = 20).test {
+            val items = awaitItem()
+            assertThat(items).hasSize(1)
+            assertThat(items.first().id).isEqualTo("tx-1")
+            assertThat(items.first().amount).isEqualTo(15_000L)
+            awaitComplete()
+        }
+    }
+
+    @Test
+    fun `observeRecentTransactions maps entities`() = runTest {
+        every { local.observeRecent(5) } returns flowOf(listOf(sampleEntity()))
+
+        repo.observeRecentTransactions(5).test {
+            assertThat(awaitItem().map { it.id }).containsExactly("tx-1")
+            awaitComplete()
+        }
+    }
+
+    private fun domainTransaction() = Transaction(
+        id = "tx-1",
+        walletId = "wallet-1",
+        userId = "user-1",
+        type = TransactionType.EXPENSE,
+        amount = 15_000L,
+        categoryId = "cat-food",
+        date = Instant.parse("2026-08-01T00:00:00Z"),
+        addedByName = "Irul",
+        createdAt = Instant.parse("2026-08-01T00:00:00Z"),
+    )
+
+    private fun sampleEntity() = TransactionEntity(
+        id = "tx-1",
+        walletId = "wallet-1",
+        userId = "user-1",
+        familyId = null,
+        type = "expense",
+        amount = 15_000L,
+        categoryId = "cat-food",
+        note = null,
+        dateEpochMs = Instant.parse("2026-08-01T00:00:00Z").toEpochMilli(),
+        addedByName = "Irul",
+        syncStatus = "PENDING",
+        createdAtEpochMs = Instant.parse("2026-08-01T00:00:00Z").toEpochMilli(),
+    )
+}

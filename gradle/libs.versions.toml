@@ -32,6 +32,9 @@ kotlinxCoroutines = "1.9.0"
 androidxRoom = "2.7.2"
 androidxWork = "2.10.2"
 androidxHiltWork = "1.2.0"
+mockk = "1.13.16"
+turbine = "1.2.0"
+truth = "1.4.4"
 
 [libraries]
 androidx-datastore = { group = "androidx.datastore", name = "datastore", version.ref = "androidxDataStore" }
@@ -63,6 +66,10 @@ coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coi
 hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
 hilt-compiler = { group = "com.google.dagger", name = "hilt-compiler", version.ref = "hilt" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
+test-mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
+test-coroutines = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }
+test-turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }
+test-truth = { group = "com.google.truth", name = "truth", version.ref = "truth" }
 moshi-kotlin = { group = "com.squareup.moshi", name = "moshi-kotlin", version.ref = "moshi" }
 retrofit-core = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = "retrofit" }
 retrofit-moshi = { group = "com.squareup.retrofit2", name = "converter-moshi", version.ref = "retrofit" }
@@ -111,3 +118,6 @@ keutrack-library = { id = "keutrack.library" }
 keutrack-lib-compose = { id = "keutrack.lib.compose" }
 keutrack-lib-firebase = { id = "keutrack.lib.firebase" }
 keutrack-hilt = { id = "keutrack.hilt" }
+
+[bundles]
+unit-test = ["junit", "test-mockk", "test-coroutines", "test-turbine", "test-truth"]
