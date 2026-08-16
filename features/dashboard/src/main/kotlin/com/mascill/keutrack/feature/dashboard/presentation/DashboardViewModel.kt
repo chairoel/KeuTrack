@@ -53,6 +53,7 @@ class DashboardViewModel @Inject constructor(
     private val priorMonthKey = priorMonth.toString()
 
     private val _syncError = MutableStateFlow<String?>(null)
+    private val _isPersonalWalletSyncing = MutableStateFlow(false)
 
     val uiState: StateFlow<DashboardUIState> =
         combine(
@@ -61,8 +62,15 @@ class DashboardViewModel @Inject constructor(
                 familyRepository.observeCurrentFamily(),
                 observeWalletUiPreferences(),
                 _syncError,
-            ) { user, family, walletUiPreferences, syncError ->
-                DashboardSession(user, family, walletUiPreferences, syncError)
+                _isPersonalWalletSyncing,
+            ) { user, family, walletUiPreferences, syncError, isPersonalWalletSyncing ->
+                DashboardSession(
+                    user = user,
+                    family = family,
+                    walletUiPreferences = walletUiPreferences,
+                    syncError = syncError,
+                    isPersonalWalletSyncing = isPersonalWalletSyncing,
+                )
             },
             getWalletSummary(),
             getTransactions(GetTransactionsUseCase.Params(limit = RECENT_TX_LIMIT)),
@@ -103,6 +111,7 @@ class DashboardViewModel @Inject constructor(
                     ),
                 isPersonalBalanceVisible = session.walletUiPreferences.isPersonalBalanceVisible,
                 isFamilyBalanceVisible = session.walletUiPreferences.isFamilyBalanceVisible,
+                isPersonalWalletSyncing = session.isPersonalWalletSyncing,
             )
         }.catch { e ->
             emit(
@@ -123,6 +132,7 @@ class DashboardViewModel @Inject constructor(
      */
     fun onScreenRendered() {
         viewModelScope.launch(dispatcher.io) {
+            _isPersonalWalletSyncing.value = true
             try {
                 syncPersonalData()
                     .onFailure {
@@ -133,6 +143,8 @@ class DashboardViewModel @Inject constructor(
                 throw e
             } catch (_: Exception) {
                 _syncError.value = ERR_SYNC_PERSONAL
+            } finally {
+                _isPersonalWalletSyncing.value = false
             }
         }
     }
@@ -146,6 +158,7 @@ class DashboardViewModel @Inject constructor(
         val family: FamilyGroup?,
         val walletUiPreferences: WalletUiPreferences,
         val syncError: String?,
+        val isPersonalWalletSyncing: Boolean,
     )
 
     fun onTogglePersonalBalanceVisibility() {

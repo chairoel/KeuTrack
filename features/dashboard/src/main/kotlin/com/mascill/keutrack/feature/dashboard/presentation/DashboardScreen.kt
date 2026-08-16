@@ -188,6 +188,7 @@ fun DashboardScreen(
                                 balanceLabel = DASH_BALANCE_LABEL_PERSONAL,
                                 balanceAmount = CurrencyFormat.formatIdr(uiState.personalBalance),
                                 isBalanceVisible = uiState.isPersonalBalanceVisible,
+                                isLoading = uiState.isPersonalWalletSyncing,
                                 onToggleBalanceVisibility = onTogglePersonalBalanceVisibility,
                                 onHistoryClick = onViewAllPersonalHistory,
                             ) {

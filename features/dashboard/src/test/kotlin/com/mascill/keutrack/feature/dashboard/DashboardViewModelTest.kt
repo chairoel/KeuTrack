@@ -26,6 +26,7 @@ import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.runs
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -107,6 +108,34 @@ class DashboardViewModelTest {
 
             coVerify(exactly = 1) { syncPersonalData() }
             coVerify(exactly = 1) { retryPendingSync() }
+        }
+
+    @Test
+    fun `onScreenRendered shows personal wallet syncing then clears it`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            stubHappyPath()
+            val pullGate = CompletableDeferred<Unit>()
+            coEvery { syncPersonalData() } coAnswers {
+                pullGate.await()
+                Result.success(Unit)
+            }
+            coEvery { retryPendingSync() } just runs
+            val vm = createViewModel()
+
+            vm.uiState.test {
+                assertThat(awaitItem().isLoading).isTrue()
+                advanceUntilIdle()
+                assertThat(awaitItem().isPersonalWalletSyncing).isFalse()
+
+                vm.onScreenRendered()
+                advanceUntilIdle()
+                assertThat(awaitItem().isPersonalWalletSyncing).isTrue()
+
+                pullGate.complete(Unit)
+                advanceUntilIdle()
+                assertThat(awaitItem().isPersonalWalletSyncing).isFalse()
+                cancelAndIgnoreRemainingEvents()
+            }
         }
 
     @Test

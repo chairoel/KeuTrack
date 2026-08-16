@@ -20,4 +20,5 @@ data class DashboardUIState(
     val recentTransactions: List<TransactionRowUi> = emptyList(),
     val isPersonalBalanceVisible: Boolean = true,
     val isFamilyBalanceVisible: Boolean = true,
+    val isPersonalWalletSyncing: Boolean = false,
 )
