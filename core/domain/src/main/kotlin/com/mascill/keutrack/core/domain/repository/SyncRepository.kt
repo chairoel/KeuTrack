@@ -12,6 +12,13 @@ interface SyncRepository {
      */
     suspend fun syncFamilyData(familyId: String)
 
+    /**
+     * Pull the signed-in user's personal wallet + recent transactions into Room (Phase 10).
+     * Picks the oldest remote PERSONAL wallet as canonical. Skips overwrite when a local
+     * row for the same id is still PENDING. No-op when [userId] is blank.
+     */
+    suspend fun syncPersonalData(userId: String)
+
     /** True when any wallet, budget, or transaction is PENDING or FAILED. */
     suspend fun hasPendingSync(): Boolean
 

@@ -162,6 +162,184 @@ class SyncRepositoryImplTest {
         coVerify(exactly = 0) { walletRemote.setBalance(any(), any()) }
     }
 
+    @Test
+    fun `syncPersonalData is no-op when userId is blank`() = runTest {
+        repo.syncPersonalData("  ")
+
+        coVerify(exactly = 0) { walletRemote.getByOwnerId(any()) }
+        coVerify(exactly = 0) { transactionRemote.getByUserId(any(), any()) }
+    }
+
+    @Test
+    fun `syncPersonalData upserts canonical wallet and transactions`() = runTest {
+        val remoteWallet = personalWallet(id = "w-old", createdAt = Instant.parse("2026-01-01T00:00:00Z"))
+        val remoteTx = personalIncome(walletId = "w-old", amount = 50_000L)
+        stubPersonalPull(wallets = listOf(remoteWallet), txs = listOf(remoteTx))
+        coEvery { walletLocal.getById("w-old") } returns null
+        coEvery { walletLocal.getByType("personal") } returns emptyList()
+        coEvery { transactionLocal.getById(any()) } returns null
+
+        repo.syncPersonalData("user-1")
+
+        coVerify {
+            walletLocal.upsert(
+                match { entity ->
+                    entity.id == "w-old" &&
+                        entity.balance == 50_000L &&
+                        entity.syncStatus == SyncStatus.SYNCED.name
+                },
+            )
+        }
+        coVerify {
+            transactionLocal.upsert(match { it.id == "tx-personal" && it.syncStatus == "SYNCED" })
+        }
+    }
+
+    @Test
+    fun `syncPersonalData skips wallet overwrite when local is PENDING`() = runTest {
+        stubPersonalPull(
+            wallets = listOf(personalWallet(id = "w-old")),
+            txs = emptyList(),
+        )
+        coEvery { walletLocal.getById("w-old") } returns pendingWallet().copy(id = "w-old")
+        coEvery { walletLocal.getByType("personal") } returns emptyList()
+
+        repo.syncPersonalData("user-1")
+
+        coVerify(exactly = 0) { walletLocal.upsert(any()) }
+        coVerify(exactly = 0) { walletRemote.setBalance(any(), any()) }
+    }
+
+    @Test
+    fun `syncPersonalData picks oldest remote personal as canonical`() = runTest {
+        val older = personalWallet(
+            id = "w-old",
+            createdAt = Instant.parse("2026-01-01T00:00:00Z"),
+            balance = 10_000L,
+        )
+        val newer = personalWallet(
+            id = "w-new",
+            createdAt = Instant.parse("2026-08-01T00:00:00Z"),
+            balance = 0L,
+        )
+        stubPersonalPull(
+            wallets = listOf(newer, older),
+            txs = listOf(personalIncome(walletId = "w-old", amount = 10_000L)),
+        )
+        coEvery { walletLocal.getById("w-old") } returns null
+        coEvery { walletLocal.getByType("personal") } returns emptyList()
+        coEvery { transactionLocal.getById(any()) } returns null
+
+        repo.syncPersonalData("user-1")
+
+        coVerify {
+            walletLocal.upsert(match { it.id == "w-old" && it.balance == 10_000L })
+        }
+        coVerify(exactly = 0) { walletLocal.upsert(match { it.id == "w-new" }) }
+    }
+
+    @Test
+    fun `syncPersonalData deletes extra local personal without pending txs`() = runTest {
+        val canonical = personalWallet(
+            id = "w-old",
+            createdAt = Instant.parse("2026-01-01T00:00:00Z"),
+        )
+        stubPersonalPull(wallets = listOf(canonical), txs = emptyList())
+        coEvery { walletLocal.getById("w-old") } returns null
+        coEvery { walletLocal.getByType("personal") } returns listOf(
+            pendingWallet().copy(id = "w-new", balance = 0L),
+        )
+
+        repo.syncPersonalData("user-1")
+
+        coVerify { walletLocal.delete("w-new") }
+        coVerify(exactly = 0) { walletLocal.delete("w-old") }
+    }
+
+    @Test
+    fun `syncPersonalData keeps extra local personal that has pending txs`() = runTest {
+        val canonical = personalWallet(id = "w-old")
+        stubPersonalPull(wallets = listOf(canonical), txs = emptyList())
+        coEvery { transactionLocal.getPending() } returns
+            listOf(pendingTransaction(walletId = "w-new"))
+        coEvery { walletLocal.getById("w-old") } returns null
+        coEvery { walletLocal.getByType("personal") } returns listOf(
+            pendingWallet().copy(id = "w-new"),
+        )
+
+        repo.syncPersonalData("user-1")
+
+        coVerify(exactly = 0) { walletLocal.delete("w-new") }
+    }
+
+    @Test
+    fun `syncPersonalData recomputes balance from pulled transactions`() = runTest {
+        val remoteWallet = personalWallet(id = "w-old", balance = 99_000L)
+        stubPersonalPull(
+            wallets = listOf(remoteWallet),
+            txs = listOf(
+                personalIncome(walletId = "w-old", amount = 50_000L),
+                personalExpense(walletId = "w-old", amount = 10_000L),
+            ),
+        )
+        coEvery { walletLocal.getById("w-old") } returns null
+        coEvery { walletLocal.getByType("personal") } returns emptyList()
+        coEvery { transactionLocal.getById(any()) } returns null
+        coEvery { walletRemote.setBalance(any(), any()) } just runs
+
+        repo.syncPersonalData("user-1")
+
+        coVerify {
+            walletLocal.upsert(match { it.id == "w-old" && it.balance == 40_000L })
+        }
+        coVerify { walletRemote.setBalance("w-old", 40_000L) }
+    }
+
+    @Test
+    fun `syncPersonalData rebuilds category summary for pulled periods`() = runTest {
+        val remoteWallet = personalWallet(id = "w-old")
+        stubPersonalPull(
+            wallets = listOf(remoteWallet),
+            txs = listOf(
+                personalIncome(
+                    walletId = "w-old",
+                    amount = 50_000L,
+                    date = Instant.parse("2026-08-16T12:00:00Z"),
+                ),
+                personalExpense(
+                    walletId = "w-old",
+                    amount = 10_000L,
+                    date = Instant.parse("2026-08-16T15:00:00Z"),
+                ),
+            ),
+        )
+        coEvery { walletLocal.getById("w-old") } returns null
+        coEvery { walletLocal.getByType("personal") } returns emptyList()
+        coEvery { transactionLocal.getById(any()) } returns null
+
+        repo.syncPersonalData("user-1")
+
+        coVerify {
+            summaryLocal.upsert(
+                match { entity ->
+                    entity.period == "2026-08" &&
+                        entity.userId == "user-1" &&
+                        entity.totalIncome == 50_000L &&
+                        entity.totalExpense == 10_000L
+                },
+            )
+        }
+    }
+
+    private fun stubPersonalPull(
+        wallets: List<Wallet>,
+        txs: List<Transaction>,
+    ) {
+        coEvery { walletRemote.getByOwnerId("user-1") } returns wallets
+        coEvery { transactionRemote.getByUserId("user-1", limit = 200) } returns txs
+        coEvery { transactionLocal.getPending() } returns emptyList()
+    }
+
     private fun pendingWallet() = WalletEntity(
         id = "w-1",
         ownerId = "user-1",
@@ -210,6 +388,54 @@ class SyncRepositoryImplTest {
         amount = amount,
         categoryId = "cat_gaji",
         date = Instant.parse("2026-08-16T10:22:00Z"),
+        addedByName = "Irul",
+        syncStatus = SyncStatus.SYNCED,
+    )
+
+    private fun personalWallet(
+        id: String,
+        balance: Long = 0L,
+        createdAt: Instant = Instant.parse("2026-01-01T00:00:00Z"),
+    ) = Wallet(
+        id = id,
+        ownerId = "user-1",
+        familyId = null,
+        name = "Dompet Utama",
+        type = WalletType.PERSONAL,
+        balance = balance,
+        createdAt = createdAt,
+    )
+
+    private fun personalIncome(
+        walletId: String,
+        amount: Long,
+        date: Instant = Instant.parse("2026-08-16T10:22:00Z"),
+    ) = Transaction(
+        id = "tx-personal",
+        walletId = walletId,
+        userId = "user-1",
+        familyId = null,
+        type = TransactionType.INCOME,
+        amount = amount,
+        categoryId = "cat_gaji",
+        date = date,
+        addedByName = "Irul",
+        syncStatus = SyncStatus.SYNCED,
+    )
+
+    private fun personalExpense(
+        walletId: String,
+        amount: Long,
+        date: Instant = Instant.parse("2026-08-16T10:22:00Z"),
+    ) = Transaction(
+        id = "tx-personal-exp",
+        walletId = walletId,
+        userId = "user-1",
+        familyId = null,
+        type = TransactionType.EXPENSE,
+        amount = amount,
+        categoryId = "cat_makan",
+        date = date,
         addedByName = "Irul",
         syncStatus = SyncStatus.SYNCED,
     )

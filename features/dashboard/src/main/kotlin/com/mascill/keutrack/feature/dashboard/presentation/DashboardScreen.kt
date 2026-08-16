@@ -81,7 +81,7 @@ fun DashboardRouting(
         onTogglePersonalBalanceVisibility = viewModel::onTogglePersonalBalanceVisibility,
         onToggleFamilyBalanceVisibility = viewModel::onToggleFamilyBalanceVisibility,
         onFabClick = onAddTransaction,
-        onDismissError = { /* error is one-shot from flow; next emit clears */ },
+        onDismissError = viewModel::dismissError,
     )
 }
 

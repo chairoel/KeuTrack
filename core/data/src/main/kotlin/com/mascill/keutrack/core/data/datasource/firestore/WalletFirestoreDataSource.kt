@@ -52,6 +52,21 @@ class WalletFirestoreDataSource @Inject constructor(
     }
 
     /**
+     * Pull wallets owned by [ownerId] (equality-only; filter `type` on the client).
+     */
+    suspend fun getByOwnerId(ownerId: String): List<Wallet> {
+        val snapshot =
+            firestore.collection(COLLECTION_WALLETS)
+                .whereEqualTo(FIELD_OWNER_ID, ownerId)
+                .get()
+                .await()
+        return snapshot.documents.mapNotNull { doc ->
+            val data = doc.data ?: return@mapNotNull null
+            fromSnapshot(doc.id, data)
+        }
+    }
+
+    /**
      * Pull wallets shared for a family (canonical family wallet expected: 0–1 docs).
      */
     suspend fun getByFamilyId(familyId: String): List<Wallet> {

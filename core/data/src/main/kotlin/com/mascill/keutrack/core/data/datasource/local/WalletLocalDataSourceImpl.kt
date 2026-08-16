@@ -20,6 +20,8 @@ class WalletLocalDataSourceImpl @Inject constructor(
 
     override suspend fun getPersonal(): WalletEntity? = dao.getPersonal()
 
+    override suspend fun getByType(type: String): List<WalletEntity> = dao.getByType(type)
+
     override suspend fun getByFamilyId(familyId: String): List<WalletEntity> =
         dao.getByFamilyId(familyId)
 

@@ -15,6 +15,7 @@ import com.mascill.keutrack.core.domain.usecase.MonthlySummaryResult
 import com.mascill.keutrack.core.domain.usecase.ObserveWalletUiPreferencesUseCase
 import com.mascill.keutrack.core.domain.usecase.RetryPendingSyncUseCase
 import com.mascill.keutrack.core.domain.usecase.SetWalletBalanceVisibilityUseCase
+import com.mascill.keutrack.core.domain.usecase.SyncPersonalDataUseCase
 import com.mascill.keutrack.core.domain.usecase.WalletSummary
 import com.mascill.keutrack.core.testing.MainDispatcherRule
 import com.mascill.keutrack.core.testing.testCommonDispatcher
@@ -47,6 +48,7 @@ class DashboardViewModelTest {
     private val observeWalletUiPreferences = mockk<ObserveWalletUiPreferencesUseCase>()
     private val setWalletBalanceVisibility = mockk<SetWalletBalanceVisibilityUseCase>()
     private val retryPendingSync = mockk<RetryPendingSyncUseCase>()
+    private val syncPersonalData = mockk<SyncPersonalDataUseCase>()
 
     @Test
     fun `initial state is loading`() = runTest(mainDispatcherRule.testDispatcher) {
@@ -93,16 +95,34 @@ class DashboardViewModelTest {
         }
 
     @Test
-    fun `onScreenRendered retries pending sync`() = runTest(mainDispatcherRule.testDispatcher) {
-        stubHappyPath()
-        coEvery { retryPendingSync() } just runs
-        val vm = createViewModel()
+    fun `onScreenRendered pulls personal data then retries pending sync`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            stubHappyPath()
+            coEvery { syncPersonalData() } returns Result.success(Unit)
+            coEvery { retryPendingSync() } just runs
+            val vm = createViewModel()
 
-        vm.onScreenRendered()
-        advanceUntilIdle()
+            vm.onScreenRendered()
+            advanceUntilIdle()
 
-        coVerify(exactly = 1) { retryPendingSync() }
-    }
+            coVerify(exactly = 1) { syncPersonalData() }
+            coVerify(exactly = 1) { retryPendingSync() }
+        }
+
+    @Test
+    fun `onScreenRendered still retries push when personal pull fails`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            stubHappyPath()
+            coEvery { syncPersonalData() } returns Result.failure(IllegalStateException("offline"))
+            coEvery { retryPendingSync() } just runs
+            val vm = createViewModel()
+
+            vm.onScreenRendered()
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { syncPersonalData() }
+            coVerify(exactly = 1) { retryPendingSync() }
+        }
 
     private fun stubHappyPath() {
         every { userRepo.getCurrentUser() } returns flowOf(
@@ -135,6 +155,7 @@ class DashboardViewModelTest {
         observeWalletUiPreferences = observeWalletUiPreferences,
         setWalletBalanceVisibility = setWalletBalanceVisibility,
         retryPendingSync = retryPendingSync,
+        syncPersonalData = syncPersonalData,
         dispatcher = testCommonDispatcher(mainDispatcherRule.testDispatcher),
     )
 }
