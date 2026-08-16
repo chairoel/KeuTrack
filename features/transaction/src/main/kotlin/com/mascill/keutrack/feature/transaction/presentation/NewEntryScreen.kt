@@ -15,9 +15,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.runtime.Composable
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,9 +62,16 @@ fun NewEntryScreen(
     val pageBg = KeuTrackTheme.contentColors.pageColor
     val semantic = KeuTrackTheme.semanticColors
 
-    var showWalletPicker by remember { mutableStateOf(false) }
-    var showDatePicker by remember { mutableStateOf(false) }
-    var showCategorySeeAll by remember { mutableStateOf(false) }
+    var showWalletPicker by rememberSaveable { mutableStateOf(false) }
+    var showDatePicker by rememberSaveable { mutableStateOf(false) }
+    var showCategorySeeAll by rememberSaveable { mutableStateOf(false) }
+
+    val overlayOpen = showWalletPicker || showDatePicker || showCategorySeeAll
+    BackHandler(enabled = overlayOpen) {
+        showWalletPicker = false
+        showDatePicker = false
+        showCategorySeeAll = false
+    }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),

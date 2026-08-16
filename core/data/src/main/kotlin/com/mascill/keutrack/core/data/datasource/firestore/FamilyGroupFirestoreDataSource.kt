@@ -53,6 +53,20 @@ class FamilyGroupFirestoreDataSource @Inject constructor(
             .await()
     }
 
+    suspend fun removeMember(familyId: String, userId: String) {
+        firestore.collection(COLLECTION_FAMILY_GROUPS)
+            .document(familyId)
+            .update(FIELD_MEMBER_IDS, FieldValue.arrayRemove(userId))
+            .await()
+    }
+
+    suspend fun deleteFamily(familyId: String) {
+        firestore.collection(COLLECTION_FAMILY_GROUPS)
+            .document(familyId)
+            .delete()
+            .await()
+    }
+
     fun observeFamily(familyId: String): Flow<FamilyGroup?> =
         callbackFlow {
             val registration =

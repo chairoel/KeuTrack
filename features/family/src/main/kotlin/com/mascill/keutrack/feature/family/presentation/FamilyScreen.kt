@@ -22,9 +22,11 @@ import androidx.compose.material.Text
 import androidx.compose.material.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -113,7 +115,13 @@ fun FamilyScreen(
     val pageBg = KeuTrackTheme.contentColors.pageColor
     val semantic = KeuTrackTheme.semanticColors
     var heroWidth by remember { mutableStateOf(0.dp) }
-    var dialogMode by remember { mutableStateOf<FamilyMembershipDialogMode?>(null) }
+    var dialogMode by rememberSaveable { mutableStateOf<FamilyMembershipDialogMode?>(null) }
+
+    BackHandler(enabled = dialogMode != null) {
+        if (!uiState.isMembershipLoading) {
+            dialogMode = null
+        }
+    }
 
     LaunchedEffect(uiState.isMembershipLoading, uiState.showJoinBanner) {
         if (dialogMode != null && !uiState.isMembershipLoading && !uiState.showJoinBanner) {

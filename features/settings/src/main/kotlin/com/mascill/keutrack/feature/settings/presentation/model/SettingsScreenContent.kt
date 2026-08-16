@@ -17,6 +17,7 @@ enum class ConnectedWalletStatusKind {
 }
 
 data class ConnectedWalletUi(
+    val id: String,
     val title: String,
     val subtitle: String,
     val amountLabel: String,
@@ -26,15 +27,28 @@ data class ConnectedWalletUi(
     val leadingAccent: Boolean = false,
 )
 
+/**
+ * Preview-only fixture. Runtime Settings must use [SettingsUIState] from the ViewModel.
+ */
 data class SettingsScreenContent(
     val profile: SettingsProfileUi,
     val familyNetworkActive: Boolean,
     val familyIdCode: String,
-    val primaryCurrencyOptions: List<String>,
-    val primaryCurrencySelected: String,
     val connectedWallets: List<ConnectedWalletUi>,
     val sheetsSyncEnabled: Boolean,
 )
+
+fun SettingsScreenContent.toPreviewUiState(): SettingsUIState =
+    SettingsUIState(
+        isLoading = false,
+        profile = profile,
+        familyNetworkActive = familyNetworkActive,
+        familyIdCode = familyIdCode,
+        familyDisplayName = if (familyNetworkActive) "Keluarga Preview" else null,
+        familyRoleLabel = if (familyNetworkActive) "OWNER" else null,
+        connectedWallets = connectedWallets,
+        sheetsSyncEnabled = sheetsSyncEnabled,
+    )
 
 val DefaultSettingsMockContent =
     SettingsScreenContent(
@@ -46,11 +60,10 @@ val DefaultSettingsMockContent =
             ),
         familyNetworkActive = true,
         familyIdCode = "KEU-992-KRT",
-        primaryCurrencyOptions = listOf("IDR", "USD", "EUR"),
-        primaryCurrencySelected = "IDR",
         connectedWallets =
             listOf(
                 ConnectedWalletUi(
+                    id = "preview-personal",
                     title = "Main Savings",
                     subtitle = "Personal",
                     amountLabel = "Rp 12.450.000",
@@ -60,6 +73,7 @@ val DefaultSettingsMockContent =
                     leadingAccent = false,
                 ),
                 ConnectedWalletUi(
+                    id = "preview-family",
                     title = "Emergency Fund",
                     subtitle = "Family Vault",
                     amountLabel = "Rp 45.000.000",
@@ -69,5 +83,5 @@ val DefaultSettingsMockContent =
                     leadingAccent = true,
                 ),
             ),
-        sheetsSyncEnabled = true,
+        sheetsSyncEnabled = false,
     )

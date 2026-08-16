@@ -1,5 +1,6 @@
 package com.mascill.keutrack.navigation
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.Scaffold
@@ -60,6 +61,17 @@ private fun HomeShellContent(
         ?.navItem?.key
         ?: HomeNavDestination.DASHBOARD.navItem.key
 
+    val isDashboardSelected = selectedKey == HomeNavDestination.DASHBOARD.navItem.key
+    BackHandler(enabled = !isDashboardSelected) {
+        homeNavController.navigate(DashboardRoute) {
+            popUpTo(homeNavController.graph.findStartDestination().id) {
+                saveState = true
+            }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
+
     Scaffold(
         bottomBar = {
             KeuTrackBottomNav(
@@ -110,6 +122,10 @@ private fun HomeNavHost(
         navController = navController,
         startDestination = DashboardRoute,
         modifier = modifier,
+        enterTransition = { NavTransitions.tabFadeIn },
+        exitTransition = { NavTransitions.tabFadeOut },
+        popEnterTransition = { NavTransitions.tabFadeIn },
+        popExitTransition = { NavTransitions.tabFadeOut },
     ) {
         dashboardGraph(
             onSettingsClick = {

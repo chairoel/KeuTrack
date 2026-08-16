@@ -37,6 +37,7 @@ fun SettingsFamilyIdHeroCard(
     familyIdCode: String,
     onCopyClick: () -> Unit,
     modifier: Modifier = Modifier,
+    copyEnabled: Boolean = true,
 ) {
     val semantic = KeuTrackTheme.semanticColors
     val typography = KeuTrackTheme.typography
@@ -74,26 +75,28 @@ fun SettingsFamilyIdHeroCard(
             style = typography.headingBold24,
             color = neutral.white,
         )
-        Spacer(modifier = Modifier.height(SETTINGS_FAMILY_COPY_PT.dp))
-        Row(
-            modifier =
-                Modifier
-                    .clip(RoundedCornerShape(shapes.radiusMd))
-                    .clickable(onClick = onCopyClick)
-                    .padding(vertical = SETTINGS_FAMILY_COPY_PV.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.ContentCopy,
-                contentDescription = null,
-                tint = neutral.white
-            )
-            Spacer(modifier = Modifier.width(SETTINGS_FAMILY_COPY_ICON_PS.dp))
-            Text(
-                text = SETTINGS_FAMILY_COPY_LABEL,
-                style = typography.bodyBold14,
-                color = neutral.white,
-            )
+        if (copyEnabled) {
+            Spacer(modifier = Modifier.height(SETTINGS_FAMILY_COPY_PT.dp))
+            Row(
+                modifier =
+                    Modifier
+                        .clip(RoundedCornerShape(shapes.radiusMd))
+                        .clickable(onClick = onCopyClick)
+                        .padding(vertical = SETTINGS_FAMILY_COPY_PV.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.ContentCopy,
+                    contentDescription = null,
+                    tint = neutral.white
+                )
+                Spacer(modifier = Modifier.width(SETTINGS_FAMILY_COPY_ICON_PS.dp))
+                Text(
+                    text = SETTINGS_FAMILY_COPY_LABEL,
+                    style = typography.bodyBold14,
+                    color = neutral.white,
+                )
+            }
         }
     }
 }
