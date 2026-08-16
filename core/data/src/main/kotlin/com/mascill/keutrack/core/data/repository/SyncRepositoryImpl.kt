@@ -15,6 +15,7 @@ import com.mascill.keutrack.core.data.mapper.WalletMapper
 import com.mascill.keutrack.core.data.sync.SyncScheduler
 import com.mascill.keutrack.core.domain.model.CategorySummary
 import com.mascill.keutrack.core.domain.model.SyncStatus
+import com.mascill.keutrack.core.domain.model.Transaction
 import com.mascill.keutrack.core.domain.model.TransactionType
 import com.mascill.keutrack.core.domain.model.WalletType
 import com.mascill.keutrack.core.domain.repository.SyncRepository
@@ -47,7 +48,11 @@ class SyncRepositoryImpl @Inject constructor(
             walletLocal.getPending().forEach { entity ->
                 try {
                     walletRemote.upsertWallet(walletMapper.toDomain(entity))
-                    walletLocal.updateSyncStatus(entity.id, SyncStatus.SYNCED)
+                    val hasPendingTx =
+                        transactionLocal.getPending().any { it.walletId == entity.id }
+                    if (!hasPendingTx) {
+                        walletLocal.updateSyncStatus(entity.id, SyncStatus.SYNCED)
+                    }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (_: Exception) {
@@ -124,6 +129,7 @@ class SyncRepositoryImpl @Inject constructor(
                     )
                     summaryRemote.upsertSummary(summary)
                     transactionLocal.updateSyncStatus(entity.id, SyncStatus.SYNCED)
+                    walletLocal.updateSyncStatus(transaction.walletId, SyncStatus.SYNCED)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (_: Exception) {
@@ -153,14 +159,40 @@ class SyncRepositoryImpl @Inject constructor(
             if (familyId.isBlank()) return
 
             val remoteWallets = walletRemote.getByFamilyId(familyId)
+            val remoteTransactions =
+                transactionRemote.getByFamilyId(familyId, limit = FAMILY_TX_PULL_LIMIT)
+            val pendingWalletIds =
+                transactionLocal.getPending().map { it.walletId }.toSet()
+
             remoteWallets.forEach { wallet ->
                 val existing = walletLocal.getById(wallet.id)
                 if (existing != null && existing.syncStatus == SyncStatus.PENDING.name) {
                     return@forEach
                 }
+                if (wallet.id in pendingWalletIds) {
+                    return@forEach
+                }
+                val computedBalance =
+                    remoteTransactions
+                        .filter { it.walletId == wallet.id }
+                        .sumOf { walletDeltaFor(it) }
                 walletLocal.upsert(
-                    walletMapper.toEntity(wallet.copy(syncStatus = SyncStatus.SYNCED)),
+                    walletMapper.toEntity(
+                        wallet.copy(
+                            balance = computedBalance,
+                            syncStatus = SyncStatus.SYNCED,
+                        ),
+                    ),
                 )
+                if (wallet.balance != computedBalance) {
+                    try {
+                        walletRemote.setBalance(wallet.id, computedBalance)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (_: Exception) {
+                        // Local is already corrected; remote can catch up on the next pull.
+                    }
+                }
             }
 
             // Keep one canonical wallet locally (oldest FAMILY). Drop extras even if remote
@@ -177,8 +209,6 @@ class SyncRepositoryImpl @Inject constructor(
                 }
             }
 
-            val remoteTransactions =
-                transactionRemote.getByFamilyId(familyId, limit = FAMILY_TX_PULL_LIMIT)
             remoteTransactions.forEach { transaction ->
                 val existing = transactionLocal.getById(transaction.id)
                 if (existing != null && existing.syncStatus == SyncStatus.PENDING.name) {
@@ -203,6 +233,12 @@ class SyncRepositoryImpl @Inject constructor(
     override fun enqueuePendingSync(force: Boolean) {
         syncScheduler.enqueueSync(force = force)
     }
+
+    private fun walletDeltaFor(transaction: Transaction): Long =
+        when (transaction.type) {
+            TransactionType.INCOME -> transaction.amount
+            TransactionType.EXPENSE -> -transaction.amount
+        }
 
     private companion object {
         val MONTH_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM")

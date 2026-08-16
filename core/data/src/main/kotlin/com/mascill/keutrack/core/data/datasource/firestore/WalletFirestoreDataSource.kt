@@ -2,6 +2,7 @@ package com.mascill.keutrack.core.data.datasource.firestore
 
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import com.mascill.keutrack.core.domain.model.SyncStatus
 import com.mascill.keutrack.core.domain.model.Wallet
 import com.mascill.keutrack.core.domain.model.WalletType
@@ -16,23 +17,37 @@ class WalletFirestoreDataSource @Inject constructor(
     private val firestore: FirebaseFirestore,
 ) {
 
+    /**
+     * Pushes wallet metadata. Remote balance is owned by transaction increment
+     * side-effects — writing the local (already incremented) balance here would
+     * double-count after the transaction sync.
+     */
     suspend fun upsertWallet(wallet: Wallet) {
-        firestore.collection(COLLECTION_WALLETS)
-            .document(wallet.id)
-            .set(
-                mapOf(
-                    FIELD_ID to wallet.id,
-                    FIELD_OWNER_ID to wallet.ownerId,
-                    FIELD_FAMILY_ID to wallet.familyId,
-                    FIELD_NAME to wallet.name,
-                    FIELD_TYPE to wallet.type.value,
-                    FIELD_BALANCE to wallet.balance,
-                    FIELD_CURRENCY to wallet.currency,
-                    FIELD_ICON to wallet.icon,
-                    FIELD_COLOR to wallet.color,
-                    FIELD_CREATED_AT to Timestamp(Date.from(wallet.createdAt)),
-                ),
+        val ref = firestore.collection(COLLECTION_WALLETS).document(wallet.id)
+        val snapshot = ref.get().await()
+        val metadata =
+            mapOf(
+                FIELD_ID to wallet.id,
+                FIELD_OWNER_ID to wallet.ownerId,
+                FIELD_FAMILY_ID to wallet.familyId,
+                FIELD_NAME to wallet.name,
+                FIELD_TYPE to wallet.type.value,
+                FIELD_CURRENCY to wallet.currency,
+                FIELD_ICON to wallet.icon,
+                FIELD_COLOR to wallet.color,
+                FIELD_CREATED_AT to Timestamp(Date.from(wallet.createdAt)),
             )
+        if (snapshot.exists()) {
+            ref.set(metadata, SetOptions.merge()).await()
+        } else {
+            ref.set(metadata + (FIELD_BALANCE to 0L)).await()
+        }
+    }
+
+    suspend fun setBalance(walletId: String, balance: Long) {
+        firestore.collection(COLLECTION_WALLETS)
+            .document(walletId)
+            .update(FIELD_BALANCE, balance)
             .await()
     }
 
