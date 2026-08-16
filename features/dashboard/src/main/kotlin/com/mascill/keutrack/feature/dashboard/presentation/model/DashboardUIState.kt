@@ -18,4 +18,6 @@ data class DashboardUIState(
     val incomeTotal: Long = 0L,
     val expenseTotal: Long = 0L,
     val recentTransactions: List<TransactionRowUi> = emptyList(),
+    val isPersonalBalanceVisible: Boolean = true,
+    val isFamilyBalanceVisible: Boolean = true,
 )

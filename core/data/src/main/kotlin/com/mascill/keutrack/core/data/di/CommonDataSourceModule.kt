@@ -4,6 +4,8 @@ import com.mascill.keutrack.core.data.datasource.AuthNetworkDataSource
 import com.mascill.keutrack.core.data.datasource.AuthNetworkDataSourceImpl
 import com.mascill.keutrack.core.data.datasource.UserProfileLocalDataSource
 import com.mascill.keutrack.core.data.datasource.UserProfileLocalDataSourceImpl
+import com.mascill.keutrack.core.data.datasource.WalletUiPreferencesLocalDataSource
+import com.mascill.keutrack.core.data.datasource.WalletUiPreferencesLocalDataSourceImpl
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -29,4 +31,9 @@ interface CommonDataSourceModule {
     fun bindUserProfileLocalDataSource(
         impl: UserProfileLocalDataSourceImpl
     ): UserProfileLocalDataSource
+
+    @Binds
+    fun bindWalletUiPreferencesLocalDataSource(
+        impl: WalletUiPreferencesLocalDataSourceImpl,
+    ): WalletUiPreferencesLocalDataSource
 }

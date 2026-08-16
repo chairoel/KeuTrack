@@ -28,11 +28,7 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.ripple
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -96,6 +92,8 @@ fun WalletSummaryCard(
     balanceLabel: String,
     balanceAmount: String,
     modifier: Modifier = Modifier,
+    isBalanceVisible: Boolean = true,
+    onToggleBalanceVisibility: () -> Unit = {},
     onHistoryClick: () -> Unit = {},
     footer: @Composable ColumnScope.() -> Unit,
 ) {
@@ -106,6 +104,8 @@ fun WalletSummaryCard(
                     kind = kind,
                     balanceLabel = balanceLabel,
                     balanceAmount = balanceAmount,
+                    isBalanceVisible = isBalanceVisible,
+                    onToggleBalanceVisibility = onToggleBalanceVisibility,
                     onHistoryClick = onHistoryClick,
                     footer = footer,
                 )
@@ -122,6 +122,8 @@ fun WalletSummaryCard(
                         kind = kind,
                         balanceLabel = balanceLabel,
                         balanceAmount = balanceAmount,
+                        isBalanceVisible = isBalanceVisible,
+                        onToggleBalanceVisibility = onToggleBalanceVisibility,
                         onHistoryClick = onHistoryClick,
                         footer = footer,
                     )
@@ -161,6 +163,8 @@ private fun ColumnScope.WalletSummaryCardBody(
     kind: WalletSummaryCardKind,
     balanceLabel: String,
     balanceAmount: String,
+    isBalanceVisible: Boolean,
+    onToggleBalanceVisibility: () -> Unit,
     onHistoryClick: () -> Unit,
     footer: @Composable ColumnScope.() -> Unit,
 ) {
@@ -168,7 +172,6 @@ private fun ColumnScope.WalletSummaryCardBody(
     val typography = KeuTrackTheme.typography
     val neutral = KeuTrackTheme.neutralColors
     val textColors = KeuTrackTheme.textColors
-    var isBalanceVisible by rememberSaveable { mutableStateOf(true) }
 
     val (headerIcon, headerTitle, labelColor, amountColor) =
         when (kind) {
@@ -220,7 +223,7 @@ private fun ColumnScope.WalletSummaryCardBody(
             )
             Text(
                 text = headerTitle,
-                style = typography.bodyBold10,
+                style = typography.bodyBold12,
                 color = headerTitleColor,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -228,7 +231,7 @@ private fun ColumnScope.WalletSummaryCardBody(
             WalletVisibilityToggle(
                 isBalanceVisible = isBalanceVisible,
                 tint = headerTitleColor,
-                onClick = { isBalanceVisible = !isBalanceVisible },
+                onClick = onToggleBalanceVisibility,
             )
         }
         WalletHistoryChip(

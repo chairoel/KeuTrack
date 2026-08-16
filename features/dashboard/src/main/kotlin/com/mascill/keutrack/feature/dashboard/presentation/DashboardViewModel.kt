@@ -3,13 +3,16 @@ package com.mascill.keutrack.feature.dashboard.presentation
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mascill.keutrack.core.common.utils.CommonDispatcher
+import com.mascill.keutrack.core.domain.model.WalletType
 import com.mascill.keutrack.core.domain.repository.FamilyRepository
 import com.mascill.keutrack.core.domain.repository.UserRepository
 import com.mascill.keutrack.core.domain.usecase.GetCategoriesUseCase
 import com.mascill.keutrack.core.domain.usecase.GetMonthlySummaryUseCase
 import com.mascill.keutrack.core.domain.usecase.GetTransactionsUseCase
 import com.mascill.keutrack.core.domain.usecase.GetWalletSummaryUseCase
+import com.mascill.keutrack.core.domain.usecase.ObserveWalletUiPreferencesUseCase
 import com.mascill.keutrack.core.domain.usecase.RetryPendingSyncUseCase
+import com.mascill.keutrack.core.domain.usecase.SetWalletBalanceVisibilityUseCase
 import com.mascill.keutrack.feature.dashboard.presentation.model.DashboardUIState
 import com.mascill.keutrack.feature.dashboard.presentation.model.DashboardUiMapper
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -31,6 +34,8 @@ class DashboardViewModel @Inject constructor(
     getTransactions: GetTransactionsUseCase,
     getMonthlySummary: GetMonthlySummaryUseCase,
     getCategories: GetCategoriesUseCase,
+    observeWalletUiPreferences: ObserveWalletUiPreferencesUseCase,
+    private val setWalletBalanceVisibility: SetWalletBalanceVisibilityUseCase,
     private val retryPendingSync: RetryPendingSyncUseCase,
     private val dispatcher: CommonDispatcher,
 ) : ViewModel() {
@@ -45,7 +50,8 @@ class DashboardViewModel @Inject constructor(
             combine(
                 userRepository.getCurrentUser(),
                 familyRepository.observeCurrentFamily(),
-                ::Pair,
+                observeWalletUiPreferences(),
+                ::Triple,
             ),
             getWalletSummary(),
             getTransactions(GetTransactionsUseCase.Params(limit = RECENT_TX_LIMIT)),
@@ -54,8 +60,8 @@ class DashboardViewModel @Inject constructor(
                 trendMonths = listOf(priorMonthKey),
             ),
             getCategories(),
-        ) { userAndFamily, walletSummary, transactions, monthlySummary, categories ->
-            val (user, family) = userAndFamily
+        ) { userFamilyPrefs, walletSummary, transactions, monthlySummary, categories ->
+            val (user, family, walletUiPreferences) = userFamilyPrefs
             val categoriesById = categories.associateBy { it.id }
             val walletTypes = DashboardUiMapper.mapWalletTypes(walletSummary)
             val prior =
@@ -84,6 +90,8 @@ class DashboardViewModel @Inject constructor(
                         categoriesById = categoriesById,
                         walletsById = walletTypes,
                     ),
+                isPersonalBalanceVisible = walletUiPreferences.isPersonalBalanceVisible,
+                isFamilyBalanceVisible = walletUiPreferences.isFamilyBalanceVisible,
             )
         }.catch { e ->
             emit(
@@ -110,6 +118,35 @@ class DashboardViewModel @Inject constructor(
                 throw e
             } catch (_: Exception) {
                 // Best-effort; UI already shows local sync badges.
+            }
+        }
+    }
+
+    fun onTogglePersonalBalanceVisibility() {
+        persistBalanceVisibility(
+            walletType = WalletType.PERSONAL,
+            visible = !uiState.value.isPersonalBalanceVisible,
+        )
+    }
+
+    fun onToggleFamilyBalanceVisibility() {
+        persistBalanceVisibility(
+            walletType = WalletType.FAMILY,
+            visible = !uiState.value.isFamilyBalanceVisible,
+        )
+    }
+
+    private fun persistBalanceVisibility(
+        walletType: WalletType,
+        visible: Boolean,
+    ) {
+        viewModelScope.launch(dispatcher.io) {
+            try {
+                setWalletBalanceVisibility(walletType = walletType, visible = visible)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // Best-effort local preference; next emit keeps last stored value.
             }
         }
     }

@@ -8,9 +8,13 @@ import com.mascill.keutrack.core.domain.repository.UserRepository
 import com.mascill.keutrack.core.domain.usecase.GetCategoriesUseCase
 import com.mascill.keutrack.core.domain.usecase.GetMonthlySummaryUseCase
 import com.mascill.keutrack.core.domain.usecase.GetTransactionsUseCase
+import com.mascill.keutrack.core.domain.model.WalletType
+import com.mascill.keutrack.core.domain.model.WalletUiPreferences
 import com.mascill.keutrack.core.domain.usecase.GetWalletSummaryUseCase
 import com.mascill.keutrack.core.domain.usecase.MonthlySummaryResult
+import com.mascill.keutrack.core.domain.usecase.ObserveWalletUiPreferencesUseCase
 import com.mascill.keutrack.core.domain.usecase.RetryPendingSyncUseCase
+import com.mascill.keutrack.core.domain.usecase.SetWalletBalanceVisibilityUseCase
 import com.mascill.keutrack.core.domain.usecase.WalletSummary
 import com.mascill.keutrack.core.testing.MainDispatcherRule
 import com.mascill.keutrack.core.testing.testCommonDispatcher
@@ -40,6 +44,8 @@ class DashboardViewModelTest {
     private val getTransactions = mockk<GetTransactionsUseCase>()
     private val getMonthlySummary = mockk<GetMonthlySummaryUseCase>()
     private val getCategories = mockk<GetCategoriesUseCase>()
+    private val observeWalletUiPreferences = mockk<ObserveWalletUiPreferencesUseCase>()
+    private val setWalletBalanceVisibility = mockk<SetWalletBalanceVisibilityUseCase>()
     private val retryPendingSync = mockk<RetryPendingSyncUseCase>()
 
     @Test
@@ -64,6 +70,27 @@ class DashboardViewModelTest {
             cancelAndIgnoreRemainingEvents()
         }
     }
+
+    @Test
+    fun `toggle personal balance visibility persists hidden state`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            stubHappyPath()
+            coEvery { setWalletBalanceVisibility(any(), any()) } just runs
+            val vm = createViewModel()
+            vm.uiState.test {
+                assertThat(awaitItem().isLoading).isTrue()
+                advanceUntilIdle()
+                assertThat(awaitItem().isPersonalBalanceVisible).isTrue()
+                cancelAndIgnoreRemainingEvents()
+            }
+
+            vm.onTogglePersonalBalanceVisibility()
+            advanceUntilIdle()
+
+            coVerify {
+                setWalletBalanceVisibility(walletType = WalletType.PERSONAL, visible = false)
+            }
+        }
 
     @Test
     fun `onScreenRendered retries pending sync`() = runTest(mainDispatcherRule.testDispatcher) {
@@ -95,6 +122,7 @@ class DashboardViewModelTest {
             MonthlySummaryResult(currentMonth = null, trend = emptyList()),
         )
         every { getCategories() } returns flowOf(emptyList())
+        every { observeWalletUiPreferences() } returns flowOf(WalletUiPreferences())
     }
 
     private fun createViewModel() = DashboardViewModel(
@@ -104,6 +132,8 @@ class DashboardViewModelTest {
         getTransactions = getTransactions,
         getMonthlySummary = getMonthlySummary,
         getCategories = getCategories,
+        observeWalletUiPreferences = observeWalletUiPreferences,
+        setWalletBalanceVisibility = setWalletBalanceVisibility,
         retryPendingSync = retryPendingSync,
         dispatcher = testCommonDispatcher(mainDispatcherRule.testDispatcher),
     )

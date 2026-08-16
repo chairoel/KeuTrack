@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+option java_package = "com.mascill.keutrack.core.datastore";
+option java_multiple_files = true;
+
+message WalletUiPreferences {
+  bool personal_balance_hidden = 1;
+  bool family_balance_hidden = 2;
+}

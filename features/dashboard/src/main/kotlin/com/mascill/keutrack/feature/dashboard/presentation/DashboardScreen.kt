@@ -76,6 +76,8 @@ fun DashboardRouting(
         onSettingsClick = onSettingsClick,
         onViewAllTransactions = onViewAllTransactions,
         onViewAllFamilyHistory = onViewAllFamilyHistory,
+        onTogglePersonalBalanceVisibility = viewModel::onTogglePersonalBalanceVisibility,
+        onToggleFamilyBalanceVisibility = viewModel::onToggleFamilyBalanceVisibility,
         onFabClick = onAddTransaction,
         onDismissError = { /* error is one-shot from flow; next emit clears */ },
     )
@@ -90,6 +92,8 @@ fun DashboardScreen(
     onSettingsClick: () -> Unit,
     onViewAllTransactions: () -> Unit,
     onViewAllFamilyHistory: () -> Unit = {},
+    onTogglePersonalBalanceVisibility: () -> Unit = {},
+    onToggleFamilyBalanceVisibility: () -> Unit = {},
     onFabClick: () -> Unit,
     onDismissError: () -> Unit = {},
 ) {
@@ -180,6 +184,8 @@ fun DashboardScreen(
                                 kind = WalletSummaryCardKind.Personal,
                                 balanceLabel = DASH_BALANCE_LABEL_PERSONAL,
                                 balanceAmount = CurrencyFormat.formatIdr(uiState.personalBalance),
+                                isBalanceVisible = uiState.isPersonalBalanceVisible,
+                                onToggleBalanceVisibility = onTogglePersonalBalanceVisibility,
                                 onHistoryClick = onViewAllTransactions,
                             ) {
                                 uiState.monthChangeLabel?.let { label ->
@@ -193,6 +199,8 @@ fun DashboardScreen(
                                 kind = WalletSummaryCardKind.Family,
                                 balanceLabel = DASH_BALANCE_LABEL_FAMILY,
                                 balanceAmount = CurrencyFormat.formatIdr(uiState.familyBalance),
+                                isBalanceVisible = uiState.isFamilyBalanceVisible,
+                                onToggleBalanceVisibility = onToggleFamilyBalanceVisibility,
                                 onHistoryClick = onViewAllFamilyHistory,
                             ) {
                                 WalletSummaryFamilySharedFooter(
