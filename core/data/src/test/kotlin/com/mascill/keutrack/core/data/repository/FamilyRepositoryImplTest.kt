@@ -25,6 +25,7 @@ class FamilyRepositoryImplTest {
 
     @Test
     fun `createFamily calls Firestore data source`() = runTest {
+        coEvery { localUser.getSignedInUser() } returns signedInUser(familyId = null)
         coEvery { remote.createFamily(any()) } just runs
 
         val result = repo.createFamily("Keluarga Irul", "user-1")
@@ -35,8 +36,9 @@ class FamilyRepositoryImplTest {
         assertThat(family.name).isEqualTo("Keluarga Irul")
         assertThat(family.ownerId).isEqualTo("user-1")
         assertThat(family.memberIds).containsExactly("user-1")
+        assertThat(family.memberNames).containsExactly("user-1", "Irul")
         assertThat(family.inviteCode).startsWith("KEU-")
-        coVerify { remote.createFamily(match { it.id == family.id }) }
+        coVerify { remote.createFamily(match { it.id == family.id && it.memberNames["user-1"] == "Irul" }) }
     }
 
     @Test
@@ -63,6 +65,7 @@ class FamilyRepositoryImplTest {
 
     @Test
     fun `joinFamily fails when invite code is unknown`() = runTest {
+        coEvery { localUser.getSignedInUser() } returns signedInUser(familyId = null)
         coEvery { remote.findByInviteCode("ABCD12") } returns null
 
         val result = repo.joinFamily("abcd12", "user-1")

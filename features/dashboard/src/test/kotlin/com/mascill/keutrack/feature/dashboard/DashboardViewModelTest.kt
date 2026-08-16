@@ -3,6 +3,7 @@ package com.mascill.keutrack.feature.dashboard
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import com.mascill.keutrack.core.domain.model.User
+import com.mascill.keutrack.core.domain.repository.FamilyRepository
 import com.mascill.keutrack.core.domain.repository.UserRepository
 import com.mascill.keutrack.core.domain.usecase.GetCategoriesUseCase
 import com.mascill.keutrack.core.domain.usecase.GetMonthlySummaryUseCase
@@ -34,6 +35,7 @@ class DashboardViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     private val userRepo = mockk<UserRepository>()
+    private val familyRepo = mockk<FamilyRepository>()
     private val getWalletSummary = mockk<GetWalletSummaryUseCase>()
     private val getTransactions = mockk<GetTransactionsUseCase>()
     private val getMonthlySummary = mockk<GetMonthlySummaryUseCase>()
@@ -79,6 +81,7 @@ class DashboardViewModelTest {
         every { userRepo.getCurrentUser() } returns flowOf(
             User("user-1", "Irul Amri", "irul@example.com", null),
         )
+        every { familyRepo.observeCurrentFamily() } returns flowOf(null)
         every { getWalletSummary() } returns flowOf(
             WalletSummary(
                 personalWallet = null,
@@ -96,6 +99,7 @@ class DashboardViewModelTest {
 
     private fun createViewModel() = DashboardViewModel(
         userRepository = userRepo,
+        familyRepository = familyRepo,
         getWalletSummary = getWalletSummary,
         getTransactions = getTransactions,
         getMonthlySummary = getMonthlySummary,

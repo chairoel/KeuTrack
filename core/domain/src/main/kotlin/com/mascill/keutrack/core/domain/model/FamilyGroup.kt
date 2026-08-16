@@ -8,5 +8,6 @@ data class FamilyGroup(
     val inviteCode: String,
     val ownerId: String,
     val memberIds: List<String>,
+    val memberNames: Map<String, String> = emptyMap(),
     val createdAt: Instant = Instant.now(),
 )

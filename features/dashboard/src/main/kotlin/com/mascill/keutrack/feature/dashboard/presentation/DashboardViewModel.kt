@@ -3,6 +3,7 @@ package com.mascill.keutrack.feature.dashboard.presentation
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mascill.keutrack.core.common.utils.CommonDispatcher
+import com.mascill.keutrack.core.domain.repository.FamilyRepository
 import com.mascill.keutrack.core.domain.repository.UserRepository
 import com.mascill.keutrack.core.domain.usecase.GetCategoriesUseCase
 import com.mascill.keutrack.core.domain.usecase.GetMonthlySummaryUseCase
@@ -25,6 +26,7 @@ import kotlin.coroutines.cancellation.CancellationException
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
     userRepository: UserRepository,
+    familyRepository: FamilyRepository,
     getWalletSummary: GetWalletSummaryUseCase,
     getTransactions: GetTransactionsUseCase,
     getMonthlySummary: GetMonthlySummaryUseCase,
@@ -40,7 +42,11 @@ class DashboardViewModel @Inject constructor(
 
     val uiState: StateFlow<DashboardUIState> =
         combine(
-            userRepository.getCurrentUser(),
+            combine(
+                userRepository.getCurrentUser(),
+                familyRepository.observeCurrentFamily(),
+                ::Pair,
+            ),
             getWalletSummary(),
             getTransactions(GetTransactionsUseCase.Params(limit = RECENT_TX_LIMIT)),
             getMonthlySummary(
@@ -48,7 +54,8 @@ class DashboardViewModel @Inject constructor(
                 trendMonths = listOf(priorMonthKey),
             ),
             getCategories(),
-        ) { user, walletSummary, transactions, monthlySummary, categories ->
+        ) { userAndFamily, walletSummary, transactions, monthlySummary, categories ->
+            val (user, family) = userAndFamily
             val categoriesById = categories.associateBy { it.id }
             val walletTypes = DashboardUiMapper.mapWalletTypes(walletSummary)
             val prior =
@@ -61,6 +68,7 @@ class DashboardViewModel @Inject constructor(
                 avatarUrl = user?.photoUrl,
                 personalBalance = walletSummary.totalPersonalBalance,
                 familyBalance = walletSummary.totalFamilyBalance,
+                familyMemberInitials = DashboardUiMapper.familyMemberInitials(user, family),
                 familySharedSummary =
                     DashboardUiMapper.familySharedSummary(walletSummary.familyWallets.size),
                 monthChangeLabel =

@@ -191,7 +191,10 @@ fun DashboardScreen(
                                 balanceLabel = DASH_BALANCE_LABEL_FAMILY,
                                 balanceAmount = CurrencyFormat.formatIdr(uiState.familyBalance),
                             ) {
-                                WalletSummaryFamilySharedFooter(uiState.familySharedSummary)
+                                WalletSummaryFamilySharedFooter(
+                                    sharedSummary = uiState.familySharedSummary,
+                                    memberInitials = uiState.familyMemberInitials,
+                                )
                             }
                         }
 

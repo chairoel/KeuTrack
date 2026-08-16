@@ -53,10 +53,22 @@ class FamilyGroupFirestoreDataSource @Inject constructor(
             .await()
     }
 
+    suspend fun upsertMemberName(familyId: String, userId: String, displayName: String) {
+        firestore.collection(COLLECTION_FAMILY_GROUPS)
+            .document(familyId)
+            .update(mapOf("$FIELD_MEMBER_NAMES.$userId" to displayName))
+            .await()
+    }
+
     suspend fun removeMember(familyId: String, userId: String) {
         firestore.collection(COLLECTION_FAMILY_GROUPS)
             .document(familyId)
-            .update(FIELD_MEMBER_IDS, FieldValue.arrayRemove(userId))
+            .update(
+                mapOf(
+                    FIELD_MEMBER_IDS to FieldValue.arrayRemove(userId),
+                    "$FIELD_MEMBER_NAMES.$userId" to FieldValue.delete(),
+                ),
+            )
             .await()
     }
 
@@ -93,6 +105,7 @@ class FamilyGroupFirestoreDataSource @Inject constructor(
             FIELD_INVITE_CODE to family.inviteCode,
             FIELD_OWNER_ID to family.ownerId,
             FIELD_MEMBER_IDS to family.memberIds,
+            FIELD_MEMBER_NAMES to family.memberNames,
             FIELD_CREATED_AT to Timestamp(Date.from(family.createdAt)),
         )
 
@@ -105,12 +118,22 @@ class FamilyGroupFirestoreDataSource @Inject constructor(
             (data[FIELD_MEMBER_IDS] as? List<*>)
                 ?.mapNotNull { it as? String }
                 .orEmpty()
+        val memberNames =
+            (data[FIELD_MEMBER_NAMES] as? Map<*, *>)
+                ?.mapNotNull { (key, value) ->
+                    val uid = key as? String ?: return@mapNotNull null
+                    val name = value as? String ?: return@mapNotNull null
+                    uid to name
+                }
+                ?.toMap()
+                .orEmpty()
         return FamilyGroup(
             id = (data[FIELD_ID] as? String) ?: id,
             name = (data[FIELD_NAME] as? String).orEmpty(),
             inviteCode = (data[FIELD_INVITE_CODE] as? String).orEmpty(),
             ownerId = (data[FIELD_OWNER_ID] as? String).orEmpty(),
             memberIds = memberIds,
+            memberNames = memberNames,
             createdAt = createdAt,
         )
     }
@@ -122,6 +145,7 @@ class FamilyGroupFirestoreDataSource @Inject constructor(
         const val FIELD_INVITE_CODE = "inviteCode"
         const val FIELD_OWNER_ID = "ownerId"
         const val FIELD_MEMBER_IDS = "memberIds"
+        const val FIELD_MEMBER_NAMES = "memberNames"
         const val FIELD_CREATED_AT = "createdAt"
     }
 }

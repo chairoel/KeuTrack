@@ -56,8 +56,6 @@ private const val WALLET_HEADER_PERSONAL_TITLE = "PERSONAL WALLET"
 private const val WALLET_HEADER_FAMILY_TITLE = "FAMILY WALLET"
 private const val WALLET_HEADER_TITLE_WEIGHT = 1f
 
-private val WALLET_AVATAR_MOCK_INITIALS = listOf("A", "B", "C", "D")
-
 enum class WalletSummaryCardKind {
     Personal,
     Family,
@@ -222,9 +220,12 @@ private data class Quadruple<A, B, C, D>(
 )
 
 @Composable
-private fun FamilyWalletAvatarStack(modifier: Modifier = Modifier) {
+private fun FamilyWalletAvatarStack(
+    initials: List<String>,
+    modifier: Modifier = Modifier,
+) {
+    if (initials.isEmpty()) return
     val semantic = KeuTrackTheme.semanticColors
-    val initials = WALLET_AVATAR_MOCK_INITIALS
     val accents =
         listOf(
             semantic.primary,
@@ -298,7 +299,10 @@ fun WalletSummaryPersonalMonthChangeFooter(monthChangeLabel: String) {
 
 /** Default footer for family wallet: overlapping avatars + shared summary. */
 @Composable
-fun WalletSummaryFamilySharedFooter(sharedSummary: String) {
+fun WalletSummaryFamilySharedFooter(
+    sharedSummary: String,
+    memberInitials: List<String> = emptyList(),
+) {
     val typography = KeuTrackTheme.typography
     val textColors = KeuTrackTheme.textColors
 
@@ -306,7 +310,12 @@ fun WalletSummaryFamilySharedFooter(sharedSummary: String) {
         modifier = Modifier.padding(top = WALLET_FAMILY_FOOTER_ROW_PT.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        FamilyWalletAvatarStack(modifier = Modifier.padding(end = WALLET_FAMILY_FOOTER_AVATAR_END.dp))
+        if (memberInitials.isNotEmpty()) {
+            FamilyWalletAvatarStack(
+                initials = memberInitials,
+                modifier = Modifier.padding(end = WALLET_FAMILY_FOOTER_AVATAR_END.dp),
+            )
+        }
         Text(
             text = sharedSummary,
             style = typography.bodyRegular12,
