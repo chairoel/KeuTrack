@@ -1,6 +1,6 @@
 # Firestore Security Rules (KeuTrack)
 
-**Last updated:** 26 July 2026 (Phase 6c — shared family wallet/tx read)
+**Last updated:** 16 August 2026 (Phase 10 — personal wallet restore pull)
 
 This document explains the Firestore security rules used by KeuTrack and includes a copy you can paste into the Firebase Console.
 
@@ -50,6 +50,14 @@ KeuTrack is offline-first: the app writes to Room first, then WorkManager syncs 
 - Shared family wallet sync: when member B adds a transaction, Firestore updates `wallets/{id}.balance` via `FieldValue.increment`. Members must be allowed to change **only** `balance` on family wallets — otherwise SyncWorker stays on `RETRY` with `PERMISSION_DENIED`.
 - Transaction create/update/delete remain author-only (`userId`); wallet delete remains owner-only.
 - Pull sync: equality-only `familyId` query (no composite index required for MVP).
+
+### Phase 10 notes (personal wallet restore)
+
+- Personal restore queries `wallets` with `where ownerId == uid` and `transactions` with `where userId == uid`. Both already pass `allow list: if signedIn()`.
+- Filter `type == personal` and `walletId == canonical` on the client (equality-only; no composite index required for MVP).
+- **Do not** loosen `/budgets` list (`allow list: if false` stays). Budget pull is out of scope.
+- Orphan personal wallets from earlier reinstalls (extra `type=personal` docs for the same `ownerId`) are **not** auto-deleted remotely. Pick the oldest as canonical in the app; clean extras in Console if needed.
+- Harden follow-up (same caveat as 6c): `list` + `resource.data` on queries does **not** always constrain the queried field. Do not treat query-scoped `ownerId == request.auth.uid` as a trivial rules change.
 
 ---
 
@@ -106,16 +114,19 @@ If step 1 is denied, the whole sync fails with `PERMISSION_DENIED` even when cre
 
 ---
 
-## Indexes (Phase 6c)
+## Indexes (Phase 6c + Phase 10)
 
-**Current app (MVP):** family transaction pull uses `whereEqualTo("familyId", …)` only, then sorts by `date` on device — **no composite index required**.
+**Current app (MVP):** family pull uses `whereEqualTo("familyId", …)` and personal restore uses `whereEqualTo("ownerId", …)` / `whereEqualTo("userId", …)` only, then sorts by `date` on device — **no composite index required**.
 
-Optional later (server-side `orderBy("date")` + `limit`):
+Optional later (server-side `orderBy` + `limit`, or two-field server filters):
 
 | Collection | Fields | When |
 |------------|--------|------|
 | `transactions` | `familyId` Asc, `date` Desc | If you restore remote `orderBy` + `limit` |
 | `wallets` | `familyId` Asc (+ optional `type` Asc) | Usually not needed for equality-only |
+| `wallets` | `ownerId` Asc + `type` Asc | If personal restore queries both fields on the server |
+| `transactions` | `userId` Asc + `date` Desc | If personal restore uses remote `orderBy` + `limit` |
+| `transactions` | `walletId` Asc + `date` Desc | If restore switches to `getByWalletId` |
 
 If you hit `FAILED_PRECONDITION: The query requires an index`, open the link in the error (project `keutrack-dev`) and create the composite, then wait until status is **Enabled**.
 

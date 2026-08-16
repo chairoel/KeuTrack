@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.CircularProgressIndicator
 import androidx.compose.material.Icon
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
@@ -48,6 +49,10 @@ private const val WALLET_HEADER_TITLE_END_PAD = 8
 private const val WALLET_HEADER_ICON_SIZE = 20
 private const val WALLET_BALANCE_LABEL_PT = 16
 private const val WALLET_BALANCE_AMOUNT_PT = 4
+private const val WALLET_BALANCE_LOADING_SIZE = 18
+private const val WALLET_BALANCE_LOADING_STROKE = 2
+private const val WALLET_BALANCE_LOADING_GAP = 8
+private const val WALLET_BALANCE_AMOUNT_WEIGHT = 1f
 private const val WALLET_LABEL_ON_GRADIENT_ALPHA = 0.9f
 private const val WALLET_HEADER_TITLE_ALPHA = 0.85f
 private const val WALLET_AVATAR_SIZE = 28
@@ -93,6 +98,7 @@ fun WalletSummaryCard(
     balanceAmount: String,
     modifier: Modifier = Modifier,
     isBalanceVisible: Boolean = true,
+    isLoading: Boolean = false,
     onToggleBalanceVisibility: () -> Unit = {},
     onHistoryClick: () -> Unit = {},
     footer: @Composable ColumnScope.() -> Unit,
@@ -105,6 +111,7 @@ fun WalletSummaryCard(
                     balanceLabel = balanceLabel,
                     balanceAmount = balanceAmount,
                     isBalanceVisible = isBalanceVisible,
+                    isLoading = isLoading,
                     onToggleBalanceVisibility = onToggleBalanceVisibility,
                     onHistoryClick = onHistoryClick,
                     footer = footer,
@@ -123,6 +130,7 @@ fun WalletSummaryCard(
                         balanceLabel = balanceLabel,
                         balanceAmount = balanceAmount,
                         isBalanceVisible = isBalanceVisible,
+                        isLoading = isLoading,
                         onToggleBalanceVisibility = onToggleBalanceVisibility,
                         onHistoryClick = onHistoryClick,
                         footer = footer,
@@ -164,6 +172,7 @@ private fun ColumnScope.WalletSummaryCardBody(
     balanceLabel: String,
     balanceAmount: String,
     isBalanceVisible: Boolean,
+    isLoading: Boolean,
     onToggleBalanceVisibility: () -> Unit,
     onHistoryClick: () -> Unit,
     footer: @Composable ColumnScope.() -> Unit,
@@ -247,14 +256,27 @@ private fun ColumnScope.WalletSummaryCardBody(
         modifier = Modifier.padding(top = WALLET_BALANCE_LABEL_PT.dp),
     )
 
-    Text(
-        text = if (isBalanceVisible) balanceAmount else WALLET_MASKED_AMOUNT,
-        style = typography.headingBold30,
-        color = amountColor,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
+    Row(
         modifier = Modifier.padding(top = WALLET_BALANCE_AMOUNT_PT.dp),
-    )
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(WALLET_BALANCE_LOADING_GAP.dp),
+    ) {
+        Text(
+            text = if (isBalanceVisible) balanceAmount else WALLET_MASKED_AMOUNT,
+            style = typography.headingBold30,
+            color = amountColor,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(WALLET_BALANCE_AMOUNT_WEIGHT, fill = false),
+        )
+        if (isLoading) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(WALLET_BALANCE_LOADING_SIZE.dp),
+                strokeWidth = WALLET_BALANCE_LOADING_STROKE.dp,
+                color = amountColor,
+            )
+        }
+    }
 
     footer()
 }

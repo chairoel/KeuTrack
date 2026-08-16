@@ -86,6 +86,7 @@ internal class FakeSyncRepository : SyncRepository {
     var enqueueForceCalls = 0
     var syncPendingWalletsError: Exception? = null
     val familySyncs = mutableListOf<String>()
+    val personalSyncs = mutableListOf<String>()
 
     override suspend fun syncPendingTransactions() = Unit
 
@@ -99,6 +100,10 @@ internal class FakeSyncRepository : SyncRepository {
 
     override suspend fun syncFamilyData(familyId: String) {
         familySyncs += familyId
+    }
+
+    override suspend fun syncPersonalData(userId: String) {
+        personalSyncs += userId
     }
 
     override suspend fun hasPendingSync(): Boolean = false

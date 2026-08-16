@@ -104,6 +104,27 @@ class TransactionFirestoreDataSource @Inject constructor(
     }
 
     /**
+     * Pull transactions authored by [userId] (newest first).
+     *
+     * Equality-only query avoids a composite index; sort + limit run client-side.
+     * Filter `walletId` / `familyId` on the caller (personal restore vs family).
+     */
+    suspend fun getByUserId(userId: String, limit: Int = DEFAULT_FAMILY_PULL_LIMIT): List<Transaction> {
+        val snapshot =
+            firestore.collection(COLLECTION_TRANSACTIONS)
+                .whereEqualTo(FIELD_USER_ID, userId)
+                .get()
+                .await()
+        return snapshot.documents
+            .mapNotNull { doc ->
+                val data = doc.data ?: return@mapNotNull null
+                fromSnapshot(doc.id, data)
+            }
+            .sortedByDescending { it.date }
+            .take(limit)
+    }
+
+    /**
      * Pull shared family transactions (newest first).
      *
      * Equality-only query avoids a composite index; sort + limit run client-side.

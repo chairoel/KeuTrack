@@ -7,6 +7,7 @@ import com.mascill.keutrack.core.data.sync.SyncScheduler
 import com.mascill.keutrack.core.domain.model.SyncStatus
 import com.mascill.keutrack.core.domain.model.Wallet
 import com.mascill.keutrack.core.domain.model.WalletType
+import com.mascill.keutrack.core.domain.repository.SyncRepository
 import com.mascill.keutrack.core.domain.repository.WalletRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -29,6 +30,7 @@ class WalletRepositoryImpl @Inject constructor(
     private val mapper: WalletMapper,
     private val authNetworkDataSource: AuthNetworkDataSource,
     private val syncScheduler: SyncScheduler,
+    private val syncRepository: SyncRepository,
 ) : WalletRepository {
 
     private val ensureWalletMutex = Mutex()
@@ -90,6 +92,16 @@ class WalletRepositoryImpl @Inject constructor(
                 local.getPersonal()?.let { return@withLock mapper.toDomain(it) }
 
                 val uid = authNetworkDataSource.getCurrentUser()?.uid ?: return@withLock null
+
+                try {
+                    syncRepository.syncPersonalData(uid)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    // Offline / pull failed — fall through to seed if Room is still empty.
+                }
+
+                local.getPersonal()?.let { return@withLock mapper.toDomain(it) }
 
                 val wallet = Wallet(
                     id = UUID.randomUUID().toString(),

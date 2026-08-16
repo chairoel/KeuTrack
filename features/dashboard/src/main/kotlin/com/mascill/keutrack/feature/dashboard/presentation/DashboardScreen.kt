@@ -81,7 +81,7 @@ fun DashboardRouting(
         onTogglePersonalBalanceVisibility = viewModel::onTogglePersonalBalanceVisibility,
         onToggleFamilyBalanceVisibility = viewModel::onToggleFamilyBalanceVisibility,
         onFabClick = onAddTransaction,
-        onDismissError = { /* error is one-shot from flow; next emit clears */ },
+        onDismissError = viewModel::dismissError,
     )
 }
 
@@ -188,6 +188,7 @@ fun DashboardScreen(
                                 balanceLabel = DASH_BALANCE_LABEL_PERSONAL,
                                 balanceAmount = CurrencyFormat.formatIdr(uiState.personalBalance),
                                 isBalanceVisible = uiState.isPersonalBalanceVisible,
+                                isLoading = uiState.isPersonalWalletSyncing,
                                 onToggleBalanceVisibility = onTogglePersonalBalanceVisibility,
                                 onHistoryClick = onViewAllPersonalHistory,
                             ) {
@@ -203,6 +204,7 @@ fun DashboardScreen(
                                 balanceLabel = DASH_BALANCE_LABEL_FAMILY,
                                 balanceAmount = CurrencyFormat.formatIdr(uiState.familyBalance),
                                 isBalanceVisible = uiState.isFamilyBalanceVisible,
+                                isLoading = uiState.isFamilyWalletSyncing,
                                 onToggleBalanceVisibility = onToggleFamilyBalanceVisibility,
                                 onHistoryClick = onViewAllFamilyHistory,
                             ) {

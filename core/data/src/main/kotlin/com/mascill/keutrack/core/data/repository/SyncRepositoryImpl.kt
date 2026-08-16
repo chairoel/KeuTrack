@@ -13,8 +13,10 @@ import com.mascill.keutrack.core.data.mapper.CategorySummaryMapper
 import com.mascill.keutrack.core.data.mapper.TransactionMapper
 import com.mascill.keutrack.core.data.mapper.WalletMapper
 import com.mascill.keutrack.core.data.sync.SyncScheduler
+import com.mascill.keutrack.core.domain.model.CategoryBreakdown
 import com.mascill.keutrack.core.domain.model.CategorySummary
 import com.mascill.keutrack.core.domain.model.SyncStatus
+import com.mascill.keutrack.core.domain.model.Transaction
 import com.mascill.keutrack.core.domain.model.TransactionType
 import com.mascill.keutrack.core.domain.model.WalletType
 import com.mascill.keutrack.core.domain.repository.SyncRepository
@@ -47,7 +49,11 @@ class SyncRepositoryImpl @Inject constructor(
             walletLocal.getPending().forEach { entity ->
                 try {
                     walletRemote.upsertWallet(walletMapper.toDomain(entity))
-                    walletLocal.updateSyncStatus(entity.id, SyncStatus.SYNCED)
+                    val hasPendingTx =
+                        transactionLocal.getPending().any { it.walletId == entity.id }
+                    if (!hasPendingTx) {
+                        walletLocal.updateSyncStatus(entity.id, SyncStatus.SYNCED)
+                    }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (_: Exception) {
@@ -124,6 +130,7 @@ class SyncRepositoryImpl @Inject constructor(
                     )
                     summaryRemote.upsertSummary(summary)
                     transactionLocal.updateSyncStatus(entity.id, SyncStatus.SYNCED)
+                    walletLocal.updateSyncStatus(transaction.walletId, SyncStatus.SYNCED)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (_: Exception) {
@@ -153,14 +160,40 @@ class SyncRepositoryImpl @Inject constructor(
             if (familyId.isBlank()) return
 
             val remoteWallets = walletRemote.getByFamilyId(familyId)
+            val remoteTransactions =
+                transactionRemote.getByFamilyId(familyId, limit = FAMILY_TX_PULL_LIMIT)
+            val pendingWalletIds =
+                transactionLocal.getPending().map { it.walletId }.toSet()
+
             remoteWallets.forEach { wallet ->
                 val existing = walletLocal.getById(wallet.id)
                 if (existing != null && existing.syncStatus == SyncStatus.PENDING.name) {
                     return@forEach
                 }
+                if (wallet.id in pendingWalletIds) {
+                    return@forEach
+                }
+                val computedBalance =
+                    remoteTransactions
+                        .filter { it.walletId == wallet.id }
+                        .sumOf { walletDeltaFor(it) }
                 walletLocal.upsert(
-                    walletMapper.toEntity(wallet.copy(syncStatus = SyncStatus.SYNCED)),
+                    walletMapper.toEntity(
+                        wallet.copy(
+                            balance = computedBalance,
+                            syncStatus = SyncStatus.SYNCED,
+                        ),
+                    ),
                 )
+                if (wallet.balance != computedBalance) {
+                    try {
+                        walletRemote.setBalance(wallet.id, computedBalance)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (_: Exception) {
+                        // Local is already corrected; remote can catch up on the next pull.
+                    }
+                }
             }
 
             // Keep one canonical wallet locally (oldest FAMILY). Drop extras even if remote
@@ -177,8 +210,6 @@ class SyncRepositoryImpl @Inject constructor(
                 }
             }
 
-            val remoteTransactions =
-                transactionRemote.getByFamilyId(familyId, limit = FAMILY_TX_PULL_LIMIT)
             remoteTransactions.forEach { transaction ->
                 val existing = transactionLocal.getById(transaction.id)
                 if (existing != null && existing.syncStatus == SyncStatus.PENDING.name) {
@@ -195,6 +226,68 @@ class SyncRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun syncPersonalData(userId: String) {
+        try {
+            if (userId.isBlank()) return
+
+            val remoteWallets = walletRemote.getByOwnerId(userId)
+                .filter { it.type == WalletType.PERSONAL }
+            if (remoteWallets.isEmpty()) return
+
+            val canonical = remoteWallets.minBy { it.createdAt }
+            val remoteTxs = transactionRemote.getByUserId(userId, limit = PERSONAL_TX_PULL_LIMIT)
+                .filter { it.walletId == canonical.id }
+            val pendingTxs = transactionLocal.getPending()
+            val pendingWalletIds = pendingTxs.map { it.walletId }.toSet()
+
+            val existing = walletLocal.getById(canonical.id)
+            if (existing?.syncStatus != SyncStatus.PENDING.name &&
+                canonical.id !in pendingWalletIds
+            ) {
+                val computed = remoteTxs.sumOf { walletDeltaFor(it) }
+                walletLocal.upsert(
+                    walletMapper.toEntity(
+                        canonical.copy(
+                            balance = computed,
+                            syncStatus = SyncStatus.SYNCED,
+                        ),
+                    ),
+                )
+                if (canonical.balance != computed) {
+                    try {
+                        walletRemote.setBalance(canonical.id, computed)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (_: Exception) {
+                        // Local is already corrected; remote can catch up on the next pull.
+                    }
+                }
+            }
+
+            walletLocal.getByType(WalletType.PERSONAL.value)
+                .filter { it.id != canonical.id && it.id !in pendingWalletIds }
+                .forEach { extra -> walletLocal.delete(extra.id) }
+
+            val upsertedTxs = mutableListOf<Transaction>()
+            remoteTxs.forEach { transaction ->
+                val existingTx = transactionLocal.getById(transaction.id)
+                if (existingTx?.syncStatus == SyncStatus.PENDING.name) {
+                    return@forEach
+                }
+                val synced = transaction.copy(syncStatus = SyncStatus.SYNCED)
+                transactionLocal.upsert(transactionMapper.toEntity(synced))
+                upsertedTxs += synced
+            }
+
+            val pendingCanonicalTxs = pendingTxs
+                .filter { it.walletId == canonical.id }
+                .map(transactionMapper::toDomain)
+            rebuildPersonalSummaries(userId, upsertedTxs + pendingCanonicalTxs)
+        } catch (e: CancellationException) {
+            throw e
+        }
+    }
+
     override suspend fun hasPendingSync(): Boolean =
         walletLocal.getPending().isNotEmpty() ||
             budgetLocal.getPending().isNotEmpty() ||
@@ -204,8 +297,73 @@ class SyncRepositoryImpl @Inject constructor(
         syncScheduler.enqueueSync(force = force)
     }
 
+    private fun walletDeltaFor(transaction: Transaction): Long =
+        when (transaction.type) {
+            TransactionType.INCOME -> transaction.amount
+            TransactionType.EXPENSE -> -transaction.amount
+        }
+
+    private suspend fun rebuildPersonalSummaries(
+        userId: String,
+        transactions: List<Transaction>,
+    ) {
+        if (transactions.isEmpty()) return
+        transactions
+            .groupBy { monthKey(it) }
+            .forEach { (period, periodTxs) ->
+                var totalIncome = 0L
+                var totalExpense = 0L
+                val byCategory = mutableMapOf<String, CategoryBreakdown>()
+                periodTxs.forEach { tx ->
+                    val existing = byCategory[tx.categoryId] ?: CategoryBreakdown(
+                        name = tx.categoryId,
+                        totalExpense = 0L,
+                        totalIncome = 0L,
+                        transactionCount = 0,
+                    )
+                    when (tx.type) {
+                        TransactionType.INCOME -> {
+                            totalIncome += tx.amount
+                            byCategory[tx.categoryId] = existing.copy(
+                                totalIncome = existing.totalIncome + tx.amount,
+                                transactionCount = existing.transactionCount + 1,
+                            )
+                        }
+                        TransactionType.EXPENSE -> {
+                            totalExpense += tx.amount
+                            byCategory[tx.categoryId] = existing.copy(
+                                totalExpense = existing.totalExpense + tx.amount,
+                                transactionCount = existing.transactionCount + 1,
+                            )
+                        }
+                    }
+                }
+                val topExpenseCategoryId = byCategory
+                    .maxByOrNull { it.value.totalExpense }
+                    ?.takeIf { it.value.totalExpense > 0 }
+                    ?.key
+                summaryLocal.upsert(
+                    summaryMapper.toEntity(
+                        CategorySummary(
+                            period = period,
+                            userId = userId,
+                            familyId = null,
+                            totalIncome = totalIncome,
+                            totalExpense = totalExpense,
+                            byCategory = byCategory,
+                            topExpenseCategoryId = topExpenseCategoryId,
+                        ),
+                    ),
+                )
+            }
+    }
+
+    private fun monthKey(transaction: Transaction): String =
+        MONTH_FORMATTER.format(transaction.date.atZone(ZoneId.systemDefault()))
+
     private companion object {
         val MONTH_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM")
         const val FAMILY_TX_PULL_LIMIT = 200
+        const val PERSONAL_TX_PULL_LIMIT = 200
     }
 }

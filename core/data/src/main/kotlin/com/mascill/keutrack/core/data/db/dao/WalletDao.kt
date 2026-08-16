@@ -23,8 +23,11 @@ interface WalletDao {
     @Query("SELECT * FROM wallets WHERE id = :walletId LIMIT 1")
     suspend fun getById(walletId: String): WalletEntity?
 
-    @Query("SELECT * FROM wallets WHERE type = 'personal' LIMIT 1")
+    @Query("SELECT * FROM wallets WHERE type = 'personal' ORDER BY createdAtEpochMs ASC LIMIT 1")
     suspend fun getPersonal(): WalletEntity?
+
+    @Query("SELECT * FROM wallets WHERE type = :type ORDER BY createdAtEpochMs ASC")
+    suspend fun getByType(type: String): List<WalletEntity>
 
     @Query("SELECT * FROM wallets WHERE familyId = :familyId ORDER BY createdAtEpochMs ASC")
     suspend fun getByFamilyId(familyId: String): List<WalletEntity>
