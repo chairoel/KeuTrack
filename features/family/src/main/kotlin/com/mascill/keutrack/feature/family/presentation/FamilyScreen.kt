@@ -16,10 +16,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.CircularProgressIndicator
 import androidx.compose.material.Scaffold
-import androidx.compose.material.Snackbar
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
-import androidx.compose.material.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.activity.compose.BackHandler
@@ -41,6 +39,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mascill.keutrack.core.designsystem.component.KeuTrackButton
 import com.mascill.keutrack.core.designsystem.component.KeuTrackFab
 import com.mascill.keutrack.core.designsystem.component.KeuTrackTopBar
+import com.mascill.keutrack.core.designsystem.component.snackbar.KeuTrackInlineSnackbar
 import com.mascill.keutrack.core.designsystem.model.KeuTrackButtonStyle
 import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
 import com.mascill.keutrack.feature.family.presentation.components.FamilyBreakdownCard
@@ -244,27 +243,17 @@ fun FamilyScreen(
 
         val snackMessage = uiState.membershipMessage ?: uiState.errorMessage
         snackMessage?.let { message ->
-            Snackbar(
-                modifier =
-                    Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(16.dp),
-                action = {
-                    TextButton(
-                        onClick = {
-                            if (uiState.membershipMessage != null) {
-                                onDismissMembershipMessage()
-                            } else {
-                                onDismissError()
-                            }
-                        },
-                    ) {
-                        Text(FAM_ERROR_DISMISS)
+            KeuTrackInlineSnackbar(
+                message = message,
+                onDismiss = {
+                    if (uiState.membershipMessage != null) {
+                        onDismissMembershipMessage()
+                    } else {
+                        onDismissError()
                     }
                 },
-            ) {
-                Text(message)
-            }
+                actionLabel = FAM_ERROR_DISMISS,
+            )
         }
     }
 

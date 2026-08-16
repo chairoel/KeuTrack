@@ -9,5 +9,7 @@ android {
 dependencies {
     implementation(libs.androidx.compose.material)
     implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.material.icon)
+    implementation(libs.androidx.compose.material.icon.extended)
     implementation(libs.coil.compose)
 }

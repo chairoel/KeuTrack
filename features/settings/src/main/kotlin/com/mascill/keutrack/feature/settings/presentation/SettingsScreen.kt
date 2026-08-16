@@ -21,10 +21,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.Icon
 import androidx.compose.material.Scaffold
-import androidx.compose.material.Snackbar
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
-import androidx.compose.material.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.outlined.MoreHoriz
@@ -36,7 +34,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
@@ -46,6 +43,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mascill.keutrack.core.designsystem.component.KeuTrackButton
 import com.mascill.keutrack.core.designsystem.component.KeuTrackCard
 import com.mascill.keutrack.core.designsystem.component.KeuTrackTopBar
+import com.mascill.keutrack.core.designsystem.component.snackbar.KeuTrackInlineSnackbar
 import com.mascill.keutrack.core.designsystem.model.KeuTrackButtonStyle
 import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
 import com.mascill.keutrack.feature.settings.presentation.components.SettingsConnectedWalletCard
@@ -194,19 +192,11 @@ private fun BoxWithSettingsSnackbar(
     Box(modifier = Modifier.fillMaxSize()) {
         content()
         snackbarMessage?.let { message ->
-            Snackbar(
-                modifier =
-                    Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(16.dp),
-                action = {
-                    TextButton(onClick = onDismiss) {
-                        Text("Tutup")
-                    }
-                },
-            ) {
-                Text(message)
-            }
+            KeuTrackInlineSnackbar(
+                message = message,
+                onDismiss = onDismiss,
+                actionLabel = "Tutup",
+            )
         }
     }
 }

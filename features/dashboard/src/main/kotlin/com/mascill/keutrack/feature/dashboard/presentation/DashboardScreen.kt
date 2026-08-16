@@ -13,10 +13,8 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.CircularProgressIndicator
 import androidx.compose.material.Scaffold
-import androidx.compose.material.Snackbar
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
-import androidx.compose.material.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -27,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mascill.keutrack.core.designsystem.component.KeuTrackFab
+import com.mascill.keutrack.core.designsystem.component.snackbar.KeuTrackInlineSnackbar
 import com.mascill.keutrack.core.designsystem.format.CurrencyFormat
 import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
 import com.mascill.keutrack.feature.dashboard.presentation.components.DashboardStatCardsRow
@@ -219,19 +218,11 @@ fun DashboardScreen(
         }
 
         uiState.errorMessage?.let { message ->
-            Snackbar(
-                modifier =
-                    Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(16.dp),
-                action = {
-                    TextButton(onClick = onDismissError) {
-                        Text(DASH_ERROR_DISMISS)
-                    }
-                },
-            ) {
-                Text(message)
-            }
+            KeuTrackInlineSnackbar(
+                message = message,
+                onDismiss = onDismissError,
+                actionLabel = DASH_ERROR_DISMISS,
+            )
         }
     }
 }

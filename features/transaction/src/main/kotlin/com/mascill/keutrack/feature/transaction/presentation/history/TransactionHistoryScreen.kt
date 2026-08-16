@@ -15,10 +15,8 @@ import androidx.compose.material.CircularProgressIndicator
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
 import androidx.compose.material.Scaffold
-import androidx.compose.material.Snackbar
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
-import androidx.compose.material.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.runtime.Composable
@@ -29,6 +27,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.mascill.keutrack.core.designsystem.component.KeuTrackButton
 import com.mascill.keutrack.core.designsystem.component.KeuTrackTopBar
+import com.mascill.keutrack.core.designsystem.component.snackbar.KeuTrackInlineSnackbar
 import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
 import com.mascill.keutrack.core.domain.model.SyncStatus
 import com.mascill.keutrack.feature.transaction.presentation.components.TransactionHistoryRow
@@ -166,19 +165,11 @@ fun TransactionHistoryScreen(
         }
 
         uiState.errorMessage?.let { message ->
-            Snackbar(
-                modifier =
-                    Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(16.dp),
-                action = {
-                    TextButton(onClick = onDismissError) {
-                        Text(HISTORY_ERROR_DISMISS)
-                    }
-                },
-            ) {
-                Text(message)
-            }
+            KeuTrackInlineSnackbar(
+                message = message,
+                onDismiss = onDismissError,
+                actionLabel = HISTORY_ERROR_DISMISS,
+            )
         }
     }
 }
