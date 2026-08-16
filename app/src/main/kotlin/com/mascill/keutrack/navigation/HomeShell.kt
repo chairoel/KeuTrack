@@ -2,6 +2,7 @@ package com.mascill.keutrack.navigation
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.Scaffold
 import androidx.compose.runtime.Composable
@@ -34,6 +35,8 @@ fun HomeShell(
     onSignOutSuccess: () -> Unit = {},
     onAddTransaction: () -> Unit = {},
     onViewAllTransactions: () -> Unit = {},
+    onViewAllPersonalHistory: () -> Unit = {},
+    onViewAllFamilyHistory: () -> Unit = {},
 ) {
     val homeNavController = rememberNavController()
     HomeShellContent(
@@ -41,6 +44,8 @@ fun HomeShell(
         onSignOutSuccess = onSignOutSuccess,
         onAddTransaction = onAddTransaction,
         onViewAllTransactions = onViewAllTransactions,
+        onViewAllPersonalHistory = onViewAllPersonalHistory,
+        onViewAllFamilyHistory = onViewAllFamilyHistory,
     )
 }
 
@@ -50,6 +55,8 @@ private fun HomeShellContent(
     onSignOutSuccess: () -> Unit,
     onAddTransaction: () -> Unit,
     onViewAllTransactions: () -> Unit,
+    onViewAllPersonalHistory: () -> Unit,
+    onViewAllFamilyHistory: () -> Unit,
 ) {
     val backStackEntry by homeNavController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
@@ -77,6 +84,7 @@ private fun HomeShellContent(
             KeuTrackBottomNav(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .navigationBarsPadding()
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 items = HomeNavDestination.items,
                 selectedKey = selectedKey,
@@ -102,6 +110,8 @@ private fun HomeShellContent(
             onSignOutSuccess = onSignOutSuccess,
             onAddTransaction = onAddTransaction,
             onViewAllTransactions = onViewAllTransactions,
+            onViewAllPersonalHistory = onViewAllPersonalHistory,
+            onViewAllFamilyHistory = onViewAllFamilyHistory,
         )
     }
 }
@@ -117,6 +127,8 @@ private fun HomeNavHost(
     onSignOutSuccess: () -> Unit,
     onAddTransaction: () -> Unit,
     onViewAllTransactions: () -> Unit,
+    onViewAllPersonalHistory: () -> Unit,
+    onViewAllFamilyHistory: () -> Unit,
 ) {
     NavHost(
         navController = navController,
@@ -139,10 +151,12 @@ private fun HomeNavHost(
             },
             onAddTransaction = onAddTransaction,
             onViewAllTransactions = onViewAllTransactions,
+            onViewAllPersonalHistory = onViewAllPersonalHistory,
+            onViewAllFamilyHistory = onViewAllFamilyHistory,
         )
         familyGraph(
             onAddTransaction = onAddTransaction,
-            onViewAllTransactions = onViewAllTransactions,
+            onViewAllTransactions = onViewAllFamilyHistory,
         )
         settingsGraph(
             onSignOutSuccess = onSignOutSuccess,

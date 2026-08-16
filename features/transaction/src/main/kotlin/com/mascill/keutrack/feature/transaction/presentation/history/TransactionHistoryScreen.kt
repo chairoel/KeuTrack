@@ -15,10 +15,8 @@ import androidx.compose.material.CircularProgressIndicator
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
 import androidx.compose.material.Scaffold
-import androidx.compose.material.Snackbar
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
-import androidx.compose.material.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.runtime.Composable
@@ -29,16 +27,26 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.mascill.keutrack.core.designsystem.component.KeuTrackButton
 import com.mascill.keutrack.core.designsystem.component.KeuTrackTopBar
+import com.mascill.keutrack.core.designsystem.component.snackbar.KeuTrackInlineSnackbar
 import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
 import com.mascill.keutrack.core.domain.model.SyncStatus
 import com.mascill.keutrack.feature.transaction.presentation.components.TransactionHistoryRow
+import com.mascill.keutrack.feature.transaction.presentation.model.HistoryScope
 import com.mascill.keutrack.feature.transaction.presentation.model.HistoryUIState
 import com.mascill.keutrack.feature.transaction.presentation.model.TransactionCategoryIcon
 import com.mascill.keutrack.feature.transaction.presentation.model.TransactionRowUi
 
 private const val HISTORY_TITLE = "Riwayat"
+private const val HISTORY_PERSONAL_TITLE = "Riwayat Personal"
+private const val HISTORY_FAMILY_TITLE = "Riwayat Keluarga"
 private const val HISTORY_EMPTY_TITLE = "Belum ada transaksi"
 private const val HISTORY_EMPTY_BODY = "Catat pemasukan atau pengeluaran pertamamu."
+private const val HISTORY_PERSONAL_EMPTY_TITLE = "Belum ada transaksi personal"
+private const val HISTORY_PERSONAL_EMPTY_BODY =
+    "Belum ada transaksi di dompet personal. Gunakan tombol di bawah untuk menambah transaksi."
+private const val HISTORY_FAMILY_EMPTY_TITLE = "Belum ada transaksi keluarga"
+private const val HISTORY_FAMILY_EMPTY_BODY =
+    "Belum ada transaksi di dompet keluarga. Gunakan tombol di bawah untuk menambah transaksi bersama."
 private const val HISTORY_EMPTY_CTA = "Tambah transaksi"
 private const val HISTORY_ERROR_DISMISS = "Dismiss"
 private const val HISTORY_TOP_BAR_ELEVATION = 4
@@ -73,7 +81,7 @@ fun TransactionHistoryScreen(
                     elevation = HISTORY_TOP_BAR_ELEVATION.dp,
                 ) {
                     KeuTrackTopBar(
-                        title = HISTORY_TITLE,
+                        title = historyTitle(uiState.scope),
                         modifier =
                             Modifier
                                 .fillMaxWidth()
@@ -119,13 +127,13 @@ fun TransactionHistoryScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Text(
-                            text = HISTORY_EMPTY_TITLE,
+                            text = historyEmptyTitle(uiState.scope),
                             style = typography.headingBold20,
                             color = textColors.title,
                             textAlign = TextAlign.Center,
                         )
                         Text(
-                            text = HISTORY_EMPTY_BODY,
+                            text = historyEmptyBody(uiState.scope),
                             style = typography.bodyRegular14,
                             color = textColors.body,
                             textAlign = TextAlign.Center,
@@ -166,19 +174,11 @@ fun TransactionHistoryScreen(
         }
 
         uiState.errorMessage?.let { message ->
-            Snackbar(
-                modifier =
-                    Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(16.dp),
-                action = {
-                    TextButton(onClick = onDismissError) {
-                        Text(HISTORY_ERROR_DISMISS)
-                    }
-                },
-            ) {
-                Text(message)
-            }
+            KeuTrackInlineSnackbar(
+                message = message,
+                onDismiss = onDismissError,
+                actionLabel = HISTORY_ERROR_DISMISS,
+            )
         }
     }
 }
@@ -230,6 +230,27 @@ private fun TransactionHistoryEmptyPreview() {
         )
     }
 }
+
+private fun historyTitle(scope: HistoryScope): String =
+    when (scope) {
+        HistoryScope.All -> HISTORY_TITLE
+        HistoryScope.Personal -> HISTORY_PERSONAL_TITLE
+        HistoryScope.Family -> HISTORY_FAMILY_TITLE
+    }
+
+private fun historyEmptyTitle(scope: HistoryScope): String =
+    when (scope) {
+        HistoryScope.All -> HISTORY_EMPTY_TITLE
+        HistoryScope.Personal -> HISTORY_PERSONAL_EMPTY_TITLE
+        HistoryScope.Family -> HISTORY_FAMILY_EMPTY_TITLE
+    }
+
+private fun historyEmptyBody(scope: HistoryScope): String =
+    when (scope) {
+        HistoryScope.All -> HISTORY_EMPTY_BODY
+        HistoryScope.Personal -> HISTORY_PERSONAL_EMPTY_BODY
+        HistoryScope.Family -> HISTORY_FAMILY_EMPTY_BODY
+    }
 
 private fun previewHistoryItems(): List<TransactionRowUi> =
     listOf(

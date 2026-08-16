@@ -2,6 +2,8 @@ package com.mascill.keutrack.feature.dashboard.presentation.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,13 +21,19 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Icon
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -55,8 +63,19 @@ private const val WALLET_FAMILY_FOOTER_AVATAR_END = 10
 private const val WALLET_HEADER_PERSONAL_TITLE = "PERSONAL WALLET"
 private const val WALLET_HEADER_FAMILY_TITLE = "FAMILY WALLET"
 private const val WALLET_HEADER_TITLE_WEIGHT = 1f
-
-private val WALLET_AVATAR_MOCK_INITIALS = listOf("A", "B", "C", "D")
+private const val WALLET_EYE_ICON_SIZE = 16
+private const val WALLET_EYE_TAP_SIZE = 24
+private const val WALLET_EYE_START_PAD = 6
+private const val WALLET_HISTORY_CHIP_PH = 10
+private const val WALLET_HISTORY_CHIP_PV = 5
+private const val WALLET_HISTORY_CHIP_ICON = 14
+private const val WALLET_HISTORY_CHIP_GAP = 2
+private const val WALLET_HISTORY_CHIP_PERSONAL_BG_ALPHA = 0.2f
+private const val WALLET_HISTORY_CHIP_FAMILY_BG_ALPHA = 0.12f
+private const val WALLET_MASKED_AMOUNT = "Rp •••••••"
+private const val WALLET_HISTORY_LABEL = "History"
+private const val WALLET_CD_HIDE_BALANCE = "Hide balance"
+private const val WALLET_CD_SHOW_BALANCE = "Show balance"
 
 enum class WalletSummaryCardKind {
     Personal,
@@ -73,6 +92,9 @@ fun WalletSummaryCard(
     balanceLabel: String,
     balanceAmount: String,
     modifier: Modifier = Modifier,
+    isBalanceVisible: Boolean = true,
+    onToggleBalanceVisibility: () -> Unit = {},
+    onHistoryClick: () -> Unit = {},
     footer: @Composable ColumnScope.() -> Unit,
 ) {
     when (kind) {
@@ -82,6 +104,9 @@ fun WalletSummaryCard(
                     kind = kind,
                     balanceLabel = balanceLabel,
                     balanceAmount = balanceAmount,
+                    isBalanceVisible = isBalanceVisible,
+                    onToggleBalanceVisibility = onToggleBalanceVisibility,
+                    onHistoryClick = onHistoryClick,
                     footer = footer,
                 )
             }
@@ -97,6 +122,9 @@ fun WalletSummaryCard(
                         kind = kind,
                         balanceLabel = balanceLabel,
                         balanceAmount = balanceAmount,
+                        isBalanceVisible = isBalanceVisible,
+                        onToggleBalanceVisibility = onToggleBalanceVisibility,
+                        onHistoryClick = onHistoryClick,
                         footer = footer,
                     )
                 }
@@ -135,6 +163,9 @@ private fun ColumnScope.WalletSummaryCardBody(
     kind: WalletSummaryCardKind,
     balanceLabel: String,
     balanceAmount: String,
+    isBalanceVisible: Boolean,
+    onToggleBalanceVisibility: () -> Unit,
+    onHistoryClick: () -> Unit,
     footer: @Composable ColumnScope.() -> Unit,
 ) {
     val semantic = KeuTrackTheme.semanticColors
@@ -174,24 +205,38 @@ private fun ColumnScope.WalletSummaryCardBody(
 
     Row(
         modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = headerTitle,
-            style = typography.bodyBold10,
-            color = headerTitleColor,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier =
-                Modifier
-                    .weight(WALLET_HEADER_TITLE_WEIGHT)
-                    .padding(end = WALLET_HEADER_TITLE_END_PAD.dp),
-        )
-        Icon(
-            imageVector = headerIcon,
-            contentDescription = null,
-            tint = headerIconTint,
-            modifier = Modifier.size(WALLET_HEADER_ICON_SIZE.dp),
+        Row(
+            modifier = Modifier.weight(WALLET_HEADER_TITLE_WEIGHT, fill = false),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = headerIcon,
+                contentDescription = null,
+                tint = headerIconTint,
+                modifier =
+                    Modifier
+                        .size(WALLET_HEADER_ICON_SIZE.dp)
+                        .padding(end = WALLET_HEADER_TITLE_END_PAD.dp),
+            )
+            Text(
+                text = headerTitle,
+                style = typography.bodyBold12,
+                color = headerTitleColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            WalletVisibilityToggle(
+                isBalanceVisible = isBalanceVisible,
+                tint = headerTitleColor,
+                onClick = onToggleBalanceVisibility,
+            )
+        }
+        WalletHistoryChip(
+            kind = kind,
+            onClick = onHistoryClick,
         )
     }
 
@@ -203,7 +248,7 @@ private fun ColumnScope.WalletSummaryCardBody(
     )
 
     Text(
-        text = balanceAmount,
+        text = if (isBalanceVisible) balanceAmount else WALLET_MASKED_AMOUNT,
         style = typography.headingBold30,
         color = amountColor,
         maxLines = 1,
@@ -214,6 +259,94 @@ private fun ColumnScope.WalletSummaryCardBody(
     footer()
 }
 
+@Composable
+private fun WalletVisibilityToggle(
+    isBalanceVisible: Boolean,
+    tint: Color,
+    onClick: () -> Unit,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    Box(
+        modifier =
+            Modifier
+                .padding(start = WALLET_EYE_START_PAD.dp)
+                .size(WALLET_EYE_TAP_SIZE.dp)
+                .clickable(
+                    interactionSource = interactionSource,
+                    indication = ripple(bounded = false),
+                    onClick = onClick,
+                ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector =
+                if (isBalanceVisible) {
+                    Icons.Filled.Visibility
+                } else {
+                    Icons.Filled.VisibilityOff
+                },
+            contentDescription =
+                if (isBalanceVisible) {
+                    WALLET_CD_HIDE_BALANCE
+                } else {
+                    WALLET_CD_SHOW_BALANCE
+                },
+            tint = tint,
+            modifier = Modifier.size(WALLET_EYE_ICON_SIZE.dp),
+        )
+    }
+}
+
+@Composable
+private fun WalletHistoryChip(
+    kind: WalletSummaryCardKind,
+    onClick: () -> Unit,
+) {
+    val semantic = KeuTrackTheme.semanticColors
+    val typography = KeuTrackTheme.typography
+    val neutral = KeuTrackTheme.neutralColors
+    val interactionSource = remember { MutableInteractionSource() }
+
+    val (chipBackground, chipContent) =
+        when (kind) {
+            WalletSummaryCardKind.Personal ->
+                Color.Black.copy(alpha = WALLET_HISTORY_CHIP_PERSONAL_BG_ALPHA) to neutral.white
+
+            WalletSummaryCardKind.Family ->
+                semantic.primary.copy(alpha = WALLET_HISTORY_CHIP_FAMILY_BG_ALPHA) to semantic.primary
+        }
+
+    Row(
+        modifier =
+            Modifier
+                .clip(RoundedCornerShape(percent = 50))
+                .background(chipBackground)
+                .clickable(
+                    interactionSource = interactionSource,
+                    indication = ripple(bounded = true),
+                    onClick = onClick,
+                )
+                .padding(
+                    horizontal = WALLET_HISTORY_CHIP_PH.dp,
+                    vertical = WALLET_HISTORY_CHIP_PV.dp,
+                ),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(WALLET_HISTORY_CHIP_GAP.dp),
+    ) {
+        Text(
+            text = WALLET_HISTORY_LABEL,
+            style = typography.bodyBold12,
+            color = chipContent,
+        )
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = chipContent,
+            modifier = Modifier.size(WALLET_HISTORY_CHIP_ICON.dp),
+        )
+    }
+}
+
 private data class Quadruple<A, B, C, D>(
     val first: A,
     val second: B,
@@ -222,9 +355,12 @@ private data class Quadruple<A, B, C, D>(
 )
 
 @Composable
-private fun FamilyWalletAvatarStack(modifier: Modifier = Modifier) {
+private fun FamilyWalletAvatarStack(
+    initials: List<String>,
+    modifier: Modifier = Modifier,
+) {
+    if (initials.isEmpty()) return
     val semantic = KeuTrackTheme.semanticColors
-    val initials = WALLET_AVATAR_MOCK_INITIALS
     val accents =
         listOf(
             semantic.primary,
@@ -298,7 +434,10 @@ fun WalletSummaryPersonalMonthChangeFooter(monthChangeLabel: String) {
 
 /** Default footer for family wallet: overlapping avatars + shared summary. */
 @Composable
-fun WalletSummaryFamilySharedFooter(sharedSummary: String) {
+fun WalletSummaryFamilySharedFooter(
+    sharedSummary: String,
+    memberInitials: List<String> = emptyList(),
+) {
     val typography = KeuTrackTheme.typography
     val textColors = KeuTrackTheme.textColors
 
@@ -306,7 +445,12 @@ fun WalletSummaryFamilySharedFooter(sharedSummary: String) {
         modifier = Modifier.padding(top = WALLET_FAMILY_FOOTER_ROW_PT.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        FamilyWalletAvatarStack(modifier = Modifier.padding(end = WALLET_FAMILY_FOOTER_AVATAR_END.dp))
+        if (memberInitials.isNotEmpty()) {
+            FamilyWalletAvatarStack(
+                initials = memberInitials,
+                modifier = Modifier.padding(end = WALLET_FAMILY_FOOTER_AVATAR_END.dp),
+            )
+        }
         Text(
             text = sharedSummary,
             style = typography.bodyRegular12,

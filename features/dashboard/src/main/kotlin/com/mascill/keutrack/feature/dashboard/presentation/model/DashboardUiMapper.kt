@@ -3,6 +3,7 @@ package com.mascill.keutrack.feature.dashboard.presentation.model
 import com.mascill.keutrack.core.designsystem.format.CurrencyFormat
 import com.mascill.keutrack.core.domain.model.Category
 import com.mascill.keutrack.core.domain.model.CategorySummary
+import com.mascill.keutrack.core.domain.model.FamilyGroup
 import com.mascill.keutrack.core.domain.model.Transaction
 import com.mascill.keutrack.core.domain.model.TransactionType
 import com.mascill.keutrack.core.domain.model.User
@@ -39,6 +40,34 @@ internal object DashboardUiMapper {
             familyWalletCount == 1 -> "Shared with 1 wallet"
             else -> "Shared with $familyWalletCount wallets"
         }
+
+    fun familyMemberInitials(user: User?, family: FamilyGroup?): List<String> {
+        if (family == null || family.memberIds.isEmpty()) return emptyList()
+        return family.memberIds
+            .mapNotNull { memberId ->
+                initialFrom(resolveMemberName(user, memberId, family.memberNames[memberId]))
+            }
+            .take(MAX_FAMILY_AVATARS)
+    }
+
+    private fun resolveMemberName(
+        user: User?,
+        memberId: String,
+        storedName: String?,
+    ): String? {
+        val fromStore = storedName?.trim().orEmpty()
+        if (fromStore.isNotEmpty()) return fromStore
+        if (memberId.isNotEmpty() && memberId == user?.uid) {
+            return greetingFirstName(user, fallback = "")
+                .takeIf { it.isNotBlank() }
+        }
+        return null
+    }
+
+    private fun initialFrom(name: String?): String? {
+        val first = name?.trim()?.firstOrNull() ?: return null
+        return first.uppercaseChar().toString()
+    }
 
     fun monthChangeLabel(
         current: CategorySummary?,
@@ -114,4 +143,6 @@ internal object DashboardUiMapper {
             "TrendingUp" -> TransactionCategoryIcon.Investment
             else -> TransactionCategoryIcon.Other
         }
+
+    private const val MAX_FAMILY_AVATARS = 4
 }

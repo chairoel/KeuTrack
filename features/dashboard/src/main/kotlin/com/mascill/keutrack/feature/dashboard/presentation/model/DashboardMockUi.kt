@@ -140,6 +140,7 @@ fun DashboardMockContent.toPreviewUiState(): DashboardUIState =
         pageTitle = pageTitle,
         personalBalance = 12_450_000L,
         familyBalance = 45_820_500L,
+        familyMemberInitials = listOf("A", "B", "C", "D"),
         familySharedSummary = familySharedSummary,
         monthChangeLabel = personalMonthChangeLabel,
         incomeTotal = 8_200_000L,

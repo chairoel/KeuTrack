@@ -12,9 +12,12 @@ data class DashboardUIState(
     val pageTitle: String = "Financial Journal",
     val personalBalance: Long = 0L,
     val familyBalance: Long = 0L,
+    val familyMemberInitials: List<String> = emptyList(),
     val familySharedSummary: String = "",
     val monthChangeLabel: String? = null,
     val incomeTotal: Long = 0L,
     val expenseTotal: Long = 0L,
     val recentTransactions: List<TransactionRowUi> = emptyList(),
+    val isPersonalBalanceVisible: Boolean = true,
+    val isFamilyBalanceVisible: Boolean = true,
 )
