@@ -35,6 +35,7 @@ fun HomeShell(
     onSignOutSuccess: () -> Unit = {},
     onAddTransaction: () -> Unit = {},
     onViewAllTransactions: () -> Unit = {},
+    onViewAllFamilyHistory: () -> Unit = {},
 ) {
     val homeNavController = rememberNavController()
     HomeShellContent(
@@ -42,6 +43,7 @@ fun HomeShell(
         onSignOutSuccess = onSignOutSuccess,
         onAddTransaction = onAddTransaction,
         onViewAllTransactions = onViewAllTransactions,
+        onViewAllFamilyHistory = onViewAllFamilyHistory,
     )
 }
 
@@ -51,6 +53,7 @@ private fun HomeShellContent(
     onSignOutSuccess: () -> Unit,
     onAddTransaction: () -> Unit,
     onViewAllTransactions: () -> Unit,
+    onViewAllFamilyHistory: () -> Unit,
 ) {
     val backStackEntry by homeNavController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
@@ -104,6 +107,7 @@ private fun HomeShellContent(
             onSignOutSuccess = onSignOutSuccess,
             onAddTransaction = onAddTransaction,
             onViewAllTransactions = onViewAllTransactions,
+            onViewAllFamilyHistory = onViewAllFamilyHistory,
         )
     }
 }
@@ -119,6 +123,7 @@ private fun HomeNavHost(
     onSignOutSuccess: () -> Unit,
     onAddTransaction: () -> Unit,
     onViewAllTransactions: () -> Unit,
+    onViewAllFamilyHistory: () -> Unit,
 ) {
     NavHost(
         navController = navController,
@@ -144,7 +149,7 @@ private fun HomeNavHost(
         )
         familyGraph(
             onAddTransaction = onAddTransaction,
-            onViewAllTransactions = onViewAllTransactions,
+            onViewAllTransactions = onViewAllFamilyHistory,
         )
         settingsGraph(
             onSignOutSuccess = onSignOutSuccess,

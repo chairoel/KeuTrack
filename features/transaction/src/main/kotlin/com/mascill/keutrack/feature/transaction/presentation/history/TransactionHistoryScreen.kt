@@ -36,8 +36,12 @@ import com.mascill.keutrack.feature.transaction.presentation.model.TransactionCa
 import com.mascill.keutrack.feature.transaction.presentation.model.TransactionRowUi
 
 private const val HISTORY_TITLE = "Riwayat"
+private const val HISTORY_FAMILY_TITLE = "Riwayat Keluarga"
 private const val HISTORY_EMPTY_TITLE = "Belum ada transaksi"
 private const val HISTORY_EMPTY_BODY = "Catat pemasukan atau pengeluaran pertamamu."
+private const val HISTORY_FAMILY_EMPTY_TITLE = "Belum ada transaksi keluarga"
+private const val HISTORY_FAMILY_EMPTY_BODY =
+    "Belum ada transaksi di dompet keluarga. Gunakan tombol di bawah untuk menambah transaksi bersama."
 private const val HISTORY_EMPTY_CTA = "Tambah transaksi"
 private const val HISTORY_ERROR_DISMISS = "Dismiss"
 private const val HISTORY_TOP_BAR_ELEVATION = 4
@@ -72,7 +76,7 @@ fun TransactionHistoryScreen(
                     elevation = HISTORY_TOP_BAR_ELEVATION.dp,
                 ) {
                     KeuTrackTopBar(
-                        title = HISTORY_TITLE,
+                        title = if (uiState.isFamilyOnly) HISTORY_FAMILY_TITLE else HISTORY_TITLE,
                         modifier =
                             Modifier
                                 .fillMaxWidth()
@@ -118,13 +122,21 @@ fun TransactionHistoryScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Text(
-                            text = HISTORY_EMPTY_TITLE,
+                            text = if (uiState.isFamilyOnly) {
+                                HISTORY_FAMILY_EMPTY_TITLE
+                            } else {
+                                HISTORY_EMPTY_TITLE
+                            },
                             style = typography.headingBold20,
                             color = textColors.title,
                             textAlign = TextAlign.Center,
                         )
                         Text(
-                            text = HISTORY_EMPTY_BODY,
+                            text = if (uiState.isFamilyOnly) {
+                                HISTORY_FAMILY_EMPTY_BODY
+                            } else {
+                                HISTORY_EMPTY_BODY
+                            },
                             style = typography.bodyRegular14,
                             color = textColors.body,
                             textAlign = TextAlign.Center,

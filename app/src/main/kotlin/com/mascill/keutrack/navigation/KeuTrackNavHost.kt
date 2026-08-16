@@ -55,7 +55,7 @@ fun KeuTrackNavHost(
                 appState.stashPendingDeepLink(entry.toRoute<TransactionRoute>())
             }
             destination.hasRoute<TransactionHistoryRoute>() -> {
-                appState.stashPendingDeepLink(TransactionHistoryRoute)
+                appState.stashPendingDeepLink(entry.toRoute<TransactionHistoryRoute>())
             }
         }
         appState.navigateAndResetStack { navOpt ->
@@ -108,6 +108,9 @@ fun KeuTrackNavHost(
                 },
                 onAddTransaction = { navController.navigateToTransaction() },
                 onViewAllTransactions = { navController.navigateToTransactionHistory() },
+                onViewAllFamilyHistory = {
+                    navController.navigateToTransactionHistory(familyOnly = true)
+                },
             )
         }
 
