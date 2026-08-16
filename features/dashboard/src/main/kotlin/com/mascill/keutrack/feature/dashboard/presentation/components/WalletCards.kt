@@ -96,6 +96,7 @@ fun WalletSummaryCard(
     balanceLabel: String,
     balanceAmount: String,
     modifier: Modifier = Modifier,
+    onHistoryClick: () -> Unit = {},
     footer: @Composable ColumnScope.() -> Unit,
 ) {
     when (kind) {
@@ -105,6 +106,7 @@ fun WalletSummaryCard(
                     kind = kind,
                     balanceLabel = balanceLabel,
                     balanceAmount = balanceAmount,
+                    onHistoryClick = onHistoryClick,
                     footer = footer,
                 )
             }
@@ -120,6 +122,7 @@ fun WalletSummaryCard(
                         kind = kind,
                         balanceLabel = balanceLabel,
                         balanceAmount = balanceAmount,
+                        onHistoryClick = onHistoryClick,
                         footer = footer,
                     )
                 }
@@ -158,6 +161,7 @@ private fun ColumnScope.WalletSummaryCardBody(
     kind: WalletSummaryCardKind,
     balanceLabel: String,
     balanceAmount: String,
+    onHistoryClick: () -> Unit,
     footer: @Composable ColumnScope.() -> Unit,
 ) {
     val semantic = KeuTrackTheme.semanticColors
@@ -227,7 +231,10 @@ private fun ColumnScope.WalletSummaryCardBody(
                 onClick = { isBalanceVisible = !isBalanceVisible },
             )
         }
-        WalletHistoryChip(kind = kind)
+        WalletHistoryChip(
+            kind = kind,
+            onClick = onHistoryClick,
+        )
     }
 
     Text(
@@ -290,10 +297,12 @@ private fun WalletVisibilityToggle(
 @Composable
 private fun WalletHistoryChip(
     kind: WalletSummaryCardKind,
+    onClick: () -> Unit,
 ) {
     val semantic = KeuTrackTheme.semanticColors
     val typography = KeuTrackTheme.typography
     val neutral = KeuTrackTheme.neutralColors
+    val interactionSource = remember { MutableInteractionSource() }
 
     val (chipBackground, chipContent) =
         when (kind) {
@@ -309,6 +318,11 @@ private fun WalletHistoryChip(
             Modifier
                 .clip(RoundedCornerShape(percent = 50))
                 .background(chipBackground)
+                .clickable(
+                    interactionSource = interactionSource,
+                    indication = ripple(bounded = true),
+                    onClick = onClick,
+                )
                 .padding(
                     horizontal = WALLET_HISTORY_CHIP_PH.dp,
                     vertical = WALLET_HISTORY_CHIP_PV.dp,

@@ -146,6 +146,7 @@ private fun HomeNavHost(
             },
             onAddTransaction = onAddTransaction,
             onViewAllTransactions = onViewAllTransactions,
+            onViewAllFamilyHistory = onViewAllFamilyHistory,
         )
         familyGraph(
             onAddTransaction = onAddTransaction,

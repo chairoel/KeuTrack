@@ -62,6 +62,7 @@ fun DashboardRouting(
     onSettingsClick: () -> Unit = {},
     onAddTransaction: () -> Unit = {},
     onViewAllTransactions: () -> Unit = {},
+    onViewAllFamilyHistory: () -> Unit = {},
     viewModel: DashboardViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -74,6 +75,7 @@ fun DashboardRouting(
         uiState = uiState,
         onSettingsClick = onSettingsClick,
         onViewAllTransactions = onViewAllTransactions,
+        onViewAllFamilyHistory = onViewAllFamilyHistory,
         onFabClick = onAddTransaction,
         onDismissError = { /* error is one-shot from flow; next emit clears */ },
     )
@@ -87,6 +89,7 @@ fun DashboardScreen(
     uiState: DashboardUIState,
     onSettingsClick: () -> Unit,
     onViewAllTransactions: () -> Unit,
+    onViewAllFamilyHistory: () -> Unit = {},
     onFabClick: () -> Unit,
     onDismissError: () -> Unit = {},
 ) {
@@ -177,6 +180,7 @@ fun DashboardScreen(
                                 kind = WalletSummaryCardKind.Personal,
                                 balanceLabel = DASH_BALANCE_LABEL_PERSONAL,
                                 balanceAmount = CurrencyFormat.formatIdr(uiState.personalBalance),
+                                onHistoryClick = onViewAllTransactions,
                             ) {
                                 uiState.monthChangeLabel?.let { label ->
                                     WalletSummaryPersonalMonthChangeFooter(label)
@@ -189,6 +193,7 @@ fun DashboardScreen(
                                 kind = WalletSummaryCardKind.Family,
                                 balanceLabel = DASH_BALANCE_LABEL_FAMILY,
                                 balanceAmount = CurrencyFormat.formatIdr(uiState.familyBalance),
+                                onHistoryClick = onViewAllFamilyHistory,
                             ) {
                                 WalletSummaryFamilySharedFooter(
                                     sharedSummary = uiState.familySharedSummary,
