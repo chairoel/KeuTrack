@@ -2,6 +2,7 @@ package com.mascill.keutrack.navigation
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.Scaffold
 import androidx.compose.runtime.Composable
@@ -77,6 +78,7 @@ private fun HomeShellContent(
             KeuTrackBottomNav(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .navigationBarsPadding()
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 items = HomeNavDestination.items,
                 selectedKey = selectedKey,
