@@ -51,7 +51,7 @@ private const val FAM_PULSE_LABEL = "Pulse Report"
 private const val FAM_BREAKDOWN_TITLE = "Family Breakdown"
 private const val FAM_MONTHLY_TOTAL_LABEL = "Monthly Total"
 private const val FAM_EMPTY_SEGMENTS =
-    "Belum ada pengeluaran bulan ini. Catat transaksi di dompet keluarga untuk melihat breakdown."
+    "Belum ada pengeluaran bulan ini. Catat transaksi di dompet keluarga untuk melihat kontribusi tiap anggota."
 private val FAM_DONUT_SIZE = 176.dp
 
 @Composable

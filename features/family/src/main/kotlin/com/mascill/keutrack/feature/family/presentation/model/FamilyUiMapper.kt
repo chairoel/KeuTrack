@@ -62,7 +62,7 @@ internal object FamilyUiMapper {
             spendSegments =
                 toSpendSegmentsFromTransactions(
                     transactions = currentMonthTxs,
-                    categoriesById = categoriesById,
+                    memberNamesByUserId = familyGroup?.memberNames.orEmpty(),
                 ),
             budgetRows =
                 toBudgetRows(
@@ -98,20 +98,20 @@ internal object FamilyUiMapper {
         return walletSummary.familyWallets.minByOrNull { it.createdAt }
     }
 
+    /** Donut legend: monthly family expense grouped by member, not category. */
     fun toSpendSegmentsFromTransactions(
         transactions: List<Transaction>,
-        categoriesById: Map<String, Category>,
+        memberNamesByUserId: Map<String, String> = emptyMap(),
     ): List<FamilySpendSegment> {
         val expenses = transactions.filter { it.type == TransactionType.EXPENSE }
         val total = expenses.sumOf { it.amount }
         if (total <= 0L) return emptyList()
 
         return expenses
-            .groupBy { it.categoryId }
-            .map { (categoryId, txs) ->
+            .groupBy { memberKey(it) }
+            .map { (key, txs) ->
                 val amount = txs.sumOf { it.amount }
-                val name = categoriesById[categoryId]?.name ?: "Lainnya"
-                amount to name
+                amount to resolveMemberLabel(key, txs, memberNamesByUserId)
             }
             .sortedByDescending { it.first }
             .take(TOP_SPEND_SEGMENTS)
@@ -131,24 +131,30 @@ internal object FamilyUiMapper {
             }
     }
 
+    /** Shared Budgets: one row per category (merged if several member budgets share it). */
     fun toBudgetRows(
         budgets: List<Budget>,
         categoriesById: Map<String, Category>,
     ): List<FamilyBudgetRowUi> =
-        budgets.map { budget ->
-            val title = categoriesById[budget.categoryId]?.name ?: "Budget"
-            val progress = budget.progressPercent.coerceIn(0f, 1f)
-            val tone = budgetTone(budget)
-            FamilyBudgetRowUi(
-                title = title,
-                spentLabel = CurrencyFormat.formatIdr(budget.spent),
-                capLabel = CurrencyFormat.formatIdr(budget.limit),
-                progress = progress,
-                footnote = budgetFootnote(budget),
-                tone = tone,
-                muted = tone == FamilyBudgetBarTone.Primary && !budget.isOverBudget,
-            )
-        }
+        budgets
+            .groupBy { it.categoryId }
+            .map { (categoryId, categoryBudgets) ->
+                val spent = categoryBudgets.sumOf { it.spent }
+                val limit = categoryBudgets.sumOf { it.limit }
+                val progress = if (limit > 0L) (spent.toFloat() / limit.toFloat()) else 0f
+                val isOverBudget = spent > limit
+                val tone = budgetTone(progress = progress, isOverBudget = isOverBudget)
+                FamilyBudgetRowUi(
+                    title = categoriesById[categoryId]?.name ?: "Budget",
+                    spentLabel = CurrencyFormat.formatIdr(spent),
+                    capLabel = CurrencyFormat.formatIdr(limit),
+                    progress = progress.coerceIn(0f, 1f),
+                    footnote = budgetFootnote(spent = spent, limit = limit, progress = progress),
+                    tone = tone,
+                    muted = tone == FamilyBudgetBarTone.Primary && !isOverBudget,
+                )
+            }
+            .sortedByDescending { it.progress }
 
     fun toHistoryRows(
         transactions: List<Transaction>,
@@ -225,27 +231,39 @@ internal object FamilyUiMapper {
     private fun java.time.Instant.toYearMonth(): YearMonth =
         YearMonth.from(atZone(ZoneId.systemDefault()).toLocalDate())
 
-    private fun budgetTone(budget: Budget): FamilyBudgetBarTone =
+    private fun memberKey(tx: Transaction): String =
+        tx.userId.ifBlank { tx.addedByName.ifBlank { DEFAULT_ADDED_BY } }
+
+    private fun resolveMemberLabel(
+        key: String,
+        txs: List<Transaction>,
+        memberNamesByUserId: Map<String, String>,
+    ): String {
+        val fromTx = txs.maxByOrNull { it.date }?.addedByName?.takeIf { it.isNotBlank() }
+        if (!fromTx.isNullOrBlank()) return fromTx
+        return memberNamesByUserId[key]?.takeIf { it.isNotBlank() } ?: DEFAULT_ADDED_BY
+    }
+
+    private fun budgetTone(progress: Float, isOverBudget: Boolean): FamilyBudgetBarTone =
         when {
-            budget.isOverBudget || budget.progressPercent >= BUDGET_WARN_THRESHOLD ->
-                FamilyBudgetBarTone.Error
-            budget.progressPercent <= 0.6f -> FamilyBudgetBarTone.Success
+            isOverBudget || progress >= BUDGET_WARN_THRESHOLD -> FamilyBudgetBarTone.Error
+            progress <= 0.6f -> FamilyBudgetBarTone.Success
             else -> FamilyBudgetBarTone.Primary
         }
 
-    private fun budgetFootnote(budget: Budget): String? {
-        if (budget.limit <= 0L) return null
+    private fun budgetFootnote(spent: Long, limit: Long, progress: Float): String? {
+        if (limit <= 0L) return null
         return when {
-            budget.isOverBudget -> {
-                val over = budget.spent - budget.limit
+            spent > limit -> {
+                val over = spent - limit
                 "Melebihi limit ${CurrencyFormat.formatIdr(over)}"
             }
-            budget.progressPercent >= BUDGET_WARN_THRESHOLD -> {
-                val leftPct = ((1f - budget.progressPercent) * 100f).roundToInt().coerceAtLeast(0)
+            progress >= BUDGET_WARN_THRESHOLD -> {
+                val leftPct = ((1f - progress) * 100f).roundToInt().coerceAtLeast(0)
                 "Mendekati limit ($leftPct% tersisa)"
             }
-            budget.progressPercent <= 0.6f -> {
-                val remaining = budget.remaining.coerceAtLeast(0L)
+            progress <= 0.6f -> {
+                val remaining = (limit - spent).coerceAtLeast(0L)
                 "On track — sisa ${CurrencyFormat.formatIdr(remaining)}"
             }
             else -> null

@@ -89,12 +89,12 @@ val DefaultFamilyInsightsMockContent =
         spendSegments =
             listOf(
                 FamilySpendSegment(
-                    label = "Household",
+                    label = "Siti",
                     detail = "65% • Rp 3.152.000",
                     fraction = 0.65f,
                 ),
                 FamilySpendSegment(
-                    label = "Education",
+                    label = "Budi",
                     detail = "35% • Rp 1.698.000",
                     fraction = 0.35f,
                 ),
