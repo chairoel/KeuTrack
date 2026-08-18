@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<lint>
+    <!--
+      UI is Material 2 (KeuTrackTheme). Material 3 is only used for
+      KeuTrackModalBottomSheet chrome. The mix is intentional.
+    -->
+    <issue id="UsingMaterialAndMaterial3Libraries" severity="ignore" />
+</lint>

@@ -18,7 +18,8 @@ import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
 /**
  * Modal bottom sheet using Material3 [ModalBottomSheet] with KeuTrack surface shape and colors.
  * Inner content should use [KeuTrackTheme] typography and colors (Material2); only the sheet chrome
- * comes from Material3.
+ * comes from Material3. This is the only Material 3 usage in the project; lint ignores
+ * `UsingMaterialAndMaterial3Libraries` for that reason.
  * Uses an internal remembered sheet state. Public signature avoids experimental Material3 types so
  * feature modules do not need [ExperimentalMaterial3Api] opt-in.
  */

@@ -91,7 +91,7 @@ internal object SettingsUiMapper {
                 ConnectedWalletUi(
                     id = wallet.id,
                     title = wallet.name,
-                    subtitle = "Family Vault",
+                    subtitle = "Family",
                     amountLabel = CurrencyFormat.formatIdr(wallet.balance),
                     statusLabel = "Shared",
                     statusKind = ConnectedWalletStatusKind.Shared,
