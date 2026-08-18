@@ -77,7 +77,7 @@ private const val MSG_FAMILY_CODE_COPIED = "Kode keluarga disalin"
 private const val MSG_SHARE_FAMILY_CODE_PREFIX = "Bagikan kode"
 
 /**
- * Home routing to handle screen that will be showing and to handle view model flow /
+ * Settings routing to handle screen that will be showing and to handle view model flow /
  * live data collection
  */
 @Composable

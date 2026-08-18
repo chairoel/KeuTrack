@@ -75,7 +75,7 @@ val DefaultSettingsMockContent =
                 ConnectedWalletUi(
                     id = "preview-family",
                     title = "Emergency Fund",
-                    subtitle = "Family Vault",
+                    subtitle = "Family",
                     amountLabel = "Rp 45.000.000",
                     statusLabel = "Shared",
                     statusKind = ConnectedWalletStatusKind.Shared,
