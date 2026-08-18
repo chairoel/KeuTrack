@@ -14,6 +14,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.mascill.keutrack.core.designsystem.model.KeuTrackProgressTone
@@ -25,6 +27,7 @@ fun KeuTrackProgressBar(
     modifier: Modifier = Modifier,
     isOverLimit: Boolean = false,
     tone: KeuTrackProgressTone = KeuTrackProgressTone.Primary,
+    fillColor: Color? = null,
 ) {
     val semantic = KeuTrackTheme.semanticColors
     val shapes = KeuTrackTheme.shapeTokens
@@ -38,18 +41,18 @@ fun KeuTrackProgressBar(
         }
 
     val fillBrush =
-        when (resolvedTone) {
-            KeuTrackProgressTone.Success ->
+        when {
+            fillColor != null && resolvedTone != KeuTrackProgressTone.Danger ->
+                SolidColor(fillColor)
+            resolvedTone == KeuTrackProgressTone.Success ->
                 Brush.horizontalGradient(
                     colors = listOf(semantic.secondary, success.s700),
                 )
-
-            KeuTrackProgressTone.Danger ->
+            resolvedTone == KeuTrackProgressTone.Danger ->
                 Brush.horizontalGradient(
                     colors = listOf(semantic.error, semantic.tertiary),
                 )
-
-            KeuTrackProgressTone.Primary ->
+            else ->
                 Brush.horizontalGradient(
                     colors = listOf(semantic.primary, semantic.primaryContainer),
                 )

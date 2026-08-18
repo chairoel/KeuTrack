@@ -46,6 +46,8 @@ enum class FamilyBudgetBarTone {
     Primary,
 }
 
+internal const val DEFAULT_BUDGET_BAR_COLOR = "#78909C"
+
 data class FamilySpendSegment(
     val label: String,
     val detail: String,
@@ -60,6 +62,7 @@ data class FamilyBudgetRowUi(
     val footnote: String?,
     val tone: FamilyBudgetBarTone,
     val muted: Boolean,
+    val barColorHex: String = DEFAULT_BUDGET_BAR_COLOR,
 )
 
 data class FamilyHistoryRowUi(
@@ -89,12 +92,12 @@ val DefaultFamilyInsightsMockContent =
         spendSegments =
             listOf(
                 FamilySpendSegment(
-                    label = "Household",
+                    label = "Siti",
                     detail = "65% • Rp 3.152.000",
                     fraction = 0.65f,
                 ),
                 FamilySpendSegment(
-                    label = "Education",
+                    label = "Budi",
                     detail = "35% • Rp 1.698.000",
                     fraction = 0.35f,
                 ),
@@ -109,6 +112,7 @@ val DefaultFamilyInsightsMockContent =
                     footnote = "On track — sisa Rp 800.000",
                     tone = FamilyBudgetBarTone.Success,
                     muted = false,
+                    barColorHex = "#FFA726",
                 ),
                 FamilyBudgetRowUi(
                     title = "Education",
@@ -118,6 +122,7 @@ val DefaultFamilyInsightsMockContent =
                     footnote = "Mendekati limit (5% tersisa)",
                     tone = FamilyBudgetBarTone.Error,
                     muted = false,
+                    barColorHex = "#26A69A",
                 ),
                 FamilyBudgetRowUi(
                     title = "Shared Leisure",
@@ -127,6 +132,7 @@ val DefaultFamilyInsightsMockContent =
                     footnote = null,
                     tone = FamilyBudgetBarTone.Primary,
                     muted = true,
+                    barColorHex = "#EC407A",
                 ),
             ),
         historyRows =
