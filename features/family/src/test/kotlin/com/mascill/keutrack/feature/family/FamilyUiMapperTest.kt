@@ -68,6 +68,55 @@ class FamilyUiMapperTest {
         assertThat(rows.first { it.title == "Education" }.title).isEqualTo("Education")
     }
 
+    @Test
+    fun `budget rows come from expense categories when no budgets exist`() {
+        val txs =
+            listOf(
+                expense(userId = "u-siti", addedByName = "Siti", amount = 300_000L, categoryId = "cat_food"),
+                expense(userId = "u-budi", addedByName = "Budi", amount = 200_000L, categoryId = "cat_school"),
+            )
+        val categories =
+            mapOf(
+                "cat_food" to category("cat_food", "Household"),
+                "cat_school" to category("cat_school", "Education"),
+            )
+
+        val rows =
+            FamilyUiMapper.toBudgetRows(
+                budgets = emptyList(),
+                categoriesById = categories,
+                transactions = txs,
+            )
+
+        assertThat(rows.map { it.title }).containsExactly("Household", "Education").inOrder()
+        assertThat(rows.first { it.title == "Household" }.spentLabel).isEqualTo("Rp 300.000")
+        assertThat(rows.first { it.title == "Education" }.spentLabel).isEqualTo("Rp 200.000")
+        assertThat(rows.first { it.title == "Household" }.footnote)
+            .isEqualTo("60% dari pengeluaran keluarga")
+        assertThat(rows.first { it.title == "Household" }.barColorHex).isEqualTo("#FF7043")
+    }
+
+    @Test
+    fun `budget rows use transaction spent against shared budget limit`() {
+        val txs =
+            listOf(
+                expense(userId = "u-siti", addedByName = "Siti", amount = 400_000L, categoryId = "cat_food"),
+            )
+        val categories = mapOf("cat_food" to category("cat_food", "Household"))
+
+        val rows =
+            FamilyUiMapper.toBudgetRows(
+                budgets = listOf(budget(id = "b-1", categoryId = "cat_food", spent = 10L, limit = 1_000_000L)),
+                categoriesById = categories,
+                transactions = txs,
+            )
+
+        assertThat(rows).hasSize(1)
+        assertThat(rows.first().spentLabel).isEqualTo("Rp 400.000")
+        assertThat(rows.first().capLabel).isEqualTo("Rp 1.000.000")
+        assertThat(rows.first().footnote).isEqualTo("On track — sisa Rp 600.000")
+    }
+
     private fun expense(
         userId: String,
         addedByName: String,

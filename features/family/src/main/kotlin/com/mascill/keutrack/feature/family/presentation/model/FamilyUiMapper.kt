@@ -72,6 +72,7 @@ internal object FamilyUiMapper {
                             familyWalletIds = familyWalletIds,
                             familyId = user?.familyId,
                         ),
+                    transactions = currentMonthTxs,
                     categoriesById = categoriesById,
                 ),
             historyRows =
@@ -131,30 +132,46 @@ internal object FamilyUiMapper {
             }
     }
 
-    /** Shared Budgets: one row per category (merged if several member budgets share it). */
+    /**
+     * Shared Budgets: one row per category from this month's family expenses.
+     * Budget limits overlay progress when a shared budget exists for that category.
+     */
     fun toBudgetRows(
         budgets: List<Budget>,
         categoriesById: Map<String, Category>,
-    ): List<FamilyBudgetRowUi> =
-        budgets
-            .groupBy { it.categoryId }
-            .map { (categoryId, categoryBudgets) ->
-                val spent = categoryBudgets.sumOf { it.spent }
-                val limit = categoryBudgets.sumOf { it.limit }
-                val progress = if (limit > 0L) (spent.toFloat() / limit.toFloat()) else 0f
-                val isOverBudget = spent > limit
-                val tone = budgetTone(progress = progress, isOverBudget = isOverBudget)
-                FamilyBudgetRowUi(
-                    title = categoriesById[categoryId]?.name ?: "Budget",
-                    spentLabel = CurrencyFormat.formatIdr(spent),
-                    capLabel = CurrencyFormat.formatIdr(limit),
-                    progress = progress.coerceIn(0f, 1f),
-                    footnote = budgetFootnote(spent = spent, limit = limit, progress = progress),
-                    tone = tone,
-                    muted = tone == FamilyBudgetBarTone.Primary && !isOverBudget,
+        transactions: List<Transaction> = emptyList(),
+    ): List<FamilyBudgetRowUi> {
+        val spentByCategory =
+            transactions
+                .filter { it.type == TransactionType.EXPENSE }
+                .groupBy { it.categoryId }
+                .mapValues { (_, txs) -> txs.sumOf { it.amount } }
+        val limitByCategory =
+            budgets
+                .groupBy { it.categoryId }
+                .mapValues { (_, categoryBudgets) -> categoryBudgets.sumOf { it.limit } }
+        val spentFromBudget =
+            budgets
+                .groupBy { it.categoryId }
+                .mapValues { (_, categoryBudgets) -> categoryBudgets.sumOf { it.spent } }
+        val monthlyTotal = spentByCategory.values.sum()
+        val categoryIds = spentByCategory.keys + limitByCategory.keys
+        if (categoryIds.isEmpty()) return emptyList()
+
+        return categoryIds
+            .map { categoryId ->
+                val spent = spentByCategory[categoryId] ?: spentFromBudget[categoryId] ?: 0L
+                val limit = limitByCategory[categoryId] ?: 0L
+                toCategoryBudgetRow(
+                    title = categoriesById[categoryId]?.name ?: "Lainnya",
+                    spent = spent,
+                    limit = limit,
+                    monthlyTotal = monthlyTotal,
+                    barColorHex = categoriesById[categoryId]?.color ?: DEFAULT_BUDGET_BAR_COLOR,
                 )
             }
             .sortedByDescending { it.progress }
+    }
 
     fun toHistoryRows(
         transactions: List<Transaction>,
@@ -244,6 +261,39 @@ internal object FamilyUiMapper {
         return memberNamesByUserId[key]?.takeIf { it.isNotBlank() } ?: DEFAULT_ADDED_BY
     }
 
+    private fun toCategoryBudgetRow(
+        title: String,
+        spent: Long,
+        limit: Long,
+        monthlyTotal: Long,
+        barColorHex: String,
+    ): FamilyBudgetRowUi {
+        val hasLimit = limit > 0L
+        val progress =
+            when {
+                hasLimit -> spent.toFloat() / limit.toFloat()
+                monthlyTotal > 0L -> spent.toFloat() / monthlyTotal.toFloat()
+                else -> 0f
+            }
+        val isOverBudget = hasLimit && spent > limit
+        val tone =
+            if (hasLimit) {
+                budgetTone(progress = progress, isOverBudget = isOverBudget)
+            } else {
+                FamilyBudgetBarTone.Primary
+            }
+        return FamilyBudgetRowUi(
+            title = title,
+            spentLabel = CurrencyFormat.formatIdr(spent),
+            capLabel = CurrencyFormat.formatIdr(if (hasLimit) limit else monthlyTotal),
+            progress = progress.coerceIn(0f, 1f),
+            footnote = budgetFootnote(spent = spent, limit = limit, monthlyTotal = monthlyTotal),
+            tone = tone,
+            muted = !hasLimit || (tone == FamilyBudgetBarTone.Primary && !isOverBudget),
+            barColorHex = barColorHex,
+        )
+    }
+
     private fun budgetTone(progress: Float, isOverBudget: Boolean): FamilyBudgetBarTone =
         when {
             isOverBudget || progress >= BUDGET_WARN_THRESHOLD -> FamilyBudgetBarTone.Error
@@ -251,23 +301,28 @@ internal object FamilyUiMapper {
             else -> FamilyBudgetBarTone.Primary
         }
 
-    private fun budgetFootnote(spent: Long, limit: Long, progress: Float): String? {
-        if (limit <= 0L) return null
-        return when {
-            spent > limit -> {
-                val over = spent - limit
-                "Melebihi limit ${CurrencyFormat.formatIdr(over)}"
+    private fun budgetFootnote(spent: Long, limit: Long, monthlyTotal: Long): String? {
+        if (limit > 0L) {
+            val progress = spent.toFloat() / limit.toFloat()
+            return when {
+                spent > limit -> {
+                    val over = spent - limit
+                    "Melebihi limit ${CurrencyFormat.formatIdr(over)}"
+                }
+                progress >= BUDGET_WARN_THRESHOLD -> {
+                    val leftPct = ((1f - progress) * 100f).roundToInt().coerceAtLeast(0)
+                    "Mendekati limit ($leftPct% tersisa)"
+                }
+                progress <= 0.6f -> {
+                    val remaining = (limit - spent).coerceAtLeast(0L)
+                    "On track — sisa ${CurrencyFormat.formatIdr(remaining)}"
+                }
+                else -> null
             }
-            progress >= BUDGET_WARN_THRESHOLD -> {
-                val leftPct = ((1f - progress) * 100f).roundToInt().coerceAtLeast(0)
-                "Mendekati limit ($leftPct% tersisa)"
-            }
-            progress <= 0.6f -> {
-                val remaining = (limit - spent).coerceAtLeast(0L)
-                "On track — sisa ${CurrencyFormat.formatIdr(remaining)}"
-            }
-            else -> null
         }
+        if (monthlyTotal <= 0L) return null
+        val pct = ((spent.toFloat() / monthlyTotal.toFloat()) * 100f).roundToInt()
+        return "$pct% dari pengeluaran keluarga"
     }
 }
 

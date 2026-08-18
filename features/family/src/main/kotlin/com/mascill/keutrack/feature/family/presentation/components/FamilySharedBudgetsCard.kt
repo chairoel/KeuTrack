@@ -16,10 +16,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.core.graphics.toColorInt
 import com.mascill.keutrack.core.designsystem.component.KeuTrackProgressBar
-import com.mascill.keutrack.core.designsystem.model.KeuTrackProgressTone
 import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
+import com.mascill.keutrack.feature.family.presentation.model.DEFAULT_BUDGET_BAR_COLOR
 import com.mascill.keutrack.feature.family.presentation.model.FamilyBudgetBarTone
 import com.mascill.keutrack.feature.family.presentation.model.FamilyBudgetRowUi
 
@@ -32,7 +34,7 @@ private const val FAM_BUDGET_MUTED_ALPHA = 0.8f
 private const val FAM_BUDGET_SPENT_CAP_SEPARATOR = " / "
 private const val FAM_SHARED_BUDGETS_TITLE = "Shared Budgets"
 private const val FAM_BUDGETS_EMPTY =
-    "Belum ada shared budget bulan ini. Buat budget dengan dompet keluarga untuk memantau progress bersama."
+    "Belum ada pengeluaran per kategori bulan ini. Catat transaksi di dompet keluarga untuk melihat rinciannya."
 
 @Composable
 fun FamilySharedBudgetsCard(
@@ -98,13 +100,6 @@ private fun FamilyBudgetRow(
             FamilyBudgetBarTone.Primary -> semantic.onSurfaceVariant
         }
 
-    val progressTone =
-        when (row.tone) {
-            FamilyBudgetBarTone.Success -> KeuTrackProgressTone.Success
-            FamilyBudgetBarTone.Error -> KeuTrackProgressTone.Danger
-            FamilyBudgetBarTone.Primary -> KeuTrackProgressTone.Primary
-        }
-
     Column(
         modifier =
             modifier
@@ -130,8 +125,7 @@ private fun FamilyBudgetRow(
         Spacer(modifier = Modifier.height(FAM_BUDGET_ROW_INNER.dp))
         KeuTrackProgressBar(
             progress = row.progress,
-            tone = progressTone,
-            isOverLimit = row.tone == FamilyBudgetBarTone.Error,
+            fillColor = parseCategoryColor(row.barColorHex),
         )
         row.footnote?.let { note ->
             Text(
@@ -143,3 +137,11 @@ private fun FamilyBudgetRow(
         }
     }
 }
+
+private fun parseCategoryColor(hex: String): Color =
+    try {
+        val normalized = if (hex.startsWith("#")) hex else "#$hex"
+        Color(normalized.toColorInt())
+    } catch (_: IllegalArgumentException) {
+        Color(DEFAULT_BUDGET_BAR_COLOR.toColorInt())
+    }
