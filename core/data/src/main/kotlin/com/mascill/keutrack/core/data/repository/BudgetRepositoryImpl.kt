@@ -33,9 +33,21 @@ class BudgetRepositoryImpl @Inject constructor(
     override suspend fun getBudgetById(id: String): Budget? =
         local.getById(id)?.let(budgetMapper::toDomain)
 
+    override suspend fun findFamilyBudget(
+        familyId: String,
+        categoryId: String,
+        month: String,
+    ): Budget? =
+        local.getByMonthCategoryAndFamily(month, categoryId, familyId)
+            ?.let(budgetMapper::toDomain)
+
     override suspend fun createBudget(budget: Budget) {
         try {
-            val pending = budget.copy(spent = 0L, syncStatus = SyncStatus.PENDING)
+            val pending =
+                budget.copy(
+                    spent = budget.spent.coerceAtLeast(0L),
+                    syncStatus = SyncStatus.PENDING,
+                )
             local.upsert(budgetMapper.toEntity(pending))
             syncScheduler.enqueueSync()
         } catch (e: CancellationException) {
