@@ -97,6 +97,62 @@ class FamilyUiMapperTest {
     }
 
     @Test
+    fun `filterSharedBudgets keeps only budgets for the current family`() {
+        val own =
+            budget(
+                id = "b-own",
+                categoryId = "cat_food",
+                spent = 100_000L,
+                limit = 1_000_000L,
+                familyId = "fam-1",
+            )
+        val otherFamily =
+            budget(
+                id = "b-other",
+                categoryId = "cat_food",
+                spent = 1L,
+                limit = 9_999_000L,
+                familyId = "fam-2",
+            )
+        val personal =
+            budget(
+                id = "b-personal",
+                categoryId = "cat_food",
+                spent = 50_000L,
+                limit = 200_000L,
+                familyId = null,
+            )
+
+        val filtered =
+            FamilyUiMapper.filterSharedBudgets(
+                budgets = listOf(own, otherFamily, personal),
+                familyId = "fam-1",
+            )
+
+        assertThat(filtered).containsExactly(own)
+    }
+
+    @Test
+    fun `filterSharedBudgets is empty when user has no family`() {
+        val shared =
+            budget(
+                id = "b-1",
+                categoryId = "cat_food",
+                spent = 100_000L,
+                limit = 1_000_000L,
+                familyId = "fam-1",
+            )
+
+        val filtered =
+            FamilyUiMapper.filterSharedBudgets(
+                budgets = listOf(shared),
+                familyId = null,
+            )
+
+        assertThat(filtered).isEmpty()
+    }
+
+    @Test
     fun `budget rows use transaction spent against shared budget limit`() {
         val txs =
             listOf(
@@ -140,11 +196,12 @@ class FamilyUiMapperTest {
         categoryId: String,
         spent: Long,
         limit: Long,
+        familyId: String? = "fam-1",
     ): Budget =
         Budget(
             id = id,
             userId = "u-1",
-            familyId = "fam-1",
+            familyId = familyId,
             categoryId = categoryId,
             limit = limit,
             spent = spent,

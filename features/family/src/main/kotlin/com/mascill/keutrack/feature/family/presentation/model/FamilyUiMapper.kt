@@ -35,15 +35,6 @@ internal object FamilyUiMapper {
         priorMonth: YearMonth,
     ): FamilyUIState {
         val familyWallet = resolveFamilyWallet(user, walletSummary)
-        val familyWalletIds =
-            walletSummary.familyWallets
-                .filter { wallet ->
-                    user?.familyId.isNullOrBlank() || wallet.familyId == user?.familyId
-                }
-                .map { it.id }
-                .toSet()
-                .ifEmpty { familyWallet?.id?.let { setOf(it) }.orEmpty() }
-
         val currentMonthTxs = familyTransactions.filter { it.date.toYearMonth() == currentMonth }
         val priorMonthTxs = familyTransactions.filter { it.date.toYearMonth() == priorMonth }
         val currentExpense = currentMonthTxs.expenseTotal()
@@ -69,7 +60,6 @@ internal object FamilyUiMapper {
                     budgets =
                         filterSharedBudgets(
                             budgets = budgets,
-                            familyWalletIds = familyWalletIds,
                             familyId = user?.familyId,
                         ),
                     transactions = currentMonthTxs,
@@ -192,13 +182,10 @@ internal object FamilyUiMapper {
 
     fun filterSharedBudgets(
         budgets: List<Budget>,
-        familyWalletIds: Set<String>,
         familyId: String?,
     ): List<Budget> =
         budgets.filter { budget ->
-            (!familyId.isNullOrBlank() && budget.familyId == familyId) ||
-                (!budget.familyId.isNullOrBlank()) ||
-                (budget.walletId != null && budget.walletId in familyWalletIds)
+            !familyId.isNullOrBlank() && budget.familyId == familyId
         }
 
     fun savingTogetherInsight(
