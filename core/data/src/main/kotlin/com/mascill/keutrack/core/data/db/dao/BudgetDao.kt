@@ -20,11 +20,29 @@ interface BudgetDao {
     @Query(
         """
         SELECT * FROM budgets
-        WHERE month = :month AND categoryId = :categoryId
+        WHERE month = :month AND categoryId = :categoryId AND familyId = :familyId
+        ORDER BY createdAtEpochMs ASC
         LIMIT 1
         """,
     )
-    suspend fun getByMonthAndCategory(month: String, categoryId: String): BudgetEntity?
+    suspend fun getByMonthCategoryAndFamily(
+        month: String,
+        categoryId: String,
+        familyId: String,
+    ): BudgetEntity?
+
+    @Query(
+        """
+        SELECT * FROM budgets
+        WHERE month = :month AND categoryId = :categoryId AND familyId IS NULL
+        ORDER BY createdAtEpochMs ASC
+        LIMIT 1
+        """,
+    )
+    suspend fun getByMonthCategoryPersonal(
+        month: String,
+        categoryId: String,
+    ): BudgetEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: BudgetEntity)

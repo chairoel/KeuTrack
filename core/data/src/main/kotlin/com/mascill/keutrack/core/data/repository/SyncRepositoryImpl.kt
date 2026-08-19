@@ -8,6 +8,7 @@ import com.mascill.keutrack.core.data.datasource.local.BudgetLocalDataSource
 import com.mascill.keutrack.core.data.datasource.local.CategorySummaryLocalDataSource
 import com.mascill.keutrack.core.data.datasource.local.TransactionLocalDataSource
 import com.mascill.keutrack.core.data.datasource.local.WalletLocalDataSource
+import com.mascill.keutrack.core.data.datasource.local.findBudgetForExpense
 import com.mascill.keutrack.core.data.mapper.BudgetMapper
 import com.mascill.keutrack.core.data.mapper.CategorySummaryMapper
 import com.mascill.keutrack.core.data.mapper.TransactionMapper
@@ -108,7 +109,11 @@ class SyncRepositoryImpl @Inject constructor(
                         )
 
                     val budget = if (transaction.type == TransactionType.EXPENSE) {
-                        budgetLocal.getByMonthAndCategory(month, transaction.categoryId)
+                        budgetLocal.findBudgetForExpense(
+                            month = month,
+                            categoryId = transaction.categoryId,
+                            familyId = transaction.familyId,
+                        )
                     } else {
                         null
                     }

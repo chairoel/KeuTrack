@@ -5,6 +5,7 @@ import com.mascill.keutrack.core.data.datasource.local.CategoryLocalDataSource
 import com.mascill.keutrack.core.data.datasource.local.CategorySummaryLocalDataSource
 import com.mascill.keutrack.core.data.datasource.local.TransactionLocalDataSource
 import com.mascill.keutrack.core.data.datasource.local.WalletLocalDataSource
+import com.mascill.keutrack.core.data.datasource.local.findBudgetForExpense
 import com.mascill.keutrack.core.data.mapper.CategorySummaryMapper
 import com.mascill.keutrack.core.data.mapper.TransactionMapper
 import com.mascill.keutrack.core.data.sync.SyncScheduler
@@ -64,8 +65,17 @@ class TransactionRepositoryImpl @Inject constructor(
             val pending = transaction.copy(syncStatus = SyncStatus.PENDING)
             val walletDelta = walletDeltaFor(pending)
             val month = monthKey(pending)
-            val budget = budgetLocal.getByMonthAndCategory(month, pending.categoryId)
-            val budgetId = if (pending.type == TransactionType.EXPENSE) budget?.id else null
+            val budget =
+                if (pending.type == TransactionType.EXPENSE) {
+                    budgetLocal.findBudgetForExpense(
+                        month = month,
+                        categoryId = pending.categoryId,
+                        familyId = pending.familyId,
+                    )
+                } else {
+                    null
+                }
+            val budgetId = budget?.id
             val summaryEntity = buildUpdatedSummary(pending, month)
 
             local.applyNewTransactionAtomically(
