@@ -24,6 +24,7 @@ import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
 import com.mascill.keutrack.feature.family.presentation.model.DEFAULT_BUDGET_BAR_COLOR
 import com.mascill.keutrack.feature.family.presentation.model.FamilyBudgetBarTone
 import com.mascill.keutrack.feature.family.presentation.model.FamilyBudgetRowUi
+import com.mascill.keutrack.feature.family.presentation.model.toProgressTone
 
 private const val FAM_BUDGET_SECTION_PH = 24
 private const val FAM_BUDGET_SECTION_PV = 24
@@ -92,12 +93,17 @@ private fun FamilyBudgetRow(
     val semantic = KeuTrackTheme.semanticColors
     val typography = KeuTrackTheme.typography
     val textColors = KeuTrackTheme.textColors
+    val success = KeuTrackTheme.successColors
+    val warning = KeuTrackTheme.warningColors
 
     val footnoteColor =
         when (row.tone) {
-            FamilyBudgetBarTone.Success -> semantic.secondary
+            FamilyBudgetBarTone.Success -> success.s500
+            FamilyBudgetBarTone.Watch,
+            FamilyBudgetBarTone.Critical,
+            -> warning.w700
             FamilyBudgetBarTone.Error -> semantic.error
-            FamilyBudgetBarTone.Primary -> semantic.onSurfaceVariant
+            FamilyBudgetBarTone.Neutral -> semantic.onSurfaceVariant
         }
 
     Column(
@@ -125,7 +131,9 @@ private fun FamilyBudgetRow(
         Spacer(modifier = Modifier.height(FAM_BUDGET_ROW_INNER.dp))
         KeuTrackProgressBar(
             progress = row.progress,
-            fillColor = parseCategoryColor(row.barColorHex),
+            isOverLimit = row.hasLimit && row.tone == FamilyBudgetBarTone.Error && row.progress >= 1f,
+            tone = row.tone.toProgressTone(),
+            fillColor = if (row.hasLimit) null else parseCategoryColor(row.barColorHex),
         )
         row.footnote?.let { note ->
             Text(
