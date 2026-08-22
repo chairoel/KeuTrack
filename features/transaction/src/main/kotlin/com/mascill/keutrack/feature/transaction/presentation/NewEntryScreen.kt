@@ -27,6 +27,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.mascill.keutrack.core.designsystem.component.KeuTrackTopBar
 import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
+import com.mascill.keutrack.feature.transaction.presentation.components.AmountKeypadBottomSheet
 import com.mascill.keutrack.feature.transaction.presentation.components.CategorySeeAllSheet
 import com.mascill.keutrack.feature.transaction.presentation.components.DatePickerDialogHost
 import com.mascill.keutrack.feature.transaction.presentation.components.NewEntryFormContent
@@ -65,12 +66,14 @@ fun NewEntryScreen(
     var showWalletPicker by rememberSaveable { mutableStateOf(false) }
     var showDatePicker by rememberSaveable { mutableStateOf(false) }
     var showCategorySeeAll by rememberSaveable { mutableStateOf(false) }
+    var showAmountKeypad by rememberSaveable { mutableStateOf(false) }
 
-    val overlayOpen = showWalletPicker || showDatePicker || showCategorySeeAll
+    val overlayOpen = showWalletPicker || showDatePicker || showCategorySeeAll || showAmountKeypad
     BackHandler(enabled = overlayOpen) {
         showWalletPicker = false
         showDatePicker = false
         showCategorySeeAll = false
+        showAmountKeypad = false
     }
 
     Scaffold(
@@ -122,9 +125,8 @@ fun NewEntryScreen(
                 NewEntryFormContent(
                     uiState = uiState,
                     onKindChanged = onKindChanged,
-                    onDigit = onDigit,
-                    onTripleZero = onTripleZero,
-                    onBackspace = onBackspace,
+                    onAmountClick = { showAmountKeypad = true },
+                    amountFocused = showAmountKeypad,
                     onCategorySelected = onCategorySelected,
                     onWalletChipClick = { showWalletPicker = true },
                     onDateChipClick = { showDatePicker = true },
@@ -136,6 +138,24 @@ fun NewEntryScreen(
                 )
             }
         }
+    }
+
+    if (showAmountKeypad) {
+        AmountKeypadBottomSheet(
+            onDigit = { digit ->
+                onClearError()
+                onDigit(digit)
+            },
+            onTripleZero = {
+                onClearError()
+                onTripleZero()
+            },
+            onBackspace = {
+                onClearError()
+                onBackspace()
+            },
+            onDismiss = { showAmountKeypad = false },
+        )
     }
 
     if (showWalletPicker) {
