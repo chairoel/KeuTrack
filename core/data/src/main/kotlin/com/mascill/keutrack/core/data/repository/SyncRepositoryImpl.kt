@@ -21,6 +21,7 @@ import com.mascill.keutrack.core.domain.model.Transaction
 import com.mascill.keutrack.core.domain.model.TransactionType
 import com.mascill.keutrack.core.domain.model.WalletType
 import com.mascill.keutrack.core.domain.repository.SyncRepository
+import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import javax.inject.Inject
@@ -226,6 +227,8 @@ class SyncRepositoryImpl @Inject constructor(
                     ),
                 )
             }
+
+            hydrateFamilyBudgets(familyId)
         } catch (e: CancellationException) {
             throw e
         }
@@ -365,6 +368,33 @@ class SyncRepositoryImpl @Inject constructor(
 
     private fun monthKey(transaction: Transaction): String =
         MONTH_FORMATTER.format(transaction.date.atZone(ZoneId.systemDefault()))
+
+    private suspend fun hydrateFamilyBudgets(familyId: String) {
+        val remoteBudgets =
+            familyBudgetMonths().flatMap { month ->
+                budgetRemote.getByFamilyId(familyId, month)
+            }
+        remoteBudgets.forEach { budget ->
+            if (budget.familyId != familyId) return@forEach
+            val existing = budgetLocal.getById(budget.id)
+            if (existing != null && isUnsyncedLocal(existing.syncStatus)) {
+                return@forEach
+            }
+            budgetLocal.upsert(
+                budgetMapper.toEntity(
+                    budget.copy(syncStatus = SyncStatus.SYNCED),
+                ),
+            )
+        }
+    }
+
+    private fun familyBudgetMonths(): List<String> {
+        val current = YearMonth.now()
+        return listOf(current.toString(), current.minusMonths(1).toString())
+    }
+
+    private fun isUnsyncedLocal(status: String): Boolean =
+        status == SyncStatus.PENDING.name || status == SyncStatus.FAILED.name
 
     private companion object {
         val MONTH_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM")
