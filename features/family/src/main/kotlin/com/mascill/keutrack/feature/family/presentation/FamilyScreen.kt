@@ -42,6 +42,7 @@ import com.mascill.keutrack.core.designsystem.component.KeuTrackTopBar
 import com.mascill.keutrack.core.designsystem.component.snackbar.KeuTrackInlineSnackbar
 import com.mascill.keutrack.core.designsystem.model.KeuTrackButtonStyle
 import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
+import com.mascill.keutrack.feature.family.presentation.budget.FamilyBudgetTargetSheet
 import com.mascill.keutrack.feature.family.presentation.components.FamilyBreakdownCard
 import com.mascill.keutrack.feature.family.presentation.components.FamilyHistoryLogSection
 import com.mascill.keutrack.feature.family.presentation.components.FamilySavingTogetherCard
@@ -89,7 +90,14 @@ fun FamilyRouting(
     FamilyScreen(
         uiState = uiState,
         onViewAllHistoryClick = onViewAllTransactions,
-        onAdjustTargetsClick = {},
+        onAdjustTargetsClick = viewModel::onAdjustTargetsClick,
+        onBudgetRowClick = viewModel::onBudgetRowClick,
+        onSheetCategorySelected = viewModel::onSheetCategorySelected,
+        onLimitChanged = viewModel::onLimitChanged,
+        onSaveBudget = viewModel::onSaveBudget,
+        onDeleteBudget = viewModel::onDeleteBudget,
+        onDismissBudgetSheet = viewModel::onDismissBudgetSheet,
+        onDismissBudgetMessage = viewModel::dismissBudgetMessage,
         onFabClick = onAddTransaction,
         onCreateFamily = viewModel::createFamily,
         onJoinFamily = viewModel::joinFamily,
@@ -105,6 +113,13 @@ fun FamilyScreen(
     uiState: FamilyUIState,
     onViewAllHistoryClick: () -> Unit = {},
     onAdjustTargetsClick: () -> Unit = {},
+    onBudgetRowClick: (String) -> Unit = {},
+    onSheetCategorySelected: (String) -> Unit = {},
+    onLimitChanged: (String) -> Unit = {},
+    onSaveBudget: () -> Unit = {},
+    onDeleteBudget: () -> Unit = {},
+    onDismissBudgetSheet: () -> Unit = {},
+    onDismissBudgetMessage: () -> Unit = {},
     onFabClick: () -> Unit = {},
     onCreateFamily: (String) -> Unit = {},
     onJoinFamily: (String) -> Unit = {},
@@ -116,9 +131,10 @@ fun FamilyScreen(
     var heroWidth by remember { mutableStateOf(0.dp) }
     var dialogMode by rememberSaveable { mutableStateOf<FamilyMembershipDialogMode?>(null) }
 
-    BackHandler(enabled = dialogMode != null) {
-        if (!uiState.isMembershipLoading) {
-            dialogMode = null
+    BackHandler(enabled = dialogMode != null || uiState.budgetSheet != null) {
+        when {
+            uiState.budgetSheet != null && !uiState.isBudgetSaving -> onDismissBudgetSheet()
+            dialogMode != null && !uiState.isMembershipLoading -> dialogMode = null
         }
     }
 
@@ -216,6 +232,8 @@ fun FamilyScreen(
                                 uiState = uiState,
                                 heroWidth = heroWidth,
                                 onHeroWidthChanged = { heroWidth = it },
+                                onAdjustTargetsClick = onAdjustTargetsClick,
+                                onBudgetRowClick = onBudgetRowClick,
                             )
                         }
 
@@ -232,6 +250,7 @@ fun FamilyScreen(
                                     title = uiState.insightTitle,
                                     body = uiState.insightBody,
                                     ctaLabel = uiState.insightCtaLabel,
+                                    showCta = uiState.canEditBudgets,
                                     onAdjustTargetsClick = onAdjustTargetsClick,
                                 )
                             }
@@ -241,20 +260,35 @@ fun FamilyScreen(
             }
         }
 
-        val snackMessage = uiState.membershipMessage ?: uiState.errorMessage
+        val snackMessage =
+            uiState.budgetMessage ?: uiState.membershipMessage ?: uiState.errorMessage
         snackMessage?.let { message ->
             KeuTrackInlineSnackbar(
                 message = message,
                 onDismiss = {
-                    if (uiState.membershipMessage != null) {
-                        onDismissMembershipMessage()
-                    } else {
-                        onDismissError()
+                    when {
+                        uiState.budgetMessage != null -> onDismissBudgetMessage()
+                        uiState.membershipMessage != null -> onDismissMembershipMessage()
+                        else -> onDismissError()
                     }
                 },
                 actionLabel = FAM_ERROR_DISMISS,
             )
         }
+    }
+
+    uiState.budgetSheet?.let { sheet ->
+        FamilyBudgetTargetSheet(
+            sheet = sheet,
+            monthLabel = uiState.budgetMonthLabel,
+            categories = uiState.expenseCategories,
+            isSaving = uiState.isBudgetSaving,
+            onCategorySelected = onSheetCategorySelected,
+            onLimitChanged = onLimitChanged,
+            onSave = onSaveBudget,
+            onDelete = onDeleteBudget,
+            onDismiss = onDismissBudgetSheet,
+        )
     }
 
     dialogMode?.let { mode ->
@@ -364,6 +398,8 @@ private fun FamilyScreenHeroSection(
     uiState: FamilyUIState,
     heroWidth: Dp,
     onHeroWidthChanged: (Dp) -> Unit,
+    onAdjustTargetsClick: () -> Unit,
+    onBudgetRowClick: (String) -> Unit,
 ) {
     val density = LocalDensity.current
     Box(
@@ -387,6 +423,9 @@ private fun FamilyScreenHeroSection(
                 )
                 FamilySharedBudgetsCard(
                     budgetRows = uiState.budgetRows,
+                    canEdit = uiState.canEditBudgets,
+                    onAdjustClick = onAdjustTargetsClick,
+                    onRowClick = onBudgetRowClick,
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -396,7 +435,12 @@ private fun FamilyScreenHeroSection(
                     monthlyTotalExpense = uiState.monthlyTotalExpense,
                     spendSegments = uiState.spendSegments,
                 )
-                FamilySharedBudgetsCard(budgetRows = uiState.budgetRows)
+                FamilySharedBudgetsCard(
+                    budgetRows = uiState.budgetRows,
+                    canEdit = uiState.canEditBudgets,
+                    onAdjustClick = onAdjustTargetsClick,
+                    onRowClick = onBudgetRowClick,
+                )
             }
         }
     }

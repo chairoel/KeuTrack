@@ -3,6 +3,7 @@ package com.mascill.keutrack.feature.family.presentation.model
 import com.mascill.keutrack.core.designsystem.format.CurrencyFormat
 import com.mascill.keutrack.core.domain.model.Budget
 import com.mascill.keutrack.core.domain.model.Category
+import com.mascill.keutrack.core.domain.model.CategoryType
 import com.mascill.keutrack.core.domain.model.FamilyGroup
 import com.mascill.keutrack.core.domain.model.FamilyRole
 import com.mascill.keutrack.core.domain.model.Transaction
@@ -12,6 +13,7 @@ import com.mascill.keutrack.core.domain.model.Wallet
 import com.mascill.keutrack.core.domain.usecase.WalletSummary
 import java.time.YearMonth
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -25,7 +27,9 @@ internal object FamilyUiMapper {
     private const val BUDGET_RED_AFTER = 0.90f
     private const val DEFAULT_ADDED_BY = "Anggota"
     private const val INSIGHT_TITLE = "Saving Together"
-    private const val INSIGHT_CTA = "Adjust Targets"
+    private const val INSIGHT_CTA = "Atur Target"
+    private val BUDGET_MONTH_FORMATTER =
+        DateTimeFormatter.ofPattern("MMMM yyyy", Locale.forLanguageTag("id-ID"))
 
     fun toUiState(
         user: User?,
@@ -82,6 +86,8 @@ internal object FamilyUiMapper {
                     user = user,
                     hasFamilyWallet = familyWallet != null,
                 ),
+            budgetMonthLabel = formatBudgetMonth(currentMonth),
+            expenseCategories = toExpenseCategoryOptions(categoriesById),
         )
     }
 
@@ -198,6 +204,17 @@ internal object FamilyUiMapper {
             FamilyRole.fromValue(user?.familyRole.orEmpty()) == FamilyRole.OWNER &&
             hasFamilyWallet
     }
+
+    fun formatBudgetMonth(month: YearMonth): String =
+        month.format(BUDGET_MONTH_FORMATTER)
+
+    private fun toExpenseCategoryOptions(
+        categoriesById: Map<String, Category>,
+    ): List<FamilyBudgetCategoryOption> =
+        categoriesById.values
+            .filter { it.type == CategoryType.EXPENSE }
+            .sortedBy { it.name.lowercase(Locale.forLanguageTag("id-ID")) }
+            .map { FamilyBudgetCategoryOption(id = it.id, name = it.name) }
 
     fun filterSharedBudgets(
         budgets: List<Budget>,

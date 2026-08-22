@@ -2,6 +2,7 @@ package com.mascill.keutrack.feature.family.presentation.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,7 +20,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.toColorInt
+import com.mascill.keutrack.core.designsystem.component.KeuTrackButton
 import com.mascill.keutrack.core.designsystem.component.KeuTrackProgressBar
+import com.mascill.keutrack.core.designsystem.model.KeuTrackButtonStyle
 import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
 import com.mascill.keutrack.feature.family.presentation.model.DEFAULT_BUDGET_BAR_COLOR
 import com.mascill.keutrack.feature.family.presentation.model.FamilyBudgetBarTone
@@ -34,13 +37,18 @@ private const val FAM_BUDGET_FOOTNOTE_PT = 4
 private const val FAM_BUDGET_MUTED_ALPHA = 0.8f
 private const val FAM_BUDGET_SPENT_CAP_SEPARATOR = " / "
 private const val FAM_SHARED_BUDGETS_TITLE = "Shared Budgets"
+private const val FAM_BUDGETS_ADJUST = "Atur"
 private const val FAM_BUDGETS_EMPTY =
-    "Belum ada pengeluaran per kategori bulan ini. Catat transaksi di dompet keluarga untuk melihat rinciannya."
+    "Belum ada pengeluaran per kategori. Catat transaksi, atau atur target dulu."
+private const val FAM_BUDGETS_EMPTY_CTA = "Atur target"
 
 @Composable
 fun FamilySharedBudgetsCard(
     budgetRows: List<FamilyBudgetRowUi>,
     modifier: Modifier = Modifier,
+    canEdit: Boolean = false,
+    onAdjustClick: () -> Unit = {},
+    onRowClick: (String) -> Unit = {},
 ) {
     val semantic = KeuTrackTheme.semanticColors
     val shapes = KeuTrackTheme.shapeTokens
@@ -63,11 +71,25 @@ fun FamilySharedBudgetsCard(
                 .background(semantic.surfaceContainerLow)
                 .padding(horizontal = FAM_BUDGET_SECTION_PH.dp, vertical = FAM_BUDGET_SECTION_PV.dp),
     ) {
-        Text(
-            text = FAM_SHARED_BUDGETS_TITLE,
-            style = typography.headingBold20,
-            color = textColors.title,
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = FAM_SHARED_BUDGETS_TITLE,
+                style = typography.headingBold20,
+                color = textColors.title,
+            )
+            if (canEdit) {
+                Text(
+                    text = FAM_BUDGETS_ADJUST,
+                    style = typography.bodyBold16,
+                    color = semantic.primary,
+                    modifier = Modifier.clickable(onClick = onAdjustClick),
+                )
+            }
+        }
         Spacer(modifier = Modifier.height(FAM_BUDGET_ROW_SPACING.dp))
         if (budgetRows.isEmpty()) {
             Text(
@@ -75,10 +97,26 @@ fun FamilySharedBudgetsCard(
                 style = typography.bodyRegular14,
                 color = semantic.onSurfaceVariant,
             )
+            if (canEdit) {
+                Spacer(modifier = Modifier.height(FAM_BUDGET_ROW_SPACING.dp))
+                KeuTrackButton(
+                    text = FAM_BUDGETS_EMPTY_CTA,
+                    onClick = onAdjustClick,
+                    style = KeuTrackButtonStyle.Secondary,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         } else {
             Column(verticalArrangement = Arrangement.spacedBy(FAM_BUDGET_ROW_SPACING.dp)) {
                 budgetRows.forEach { row ->
-                    FamilyBudgetRow(row = row)
+                    FamilyBudgetRow(
+                        row = row,
+                        onClick = if (canEdit) {
+                            { onRowClick(row.categoryId) }
+                        } else {
+                            null
+                        },
+                    )
                 }
             }
         }
@@ -88,6 +126,7 @@ fun FamilySharedBudgetsCard(
 @Composable
 private fun FamilyBudgetRow(
     row: FamilyBudgetRowUi,
+    onClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     val semantic = KeuTrackTheme.semanticColors
@@ -110,6 +149,7 @@ private fun FamilyBudgetRow(
         modifier =
             modifier
                 .fillMaxWidth()
+                .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
                 .then(if (row.muted) Modifier.alpha(FAM_BUDGET_MUTED_ALPHA) else Modifier),
     ) {
         Row(

@@ -320,6 +320,30 @@ class FamilyUiMapperTest {
         assertThat(state.canEditBudgets).isTrue()
         assertThat(state.budgetSheet).isNull()
         assertThat(state.isBudgetSaving).isFalse()
+        assertThat(state.budgetMonthLabel).isEqualTo("Agustus 2026")
+    }
+
+    @Test
+    fun `toUiState lists expense categories for the sheet picker`() {
+        val state =
+            FamilyUiMapper.toUiState(
+                user = user(familyId = "fam-1", familyRole = FamilyRole.OWNER.value),
+                familyGroup = familyGroup(),
+                walletSummary = WalletSummary(null, listOf(familyWallet()), 0L, 0L),
+                familyTransactions = emptyList(),
+                budgets = emptyList(),
+                categoriesById =
+                    mapOf(
+                        "cat_food" to category("cat_food", "Makanan"),
+                        "cat_pay" to
+                            category("cat_pay", "Gaji").copy(type = CategoryType.INCOME),
+                    ),
+                currentMonth = YearMonth.of(2026, 8),
+                priorMonth = YearMonth.of(2026, 7),
+            )
+
+        assertThat(state.expenseCategories.map { it.id }).containsExactly("cat_food")
+        assertThat(state.expenseCategories.first().name).isEqualTo("Makanan")
     }
 
     @Test

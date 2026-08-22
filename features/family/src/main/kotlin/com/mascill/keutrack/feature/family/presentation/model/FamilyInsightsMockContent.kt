@@ -183,7 +183,7 @@ val DefaultFamilyInsightsMockContent =
         insightBody =
             "Pengeluaran keluarga turun 12% dibanding bulan lalu. " +
                 "Pertahankan kebiasaan baik ini bersama!",
-        insightCtaLabel = "Adjust Targets",
+        insightCtaLabel = "Atur Target",
         showJoinBanner = false,
         hasFamilyWallet = true,
     )
@@ -204,4 +204,7 @@ fun FamilyInsightsMockContent.toPreviewUiState(): FamilyUIState =
         insightCtaLabel = insightCtaLabel,
         showInsightCard = insightBody.isNotBlank(),
         canEditBudgets = hasFamilyWallet,
+        budgetMonthLabel = "Agustus 2026",
+        expenseCategories =
+            budgetRows.map { FamilyBudgetCategoryOption(id = it.categoryId, name = it.title) },
     )

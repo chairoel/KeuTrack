@@ -26,6 +26,13 @@ data class FamilyUIState(
     val budgetSheet: FamilyBudgetSheetState? = null,
     val isBudgetSaving: Boolean = false,
     val budgetMessage: String? = null,
+    val budgetMonthLabel: String = "",
+    val expenseCategories: List<FamilyBudgetCategoryOption> = emptyList(),
+)
+
+data class FamilyBudgetCategoryOption(
+    val id: String,
+    val name: String,
 )
 
 data class FamilyBudgetSheetState(
