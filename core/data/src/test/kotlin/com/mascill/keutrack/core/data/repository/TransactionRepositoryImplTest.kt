@@ -7,6 +7,7 @@ import com.mascill.keutrack.core.data.datasource.local.CategoryLocalDataSource
 import com.mascill.keutrack.core.data.datasource.local.CategorySummaryLocalDataSource
 import com.mascill.keutrack.core.data.datasource.local.TransactionLocalDataSource
 import com.mascill.keutrack.core.data.datasource.local.WalletLocalDataSource
+import com.mascill.keutrack.core.data.db.entity.BudgetEntity
 import com.mascill.keutrack.core.data.db.entity.TransactionEntity
 import com.mascill.keutrack.core.data.mapper.CategorySummaryMapper
 import com.mascill.keutrack.core.data.mapper.TransactionMapper
@@ -50,7 +51,7 @@ class TransactionRepositoryImplTest {
     @Test
     fun `addTransaction inserts entity via DAO and enqueues sync`() = runTest {
         val transaction = domainTransaction()
-        coEvery { budgetLocal.getByMonthAndCategory(any(), any()) } returns null
+        coEvery { budgetLocal.getByMonthCategoryPersonal(any(), any()) } returns null
         coEvery { summaryLocal.getByPeriod(any(), any()) } returns null
         coEvery { categoryLocal.getById(any()) } returns null
         coEvery { local.applyNewTransactionAtomically(any(), any(), any(), any()) } just runs
@@ -66,6 +67,64 @@ class TransactionRepositoryImplTest {
             )
         }
         verify { syncScheduler.enqueueSync() }
+    }
+
+    @Test
+    fun `addTransaction family expense increments family budget not personal`() = runTest {
+        val familyBudget = budgetEntity(id = "b-fam", familyId = "fam-1")
+        val personalBudget = budgetEntity(id = "b-personal", familyId = null)
+        coEvery {
+            budgetLocal.getByMonthCategoryAndFamily(any(), "cat-food", "fam-1")
+        } returns familyBudget
+        coEvery {
+            budgetLocal.getByMonthCategoryPersonal(any(), "cat-food")
+        } returns personalBudget
+        coEvery { summaryLocal.getByPeriod(any(), any()) } returns null
+        coEvery { categoryLocal.getById(any()) } returns null
+        coEvery { local.applyNewTransactionAtomically(any(), any(), any(), any()) } just runs
+
+        repo.addTransaction(domainTransaction(familyId = "fam-1"))
+
+        coVerify {
+            local.applyNewTransactionAtomically(
+                transaction = match { it.familyId == "fam-1" },
+                walletDelta = -15_000L,
+                budgetIdToIncrement = "b-fam",
+                summaryUpsert = any(),
+            )
+        }
+        coVerify(exactly = 1) {
+            budgetLocal.getByMonthCategoryAndFamily(any(), "cat-food", "fam-1")
+        }
+        coVerify(exactly = 0) { budgetLocal.getByMonthCategoryPersonal(any(), any()) }
+    }
+
+    @Test
+    fun `addTransaction personal expense increments personal budget not family`() = runTest {
+        val familyBudget = budgetEntity(id = "b-fam", familyId = "fam-1")
+        val personalBudget = budgetEntity(id = "b-personal", familyId = null)
+        coEvery {
+            budgetLocal.getByMonthCategoryAndFamily(any(), "cat-food", any())
+        } returns familyBudget
+        coEvery {
+            budgetLocal.getByMonthCategoryPersonal(any(), "cat-food")
+        } returns personalBudget
+        coEvery { summaryLocal.getByPeriod(any(), any()) } returns null
+        coEvery { categoryLocal.getById(any()) } returns null
+        coEvery { local.applyNewTransactionAtomically(any(), any(), any(), any()) } just runs
+
+        repo.addTransaction(domainTransaction(familyId = null))
+
+        coVerify {
+            local.applyNewTransactionAtomically(
+                transaction = match { it.familyId == null },
+                walletDelta = -15_000L,
+                budgetIdToIncrement = "b-personal",
+                summaryUpsert = any(),
+            )
+        }
+        coVerify(exactly = 1) { budgetLocal.getByMonthCategoryPersonal(any(), "cat-food") }
+        coVerify(exactly = 0) { budgetLocal.getByMonthCategoryAndFamily(any(), any(), any()) }
     }
 
     @Test
@@ -102,16 +161,34 @@ class TransactionRepositoryImplTest {
         }
     }
 
-    private fun domainTransaction() = Transaction(
+    private fun domainTransaction(familyId: String? = null) = Transaction(
         id = "tx-1",
         walletId = "wallet-1",
         userId = "user-1",
+        familyId = familyId,
         type = TransactionType.EXPENSE,
         amount = 15_000L,
         categoryId = "cat-food",
         date = Instant.parse("2026-08-01T00:00:00Z"),
         addedByName = "Irul",
         createdAt = Instant.parse("2026-08-01T00:00:00Z"),
+    )
+
+    private fun budgetEntity(
+        id: String,
+        familyId: String?,
+    ) = BudgetEntity(
+        id = id,
+        userId = "user-1",
+        familyId = familyId,
+        categoryId = "cat-food",
+        limit = 1_000_000L,
+        spent = 0L,
+        period = "monthly",
+        month = "2026-08",
+        walletId = "wallet-1",
+        syncStatus = "SYNCED",
+        createdAtEpochMs = Instant.parse("2026-08-01T00:00:00Z").toEpochMilli(),
     )
 
     private fun sampleEntity() = TransactionEntity(

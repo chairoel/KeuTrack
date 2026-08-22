@@ -1,6 +1,6 @@
 # Firestore Security Rules (KeuTrack)
 
-**Last updated:** 16 August 2026 (Phase 10 — personal wallet restore pull)
+**Last updated:** 22 August 2026 (Phase 11b — family budget pull + shared read)
 
 This document explains the Firestore security rules used by KeuTrack and includes a copy you can paste into the Firebase Console.
 
@@ -31,7 +31,7 @@ KeuTrack is offline-first: the app writes to Room first, then WorkManager syncs 
 | `/users/{uid}/category_summaries/{period}` | Only that user | Same as parent `uid` |
 | `/wallets/{walletId}` | Owner **or** family member (read); owner write; members may update `balance` only | `ownerId` / `familyId` |
 | `/transactions/{txId}` | Author **or** family member (read); author write | `userId` / `familyId` |
-| `/budgets/{budgetId}` | Owner of the budget | `userId` |
+| `/budgets/{budgetId}` | Creator **or** family member (read/list); creator write | `userId` / `familyId` |
 | `/family_groups/{familyId}` | Signed-in members (create/join) | `ownerId` / `memberIds` |
 
 **Not covered yet:** `/categories`. Those writes will be denied until rules are added.
@@ -55,7 +55,7 @@ KeuTrack is offline-first: the app writes to Room first, then WorkManager syncs 
 
 - Personal restore queries `wallets` with `where ownerId == uid` and `transactions` with `where userId == uid`. Both already pass `allow list: if signedIn()`.
 - Filter `type == personal` and `walletId == canonical` on the client (equality-only; no composite index required for MVP).
-- **Do not** loosen `/budgets` list (`allow list: if false` stays). Budget pull is out of scope.
+- Phase 10 left `/budgets` `list: false`. Phase 11b loosens **list** (signed-in MVP) and **get** (creator or `isFamilyMember`) so Family tab can query `familyId` + `month`. `update`/`delete` stay creator-only.
 - Orphan personal wallets from earlier reinstalls (extra `type=personal` docs for the same `ownerId`) are **not** auto-deleted remotely. Pick the oldest as canonical in the app; clean extras in Console if needed.
 - Harden follow-up (same caveat as 6c): `list` + `resource.data` on queries does **not** always constrain the queried field. Do not treat query-scoped `ownerId == request.auth.uid` as a trivial rules change.
 
@@ -93,11 +93,11 @@ For top-level money collections (`wallets`, `transactions`, `budgets`):
 
 1. **Create** — `request.resource.data.<ownerField> == request.auth.uid`  
    Client cannot create a document owned by someone else.
-2. **Get (including missing docs)** — allow when `resource == null` **or** the existing doc belongs to the signed-in user **or** (wallets/transactions) the user is a family member on `familyId`.  
+2. **Get (including missing docs)** — allow when `resource == null` **or** the existing doc belongs to the signed-in user **or** the user is a family member on `familyId` (wallets, transactions, **budgets**).  
    Required because sync does `get()` before create (idempotency). A rule that only checks `resource.data.userId` **denies** reads of non-existent docs → `PERMISSION_DENIED`.
 3. **Update / delete** — `resource.data.<ownerField> == request.auth.uid`  
-   Only the current owner can change or remove an existing document.
-4. **List** — wallets/transactions allow signed-in list for Phase 6c pull MVP; budgets remain `list: false`.
+   Only the current owner/creator can change or remove an existing document. Family members **cannot** overwrite another member’s budget.
+4. **List** — wallets/transactions/budgets allow signed-in list for family pull MVP. Harden later: query-scoped `familyId` + membership (same caveat as Phase 6c — `list` + `resource.data` does not always constrain the queried field).
 
 ---
 
@@ -114,9 +114,17 @@ If step 1 is denied, the whole sync fails with `PERMISSION_DENIED` even when cre
 
 ---
 
-## Indexes (Phase 6c + Phase 10)
+## Indexes (Phase 6c + Phase 10 + Phase 11b)
 
-**Current app (MVP):** family pull uses `whereEqualTo("familyId", …)` and personal restore uses `whereEqualTo("ownerId", …)` / `whereEqualTo("userId", …)` only, then sorts by `date` on device — **no composite index required**.
+**Wallets / transactions (MVP):** family pull uses `whereEqualTo("familyId", …)` and personal restore uses `whereEqualTo("ownerId", …)` / `whereEqualTo("userId", …)` only, then sorts by `date` on device — **no composite index required**.
+
+**Budgets (Phase 11b — required):** Family tab pull queries two equalities. Create this composite and wait until status is **Enabled** before QA 2 akun:
+
+| Collection | Fields | Query |
+|------------|--------|--------|
+| `budgets` | `familyId` Asc, `month` Asc | `whereEqualTo("familyId", F).whereEqualTo("month", "yyyy-MM")` |
+
+Firebase Console → Firestore → Indexes → Create index, or open the link from `FAILED_PRECONDITION: The query requires an index` in logcat (project `keutrack-dev`).
 
 Optional later (server-side `orderBy` + `limit`, or two-field server filters):
 
@@ -127,8 +135,6 @@ Optional later (server-side `orderBy` + `limit`, or two-field server filters):
 | `wallets` | `ownerId` Asc + `type` Asc | If personal restore queries both fields on the server |
 | `transactions` | `userId` Asc + `date` Desc | If personal restore uses remote `orderBy` + `limit` |
 | `transactions` | `walletId` Asc + `date` Desc | If restore switches to `getByWalletId` |
-
-If you hit `FAILED_PRECONDITION: The query requires an index`, open the link in the error (project `keutrack-dev`) and create the composite, then wait until status is **Enabled**.
 
 ---
 
@@ -218,17 +224,24 @@ service cloud.firestore {
         && resource.data.userId == request.auth.uid;
     }
 
-    // Budgets: ownership field = userId
+    // Budgets: creator write; family members may read/list (Phase 11b)
     match /budgets/{budgetId} {
       allow create: if signedIn()
-        && request.resource.data.userId == request.auth.uid;
+        && request.resource.data.userId == request.auth.uid
+        && (
+          !(request.resource.data.familyId is string)
+          || request.resource.data.familyId.size() == 0
+          || isFamilyMember(request.resource.data.familyId)
+        );
 
       allow get: if signedIn() && (
-        resource == null ||
-        resource.data.userId == request.auth.uid
+        resource == null
+        || resource.data.userId == request.auth.uid
+        || isFamilyMember(resource.data.familyId)
       );
 
-      allow list: if false;
+      // MVP: signed-in list for pull by familyId + month — harden later
+      allow list: if signedIn();
 
       allow update, delete: if signedIn()
         && resource.data.userId == request.auth.uid;
@@ -280,6 +293,7 @@ service cloud.firestore {
 5. On the dashboard, the **Local** / **Gagal sync** chip should clear after a successful sync (`SYNCED`).
 6. Phase 6: create a family from the Family tab, then confirm a doc appears under `family_groups`. Join with invite code from another account if available.
 7. Phase 6c: after A syncs a family transaction, B opens Family tab (pull) and sees History from A. Confirm indexes exist if query fails.
+8. Phase 11b: publish these rules, then create composite index `budgets` `familyId` ASC + `month` ASC and wait until **Enabled**. Owner sets a category limit online → doc has `familyId` / `month` / `limit`. Member B opens Family tab → same cap. B cannot update/delete the owner’s budget doc in Console.
 
 If sync or membership still fails with `PERMISSION_DENIED`:
 
@@ -288,7 +302,9 @@ If sync or membership still fails with `PERMISSION_DENIED`:
 - Confirm `transaction.userId` equals the signed-in Firebase Auth UID.
 - Confirm the wallet document already exists in Firestore before transaction side-effect `update` runs.
 - For create/join family: confirm the `family_groups` match block is present and published (including the join `memberIds` append clause — not member-only update).
-- For family pull: confirm `isFamilyMember` helper is published and B is in `memberIds`.
+- For family pull (wallets/tx/budgets): confirm `isFamilyMember` helper is published and B is in `memberIds`.
+- For budget list `PERMISSION_DENIED`: confirm `/budgets` `allow list: if signedIn()` is **Published** (markdown edit alone does nothing).
+- For `FAILED_PRECONDITION` on `budgets` `familyId` + `month`: create the composite index and wait until **Enabled**.
 - For member transaction sync stuck on RETRY: confirm wallet `allow update` includes the family-member `balance`-only clause (side-effect increment on shared wallet).
 
 ---

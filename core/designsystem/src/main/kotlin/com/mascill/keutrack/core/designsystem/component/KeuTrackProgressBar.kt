@@ -32,6 +32,7 @@ fun KeuTrackProgressBar(
     val semantic = KeuTrackTheme.semanticColors
     val shapes = KeuTrackTheme.shapeTokens
     val success = KeuTrackTheme.successColors
+    val warning = KeuTrackTheme.warningColors
 
     val resolvedTone =
         if (isOverLimit) {
@@ -40,22 +41,21 @@ fun KeuTrackProgressBar(
             tone
         }
 
+    // Semantic tones win over fillColor so awareness bars never pick up category hex.
     val fillBrush =
-        when {
-            fillColor != null && resolvedTone != KeuTrackProgressTone.Danger ->
-                SolidColor(fillColor)
-            resolvedTone == KeuTrackProgressTone.Success ->
-                Brush.horizontalGradient(
-                    colors = listOf(semantic.secondary, success.s700),
-                )
-            resolvedTone == KeuTrackProgressTone.Danger ->
-                Brush.horizontalGradient(
-                    colors = listOf(semantic.error, semantic.tertiary),
-                )
-            else ->
-                Brush.horizontalGradient(
-                    colors = listOf(semantic.primary, semantic.primaryContainer),
-                )
+        when (resolvedTone) {
+            KeuTrackProgressTone.Success -> SolidColor(success.s500)
+            KeuTrackProgressTone.Warning -> SolidColor(warning.w300)
+            KeuTrackProgressTone.Caution -> SolidColor(warning.w500)
+            KeuTrackProgressTone.Danger -> SolidColor(semantic.error)
+            KeuTrackProgressTone.Primary ->
+                if (fillColor != null) {
+                    SolidColor(fillColor)
+                } else {
+                    Brush.horizontalGradient(
+                        colors = listOf(semantic.primary, semantic.primaryContainer),
+                    )
+                }
         }
 
     Box(
@@ -86,7 +86,10 @@ private fun KeuTrackProgressBarPreview() {
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            KeuTrackProgressBar(progress = 0.72f, tone = KeuTrackProgressTone.Success)
+            KeuTrackProgressBar(progress = 0.55f, tone = KeuTrackProgressTone.Success)
+            KeuTrackProgressBar(progress = 0.70f, tone = KeuTrackProgressTone.Warning)
+            KeuTrackProgressBar(progress = 0.85f, tone = KeuTrackProgressTone.Caution)
+            KeuTrackProgressBar(progress = 0.95f, tone = KeuTrackProgressTone.Danger)
             KeuTrackProgressBar(progress = 1f, isOverLimit = true)
             KeuTrackProgressBar(progress = 0.35f, tone = KeuTrackProgressTone.Primary)
         }

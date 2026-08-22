@@ -7,7 +7,16 @@ import kotlinx.coroutines.flow.Flow
 interface BudgetLocalDataSource {
     fun observeByMonth(month: String): Flow<List<BudgetEntity>>
     suspend fun getById(id: String): BudgetEntity?
-    suspend fun getByMonthAndCategory(month: String, categoryId: String): BudgetEntity?
+    suspend fun getByMonthCategoryAndFamily(
+        month: String,
+        categoryId: String,
+        familyId: String,
+    ): BudgetEntity?
+
+    suspend fun getByMonthCategoryPersonal(
+        month: String,
+        categoryId: String,
+    ): BudgetEntity?
     suspend fun upsert(entity: BudgetEntity)
     suspend fun delete(budgetId: String)
     suspend fun getPending(): List<BudgetEntity>

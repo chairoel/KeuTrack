@@ -3,7 +3,9 @@ package com.mascill.keutrack.feature.family.presentation.model
 import com.mascill.keutrack.core.designsystem.format.CurrencyFormat
 import com.mascill.keutrack.core.domain.model.Budget
 import com.mascill.keutrack.core.domain.model.Category
+import com.mascill.keutrack.core.domain.model.CategoryType
 import com.mascill.keutrack.core.domain.model.FamilyGroup
+import com.mascill.keutrack.core.domain.model.FamilyRole
 import com.mascill.keutrack.core.domain.model.Transaction
 import com.mascill.keutrack.core.domain.model.TransactionType
 import com.mascill.keutrack.core.domain.model.User
@@ -11,6 +13,7 @@ import com.mascill.keutrack.core.domain.model.Wallet
 import com.mascill.keutrack.core.domain.usecase.WalletSummary
 import java.time.YearMonth
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -19,10 +22,14 @@ internal object FamilyUiMapper {
 
     private const val TOP_SPEND_SEGMENTS = 5
     private const val HISTORY_LIMIT = 5
-    private const val BUDGET_WARN_THRESHOLD = 0.85f
+    private const val BUDGET_SUCCESS_MAX = 0.60f
+    private const val BUDGET_WATCH_MAX = 0.75f
+    private const val BUDGET_RED_AFTER = 0.90f
     private const val DEFAULT_ADDED_BY = "Anggota"
     private const val INSIGHT_TITLE = "Saving Together"
-    private const val INSIGHT_CTA = "Adjust Targets"
+    private const val INSIGHT_CTA = "Atur Target"
+    private val BUDGET_MONTH_FORMATTER =
+        DateTimeFormatter.ofPattern("MMMM yyyy", Locale.forLanguageTag("id-ID"))
 
     fun toUiState(
         user: User?,
@@ -35,15 +42,6 @@ internal object FamilyUiMapper {
         priorMonth: YearMonth,
     ): FamilyUIState {
         val familyWallet = resolveFamilyWallet(user, walletSummary)
-        val familyWalletIds =
-            walletSummary.familyWallets
-                .filter { wallet ->
-                    user?.familyId.isNullOrBlank() || wallet.familyId == user?.familyId
-                }
-                .map { it.id }
-                .toSet()
-                .ifEmpty { familyWallet?.id?.let { setOf(it) }.orEmpty() }
-
         val currentMonthTxs = familyTransactions.filter { it.date.toYearMonth() == currentMonth }
         val priorMonthTxs = familyTransactions.filter { it.date.toYearMonth() == priorMonth }
         val currentExpense = currentMonthTxs.expenseTotal()
@@ -69,7 +67,6 @@ internal object FamilyUiMapper {
                     budgets =
                         filterSharedBudgets(
                             budgets = budgets,
-                            familyWalletIds = familyWalletIds,
                             familyId = user?.familyId,
                         ),
                     transactions = currentMonthTxs,
@@ -84,6 +81,13 @@ internal object FamilyUiMapper {
             insightBody = insight?.body.orEmpty(),
             insightCtaLabel = insight?.ctaLabel.orEmpty(),
             showInsightCard = insight != null,
+            canEditBudgets =
+                canEditBudgets(
+                    user = user,
+                    hasFamilyWallet = familyWallet != null,
+                ),
+            budgetMonthLabel = formatBudgetMonth(currentMonth),
+            expenseCategories = toExpenseCategoryOptions(categoriesById),
         )
     }
 
@@ -163,6 +167,7 @@ internal object FamilyUiMapper {
                 val spent = spentByCategory[categoryId] ?: spentFromBudget[categoryId] ?: 0L
                 val limit = limitByCategory[categoryId] ?: 0L
                 toCategoryBudgetRow(
+                    categoryId = categoryId,
                     title = categoriesById[categoryId]?.name ?: "Lainnya",
                     spent = spent,
                     limit = limit,
@@ -190,15 +195,33 @@ internal object FamilyUiMapper {
             )
         }
 
+    fun canEditBudgets(
+        user: User?,
+        hasFamilyWallet: Boolean,
+    ): Boolean {
+        val familyId = user?.familyId
+        return !familyId.isNullOrBlank() &&
+            FamilyRole.fromValue(user?.familyRole.orEmpty()) == FamilyRole.OWNER &&
+            hasFamilyWallet
+    }
+
+    fun formatBudgetMonth(month: YearMonth): String =
+        month.format(BUDGET_MONTH_FORMATTER)
+
+    private fun toExpenseCategoryOptions(
+        categoriesById: Map<String, Category>,
+    ): List<FamilyBudgetCategoryOption> =
+        categoriesById.values
+            .filter { it.type == CategoryType.EXPENSE }
+            .sortedBy { it.name.lowercase(Locale.forLanguageTag("id-ID")) }
+            .map { FamilyBudgetCategoryOption(id = it.id, name = it.name) }
+
     fun filterSharedBudgets(
         budgets: List<Budget>,
-        familyWalletIds: Set<String>,
         familyId: String?,
     ): List<Budget> =
         budgets.filter { budget ->
-            (!familyId.isNullOrBlank() && budget.familyId == familyId) ||
-                (!budget.familyId.isNullOrBlank()) ||
-                (budget.walletId != null && budget.walletId in familyWalletIds)
+            !familyId.isNullOrBlank() && budget.familyId == familyId
         }
 
     fun savingTogetherInsight(
@@ -262,6 +285,7 @@ internal object FamilyUiMapper {
     }
 
     private fun toCategoryBudgetRow(
+        categoryId: String,
         title: String,
         spent: Long,
         limit: Long,
@@ -269,7 +293,7 @@ internal object FamilyUiMapper {
         barColorHex: String,
     ): FamilyBudgetRowUi {
         val hasLimit = limit > 0L
-        val progress =
+        val rawProgress =
             when {
                 hasLimit -> spent.toFloat() / limit.toFloat()
                 monthlyTotal > 0L -> spent.toFloat() / monthlyTotal.toFloat()
@@ -278,46 +302,49 @@ internal object FamilyUiMapper {
         val isOverBudget = hasLimit && spent > limit
         val tone =
             if (hasLimit) {
-                budgetTone(progress = progress, isOverBudget = isOverBudget)
+                budgetTone(
+                    progress = rawProgress,
+                    isOverBudget = isOverBudget || spent * 10L > limit * 9L,
+                )
             } else {
-                FamilyBudgetBarTone.Primary
+                FamilyBudgetBarTone.Neutral
             }
         return FamilyBudgetRowUi(
+            categoryId = categoryId,
             title = title,
             spentLabel = CurrencyFormat.formatIdr(spent),
             capLabel = CurrencyFormat.formatIdr(if (hasLimit) limit else monthlyTotal),
-            progress = progress.coerceIn(0f, 1f),
+            progress = rawProgress.coerceIn(0f, 1f),
             footnote = budgetFootnote(spent = spent, limit = limit, monthlyTotal = monthlyTotal),
             tone = tone,
-            muted = !hasLimit || (tone == FamilyBudgetBarTone.Primary && !isOverBudget),
+            muted = !hasLimit,
+            hasLimit = hasLimit,
             barColorHex = barColorHex,
         )
     }
 
-    private fun budgetTone(progress: Float, isOverBudget: Boolean): FamilyBudgetBarTone =
+    internal fun budgetTone(progress: Float, isOverBudget: Boolean): FamilyBudgetBarTone =
         when {
-            isOverBudget || progress >= BUDGET_WARN_THRESHOLD -> FamilyBudgetBarTone.Error
-            progress <= 0.6f -> FamilyBudgetBarTone.Success
-            else -> FamilyBudgetBarTone.Primary
+            isOverBudget || progress > BUDGET_RED_AFTER -> FamilyBudgetBarTone.Error
+            progress <= BUDGET_SUCCESS_MAX -> FamilyBudgetBarTone.Success
+            progress <= BUDGET_WATCH_MAX -> FamilyBudgetBarTone.Watch
+            else -> FamilyBudgetBarTone.Critical
         }
 
     private fun budgetFootnote(spent: Long, limit: Long, monthlyTotal: Long): String? {
         if (limit > 0L) {
             val progress = spent.toFloat() / limit.toFloat()
+            val remaining = (limit - spent).coerceAtLeast(0L)
+            val leftPct = ((1f - progress.coerceAtMost(1f)) * 100f).roundToInt().coerceAtLeast(0)
             return when {
-                spent > limit -> {
-                    val over = spent - limit
-                    "Melebihi limit ${CurrencyFormat.formatIdr(over)}"
-                }
-                progress >= BUDGET_WARN_THRESHOLD -> {
-                    val leftPct = ((1f - progress) * 100f).roundToInt().coerceAtLeast(0)
-                    "Mendekati limit ($leftPct% tersisa)"
-                }
-                progress <= 0.6f -> {
-                    val remaining = (limit - spent).coerceAtLeast(0L)
+                spent > limit -> "Melebihi limit ${CurrencyFormat.formatIdr(spent - limit)}"
+                progress > BUDGET_RED_AFTER || spent * 10L > limit * 9L ->
+                    "Limit hampir habis ($leftPct% tersisa)"
+                progress <= BUDGET_SUCCESS_MAX ->
                     "On track — sisa ${CurrencyFormat.formatIdr(remaining)}"
-                }
-                else -> null
+                progress <= BUDGET_WATCH_MAX ->
+                    "Perhatian — sisa ${CurrencyFormat.formatIdr(remaining)}"
+                else -> "Mendekati limit ($leftPct% tersisa)"
             }
         }
         if (monthlyTotal <= 0L) return null

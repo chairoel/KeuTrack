@@ -9,6 +9,7 @@ import com.mascill.keutrack.core.data.datasource.local.BudgetLocalDataSource
 import com.mascill.keutrack.core.data.datasource.local.CategorySummaryLocalDataSource
 import com.mascill.keutrack.core.data.datasource.local.TransactionLocalDataSource
 import com.mascill.keutrack.core.data.datasource.local.WalletLocalDataSource
+import com.mascill.keutrack.core.data.db.entity.BudgetEntity
 import com.mascill.keutrack.core.data.db.entity.TransactionEntity
 import com.mascill.keutrack.core.data.db.entity.WalletEntity
 import com.mascill.keutrack.core.data.mapper.BudgetMapper
@@ -16,6 +17,7 @@ import com.mascill.keutrack.core.data.mapper.CategorySummaryMapper
 import com.mascill.keutrack.core.data.mapper.TransactionMapper
 import com.mascill.keutrack.core.data.mapper.WalletMapper
 import com.mascill.keutrack.core.data.sync.SyncScheduler
+import com.mascill.keutrack.core.domain.model.Budget
 import com.mascill.keutrack.core.domain.model.SyncStatus
 import com.mascill.keutrack.core.domain.model.Transaction
 import com.mascill.keutrack.core.domain.model.TransactionType
@@ -31,6 +33,7 @@ import io.mockk.verify
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import java.time.Instant
+import java.time.YearMonth
 
 class SyncRepositoryImplTest {
 
@@ -160,6 +163,89 @@ class SyncRepositoryImplTest {
 
         coVerify(exactly = 0) { walletLocal.upsert(any()) }
         coVerify(exactly = 0) { walletRemote.setBalance(any(), any()) }
+    }
+
+    @Test
+    fun `syncFamilyData hydrates remote family budgets as synced`() = runTest {
+        stubFamilyPull()
+        val remote = familyBudget(limit = 1_000_000L, spent = 400_000L)
+        coEvery { budgetRemote.getByFamilyId("fam-1", currentMonthKey()) } returns listOf(remote)
+        coEvery { budgetRemote.getByFamilyId("fam-1", priorMonthKey()) } returns emptyList()
+        coEvery { budgetLocal.getById("b-1") } returns null
+
+        repo.syncFamilyData("fam-1")
+
+        coVerify {
+            budgetLocal.upsert(
+                match { entity ->
+                    entity.id == "b-1" &&
+                        entity.familyId == "fam-1" &&
+                        entity.categoryId == "cat_food" &&
+                        entity.limit == 1_000_000L &&
+                        entity.spent == 400_000L &&
+                        entity.month == currentMonthKey() &&
+                        entity.syncStatus == SyncStatus.SYNCED.name
+                },
+            )
+        }
+    }
+
+    @Test
+    fun `syncFamilyData pulls current and prior month family budgets`() = runTest {
+        stubFamilyPull()
+        val current = familyBudget(id = "b-now", month = currentMonthKey())
+        val prior = familyBudget(id = "b-prior", month = priorMonthKey())
+        coEvery { budgetRemote.getByFamilyId("fam-1", currentMonthKey()) } returns listOf(current)
+        coEvery { budgetRemote.getByFamilyId("fam-1", priorMonthKey()) } returns listOf(prior)
+        coEvery { budgetLocal.getById(any()) } returns null
+
+        repo.syncFamilyData("fam-1")
+
+        coVerify { budgetRemote.getByFamilyId("fam-1", currentMonthKey()) }
+        coVerify { budgetRemote.getByFamilyId("fam-1", priorMonthKey()) }
+        coVerify { budgetLocal.upsert(match { it.id == "b-now" }) }
+        coVerify { budgetLocal.upsert(match { it.id == "b-prior" }) }
+    }
+
+    @Test
+    fun `syncFamilyData skips budget overwrite when local is pending`() = runTest {
+        stubFamilyPull()
+        coEvery { budgetRemote.getByFamilyId("fam-1", currentMonthKey()) } returns
+            listOf(familyBudget())
+        coEvery { budgetRemote.getByFamilyId("fam-1", priorMonthKey()) } returns emptyList()
+        coEvery { budgetLocal.getById("b-1") } returns
+            familyBudgetEntity(syncStatus = SyncStatus.PENDING.name)
+
+        repo.syncFamilyData("fam-1")
+
+        coVerify(exactly = 0) { budgetLocal.upsert(any()) }
+    }
+
+    @Test
+    fun `syncFamilyData skips budget overwrite when local is failed`() = runTest {
+        stubFamilyPull()
+        coEvery { budgetRemote.getByFamilyId("fam-1", currentMonthKey()) } returns
+            listOf(familyBudget())
+        coEvery { budgetRemote.getByFamilyId("fam-1", priorMonthKey()) } returns emptyList()
+        coEvery { budgetLocal.getById("b-1") } returns
+            familyBudgetEntity(syncStatus = SyncStatus.FAILED.name)
+
+        repo.syncFamilyData("fam-1")
+
+        coVerify(exactly = 0) { budgetLocal.upsert(any()) }
+    }
+
+    @Test
+    fun `syncFamilyData ignores remote budgets that are not this family`() = runTest {
+        stubFamilyPull()
+        val otherFamily = familyBudget(familyId = "fam-2")
+        coEvery { budgetRemote.getByFamilyId("fam-1", currentMonthKey()) } returns
+            listOf(otherFamily)
+        coEvery { budgetRemote.getByFamilyId("fam-1", priorMonthKey()) } returns emptyList()
+
+        repo.syncFamilyData("fam-1")
+
+        coVerify(exactly = 0) { budgetLocal.upsert(any()) }
     }
 
     @Test
@@ -330,6 +416,50 @@ class SyncRepositoryImplTest {
             )
         }
     }
+
+    private fun stubFamilyPull() {
+        coEvery { walletRemote.getByFamilyId("fam-1") } returns emptyList()
+        coEvery { transactionRemote.getByFamilyId("fam-1", limit = 200) } returns emptyList()
+        coEvery { transactionLocal.getPending() } returns emptyList()
+    }
+
+    private fun currentMonthKey(): String = YearMonth.now().toString()
+
+    private fun priorMonthKey(): String = YearMonth.now().minusMonths(1).toString()
+
+    private fun familyBudget(
+        id: String = "b-1",
+        familyId: String = "fam-1",
+        month: String = currentMonthKey(),
+        limit: Long = 1_000_000L,
+        spent: Long = 0L,
+    ) = Budget(
+        id = id,
+        userId = "user-1",
+        familyId = familyId,
+        categoryId = "cat_food",
+        limit = limit,
+        spent = spent,
+        month = month,
+        walletId = "w-fam",
+        syncStatus = SyncStatus.SYNCED,
+        createdAt = Instant.parse("2026-08-01T00:00:00Z"),
+    )
+
+    private fun familyBudgetEntity(syncStatus: String) =
+        BudgetEntity(
+            id = "b-1",
+            userId = "user-1",
+            familyId = "fam-1",
+            categoryId = "cat_food",
+            limit = 1_000_000L,
+            spent = 0L,
+            period = "monthly",
+            month = currentMonthKey(),
+            walletId = "w-fam",
+            syncStatus = syncStatus,
+            createdAtEpochMs = Instant.parse("2026-08-01T00:00:00Z").toEpochMilli(),
+        )
 
     private fun stubPersonalPull(
         wallets: List<Wallet>,

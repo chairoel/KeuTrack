@@ -15,10 +15,16 @@ class BudgetLocalDataSourceImpl @Inject constructor(
 
     override suspend fun getById(id: String): BudgetEntity? = dao.getById(id)
 
-    override suspend fun getByMonthAndCategory(
+    override suspend fun getByMonthCategoryAndFamily(
         month: String,
         categoryId: String,
-    ): BudgetEntity? = dao.getByMonthAndCategory(month, categoryId)
+        familyId: String,
+    ): BudgetEntity? = dao.getByMonthCategoryAndFamily(month, categoryId, familyId)
+
+    override suspend fun getByMonthCategoryPersonal(
+        month: String,
+        categoryId: String,
+    ): BudgetEntity? = dao.getByMonthCategoryPersonal(month, categoryId)
 
     override suspend fun upsert(entity: BudgetEntity) {
         dao.upsert(entity)

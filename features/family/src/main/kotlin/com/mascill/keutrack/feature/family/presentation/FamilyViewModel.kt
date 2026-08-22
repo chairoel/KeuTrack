@@ -3,6 +3,7 @@ package com.mascill.keutrack.feature.family.presentation
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mascill.keutrack.core.common.utils.CommonDispatcher
+import com.mascill.keutrack.core.designsystem.format.MAX_AMOUNT_RUPIAH
 import com.mascill.keutrack.core.domain.model.Budget
 import com.mascill.keutrack.core.domain.model.FamilyGroup
 import com.mascill.keutrack.core.domain.model.Transaction
@@ -10,13 +11,16 @@ import com.mascill.keutrack.core.domain.model.User
 import com.mascill.keutrack.core.domain.repository.FamilyRepository
 import com.mascill.keutrack.core.domain.repository.UserRepository
 import com.mascill.keutrack.core.domain.usecase.CreateFamilyGroupUseCase
+import com.mascill.keutrack.core.domain.usecase.DeleteFamilyBudgetUseCase
 import com.mascill.keutrack.core.domain.usecase.GetBudgetProgressUseCase
 import com.mascill.keutrack.core.domain.usecase.GetCategoriesUseCase
 import com.mascill.keutrack.core.domain.usecase.GetTransactionsUseCase
 import com.mascill.keutrack.core.domain.usecase.GetWalletSummaryUseCase
 import com.mascill.keutrack.core.domain.usecase.JoinFamilyGroupUseCase
 import com.mascill.keutrack.core.domain.usecase.SyncFamilyDataUseCase
+import com.mascill.keutrack.core.domain.usecase.UpsertFamilyBudgetUseCase
 import com.mascill.keutrack.core.domain.usecase.WalletSummary
+import com.mascill.keutrack.feature.family.presentation.model.FamilyBudgetSheetState
 import com.mascill.keutrack.feature.family.presentation.model.FamilyUIState
 import com.mascill.keutrack.feature.family.presentation.model.FamilyUiMapper
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -34,6 +38,7 @@ import kotlinx.coroutines.launch
 import java.time.YearMonth
 import javax.inject.Inject
 import kotlin.coroutines.cancellation.CancellationException
+import kotlin.math.min
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
@@ -47,6 +52,8 @@ class FamilyViewModel @Inject constructor(
     private val createFamilyGroup: CreateFamilyGroupUseCase,
     private val joinFamilyGroup: JoinFamilyGroupUseCase,
     private val syncFamilyData: SyncFamilyDataUseCase,
+    private val upsertFamilyBudget: UpsertFamilyBudgetUseCase,
+    private val deleteFamilyBudget: DeleteFamilyBudgetUseCase,
     private val dispatcher: CommonDispatcher,
 ) : ViewModel() {
 
@@ -56,6 +63,10 @@ class FamilyViewModel @Inject constructor(
 
     private val _membershipLoading = MutableStateFlow(false)
     private val _membershipMessage = MutableStateFlow<String?>(null)
+    private val _budgetEditor = MutableStateFlow(BudgetEditorState())
+
+    @Volatile
+    private var latestFamilyBudgets: List<Budget> = emptyList()
 
     private val walletSummaryFlow = getWalletSummary()
     private val userFlow = userRepository.getCurrentUser()
@@ -86,6 +97,11 @@ class FamilyViewModel @Inject constructor(
                 familyTransactionsFlow,
                 getBudgetProgress(currentMonthKey),
             ) { user, familyGroup, walletSummary, transactions, budgets ->
+                latestFamilyBudgets =
+                    FamilyUiMapper.filterSharedBudgets(
+                        budgets = budgets,
+                        familyId = user?.familyId,
+                    )
                 FamilyLoadBundle(
                     user = user,
                     familyGroup = familyGroup,
@@ -120,10 +136,14 @@ class FamilyViewModel @Inject constructor(
             insightsFlow,
             _membershipLoading,
             _membershipMessage,
-        ) { insights, membershipLoading, membershipMessage ->
+            _budgetEditor,
+        ) { insights, membershipLoading, membershipMessage, budgetEditor ->
             insights.copy(
                 isMembershipLoading = membershipLoading,
                 membershipMessage = membershipMessage,
+                budgetSheet = budgetEditor.sheet,
+                isBudgetSaving = budgetEditor.isSaving,
+                budgetMessage = budgetEditor.message,
             )
         }.stateIn(
             scope = viewModelScope,
@@ -136,6 +156,143 @@ class FamilyViewModel @Inject constructor(
         viewModelScope.launch(dispatcher.io) {
             pullFamilyData(showError = true)
         }
+    }
+
+    fun onAdjustTargetsClick() {
+        if (!uiState.value.canEditBudgets) return
+        _budgetEditor.update { editor ->
+            editor.copy(
+                sheet =
+                    FamilyBudgetSheetState(
+                        categoryId = null,
+                        categoryLocked = false,
+                        limitInput = "",
+                        existingBudgetId = null,
+                        errorMessage = null,
+                    ),
+                message = null,
+            )
+        }
+    }
+
+    fun onBudgetRowClick(categoryId: String) {
+        if (!uiState.value.canEditBudgets || categoryId.isBlank()) return
+        val existing = existingBudget(categoryId)
+        _budgetEditor.update { editor ->
+            editor.copy(
+                sheet =
+                    FamilyBudgetSheetState(
+                        categoryId = categoryId,
+                        categoryLocked = true,
+                        limitInput = existing?.limit?.toString().orEmpty(),
+                        existingBudgetId = existing?.id,
+                        errorMessage = null,
+                    ),
+                message = null,
+            )
+        }
+    }
+
+    fun onSheetCategorySelected(categoryId: String) {
+        if (categoryId.isBlank()) return
+        val existing = existingBudget(categoryId)
+        _budgetEditor.update { editor ->
+            val sheet = editor.sheet ?: return@update editor
+            if (sheet.categoryLocked) return@update editor
+            editor.copy(
+                sheet =
+                    sheet.copy(
+                        categoryId = categoryId,
+                        limitInput = existing?.limit?.toString().orEmpty(),
+                        existingBudgetId = existing?.id,
+                        errorMessage = null,
+                    ),
+            )
+        }
+    }
+
+    fun onLimitChanged(raw: String) {
+        val digits = raw.filter { it.isDigit() }
+        val limitInput =
+            if (digits.isEmpty()) {
+                ""
+            } else {
+                val amount = digits.take(MAX_AMOUNT_DIGITS).toLongOrNull() ?: return
+                min(amount, MAX_AMOUNT_RUPIAH).toString()
+            }
+        _budgetEditor.update { editor ->
+            val sheet = editor.sheet ?: return@update editor
+            editor.copy(sheet = sheet.copy(limitInput = limitInput, errorMessage = null))
+        }
+    }
+
+    fun onSaveBudget() {
+        val sheet = _budgetEditor.value.sheet ?: return
+        if (_budgetEditor.value.isSaving) return
+        val categoryId = sheet.categoryId
+        val limit = sheet.limitInput.toLongOrNull() ?: 0L
+        if (categoryId.isNullOrBlank()) {
+            setSheetError("Kategori wajib dipilih")
+            return
+        }
+        if (limit <= 0L) {
+            setSheetError("Limit harus lebih dari 0")
+            return
+        }
+        viewModelScope.launch(dispatcher.io) {
+            _budgetEditor.update { it.copy(isSaving = true, message = null) }
+            try {
+                upsertFamilyBudget(
+                    UpsertFamilyBudgetUseCase.Params(
+                        categoryId = categoryId,
+                        limit = limit,
+                        month = currentMonthKey,
+                    ),
+                ).onSuccess {
+                    _budgetEditor.update { BudgetEditorState() }
+                }.onFailure { e ->
+                    applyBudgetFailure(e)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                applyBudgetFailure(e)
+            } finally {
+                _budgetEditor.update { it.copy(isSaving = false) }
+            }
+        }
+    }
+
+    fun onDeleteBudget() {
+        val budgetId = _budgetEditor.value.sheet?.existingBudgetId ?: return
+        if (_budgetEditor.value.isSaving) return
+        viewModelScope.launch(dispatcher.io) {
+            _budgetEditor.update { it.copy(isSaving = true, message = null) }
+            try {
+                deleteFamilyBudget(budgetId)
+                    .onSuccess {
+                        _budgetEditor.update { BudgetEditorState() }
+                    }
+                    .onFailure { e ->
+                        applyBudgetFailure(e)
+                    }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                applyBudgetFailure(e)
+            } finally {
+                _budgetEditor.update { it.copy(isSaving = false) }
+            }
+        }
+    }
+
+    fun onDismissBudgetSheet() {
+        if (_budgetEditor.value.isSaving) return
+        _budgetEditor.update { it.copy(sheet = null) }
+    }
+
+    fun dismissBudgetMessage() {
+        _budgetEditor.update { it.copy(message = null) }
     }
 
     fun createFamily(name: String) {
@@ -192,6 +349,27 @@ class FamilyViewModel @Inject constructor(
         _membershipMessage.update { null }
     }
 
+    private fun existingBudget(categoryId: String): Budget? =
+        latestFamilyBudgets
+            .filter { it.categoryId == categoryId }
+            .minByOrNull { it.createdAt }
+
+    private fun setSheetError(message: String) {
+        _budgetEditor.update { editor ->
+            val sheet = editor.sheet ?: return@update editor
+            editor.copy(sheet = sheet.copy(errorMessage = message))
+        }
+    }
+
+    private fun applyBudgetFailure(error: Throwable) {
+        val message = error.message ?: ERR_BUDGET_SAVE
+        if (error is IllegalArgumentException) {
+            setSheetError(message)
+        } else {
+            _budgetEditor.update { it.copy(message = message) }
+        }
+    }
+
     private suspend fun pullFamilyData(showError: Boolean) {
         try {
             syncFamilyData()
@@ -218,10 +396,18 @@ class FamilyViewModel @Inject constructor(
         val budgets: List<Budget>,
     )
 
+    private data class BudgetEditorState(
+        val sheet: FamilyBudgetSheetState? = null,
+        val isSaving: Boolean = false,
+        val message: String? = null,
+    )
+
     private companion object {
         const val FAMILY_TX_LIMIT = 200
+        const val MAX_AMOUNT_DIGITS = 15
         const val ERR_LOAD_FAILED = "Gagal memuat family insights"
         const val ERR_SYNC_FAMILY =
             "Gagal sinkron data keluarga. Coba buka ulang tab Family."
+        const val ERR_BUDGET_SAVE = "Gagal menyimpan target"
     }
 }

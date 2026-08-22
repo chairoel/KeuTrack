@@ -22,4 +22,23 @@ data class FamilyUIState(
     val showInsightCard: Boolean = false,
     val isMembershipLoading: Boolean = false,
     val membershipMessage: String? = null,
+    val canEditBudgets: Boolean = false,
+    val budgetSheet: FamilyBudgetSheetState? = null,
+    val isBudgetSaving: Boolean = false,
+    val budgetMessage: String? = null,
+    val budgetMonthLabel: String = "",
+    val expenseCategories: List<FamilyBudgetCategoryOption> = emptyList(),
+)
+
+data class FamilyBudgetCategoryOption(
+    val id: String,
+    val name: String,
+)
+
+data class FamilyBudgetSheetState(
+    val categoryId: String? = null,
+    val categoryLocked: Boolean = false,
+    val limitInput: String = "",
+    val existingBudgetId: String? = null,
+    val errorMessage: String? = null,
 )

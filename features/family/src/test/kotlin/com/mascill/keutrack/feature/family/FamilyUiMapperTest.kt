@@ -4,11 +4,21 @@ import com.google.common.truth.Truth.assertThat
 import com.mascill.keutrack.core.domain.model.Budget
 import com.mascill.keutrack.core.domain.model.Category
 import com.mascill.keutrack.core.domain.model.CategoryType
+import com.mascill.keutrack.core.domain.model.FamilyGroup
+import com.mascill.keutrack.core.domain.model.FamilyRole
 import com.mascill.keutrack.core.domain.model.Transaction
 import com.mascill.keutrack.core.domain.model.TransactionType
+import com.mascill.keutrack.core.domain.model.User
+import com.mascill.keutrack.core.domain.model.Wallet
+import com.mascill.keutrack.core.domain.model.WalletType
+import com.mascill.keutrack.core.domain.usecase.WalletSummary
+import com.mascill.keutrack.core.designsystem.model.KeuTrackProgressTone
+import com.mascill.keutrack.feature.family.presentation.model.FamilyBudgetBarTone
 import com.mascill.keutrack.feature.family.presentation.model.FamilyUiMapper
+import com.mascill.keutrack.feature.family.presentation.model.toProgressTone
 import org.junit.Test
 import java.time.Instant
+import java.time.YearMonth
 
 class FamilyUiMapperTest {
 
@@ -94,6 +104,66 @@ class FamilyUiMapperTest {
         assertThat(rows.first { it.title == "Household" }.footnote)
             .isEqualTo("60% dari pengeluaran keluarga")
         assertThat(rows.first { it.title == "Household" }.barColorHex).isEqualTo("#FF7043")
+        assertThat(rows.first { it.title == "Household" }.hasLimit).isFalse()
+        assertThat(rows.first { it.title == "Household" }.tone).isEqualTo(FamilyBudgetBarTone.Neutral)
+        assertThat(rows.first { it.title == "Household" }.categoryId).isEqualTo("cat_food")
+        assertThat(rows.first { it.title == "Household" }.muted).isTrue()
+    }
+
+    @Test
+    fun `filterSharedBudgets keeps only budgets for the current family`() {
+        val own =
+            budget(
+                id = "b-own",
+                categoryId = "cat_food",
+                spent = 100_000L,
+                limit = 1_000_000L,
+                familyId = "fam-1",
+            )
+        val otherFamily =
+            budget(
+                id = "b-other",
+                categoryId = "cat_food",
+                spent = 1L,
+                limit = 9_999_000L,
+                familyId = "fam-2",
+            )
+        val personal =
+            budget(
+                id = "b-personal",
+                categoryId = "cat_food",
+                spent = 50_000L,
+                limit = 200_000L,
+                familyId = null,
+            )
+
+        val filtered =
+            FamilyUiMapper.filterSharedBudgets(
+                budgets = listOf(own, otherFamily, personal),
+                familyId = "fam-1",
+            )
+
+        assertThat(filtered).containsExactly(own)
+    }
+
+    @Test
+    fun `filterSharedBudgets is empty when user has no family`() {
+        val shared =
+            budget(
+                id = "b-1",
+                categoryId = "cat_food",
+                spent = 100_000L,
+                limit = 1_000_000L,
+                familyId = "fam-1",
+            )
+
+        val filtered =
+            FamilyUiMapper.filterSharedBudgets(
+                budgets = listOf(shared),
+                familyId = null,
+            )
+
+        assertThat(filtered).isEmpty()
     }
 
     @Test
@@ -115,7 +185,229 @@ class FamilyUiMapperTest {
         assertThat(rows.first().spentLabel).isEqualTo("Rp 400.000")
         assertThat(rows.first().capLabel).isEqualTo("Rp 1.000.000")
         assertThat(rows.first().footnote).isEqualTo("On track — sisa Rp 600.000")
+        assertThat(rows.first().hasLimit).isTrue()
+        assertThat(rows.first().tone).isEqualTo(FamilyBudgetBarTone.Success)
+        assertThat(rows.first().categoryId).isEqualTo("cat_food")
+        assertThat(rows.first().muted).isFalse()
     }
+
+    @Test
+    fun `budgetTone maps awareness thresholds`() {
+        assertThat(FamilyUiMapper.budgetTone(0.60f, false)).isEqualTo(FamilyBudgetBarTone.Success)
+        assertThat(FamilyUiMapper.budgetTone(0.61f, false)).isEqualTo(FamilyBudgetBarTone.Watch)
+        assertThat(FamilyUiMapper.budgetTone(0.75f, false)).isEqualTo(FamilyBudgetBarTone.Watch)
+        assertThat(FamilyUiMapper.budgetTone(0.76f, false)).isEqualTo(FamilyBudgetBarTone.Critical)
+        assertThat(FamilyUiMapper.budgetTone(0.90f, false)).isEqualTo(FamilyBudgetBarTone.Critical)
+        assertThat(FamilyUiMapper.budgetTone(0.91f, false)).isEqualTo(FamilyBudgetBarTone.Error)
+        assertThat(FamilyUiMapper.budgetTone(1.10f, true)).isEqualTo(FamilyBudgetBarTone.Error)
+    }
+
+    @Test
+    fun `budget bar tones map to progress bar tokens`() {
+        assertThat(FamilyBudgetBarTone.Success.toProgressTone())
+            .isEqualTo(KeuTrackProgressTone.Success)
+        assertThat(FamilyBudgetBarTone.Watch.toProgressTone())
+            .isEqualTo(KeuTrackProgressTone.Warning)
+        assertThat(FamilyBudgetBarTone.Critical.toProgressTone())
+            .isEqualTo(KeuTrackProgressTone.Caution)
+        assertThat(FamilyBudgetBarTone.Error.toProgressTone())
+            .isEqualTo(KeuTrackProgressTone.Danger)
+        assertThat(FamilyBudgetBarTone.Neutral.toProgressTone())
+            .isEqualTo(KeuTrackProgressTone.Primary)
+    }
+
+    @Test
+    fun `budget rows at 60 percent stay success`() {
+        val row = limitRow(spent = 600_000L, limit = 1_000_000L)
+        assertThat(row.tone).isEqualTo(FamilyBudgetBarTone.Success)
+        assertThat(row.footnote).isEqualTo("On track — sisa Rp 400.000")
+        assertThat(row.hasLimit).isTrue()
+    }
+
+    @Test
+    fun `budget rows at 75 percent are watch`() {
+        val row = limitRow(spent = 750_000L, limit = 1_000_000L)
+        assertThat(row.tone).isEqualTo(FamilyBudgetBarTone.Watch)
+        assertThat(row.footnote).isEqualTo("Perhatian — sisa Rp 250.000")
+    }
+
+    @Test
+    fun `budget rows at 90 percent stay critical orange`() {
+        val row = limitRow(spent = 900_000L, limit = 1_000_000L)
+        assertThat(row.tone).isEqualTo(FamilyBudgetBarTone.Critical)
+        assertThat(row.footnote).isEqualTo("Mendekati limit (10% tersisa)")
+    }
+
+    @Test
+    fun `budget rows at 91 percent are error red`() {
+        val row = limitRow(spent = 910_000L, limit = 1_000_000L)
+        assertThat(row.tone).isEqualTo(FamilyBudgetBarTone.Error)
+        assertThat(row.footnote).isEqualTo("Limit hampir habis (9% tersisa)")
+    }
+
+    @Test
+    fun `budget rows over limit stay error red`() {
+        val row = limitRow(spent = 1_100_000L, limit = 1_000_000L)
+        assertThat(row.tone).isEqualTo(FamilyBudgetBarTone.Error)
+        assertThat(row.footnote).isEqualTo("Melebihi limit Rp 100.000")
+        assertThat(row.progress).isEqualTo(1f)
+    }
+
+    @Test
+    fun `two categories under 60 percent share success tone`() {
+        val rows =
+            FamilyUiMapper.toBudgetRows(
+                budgets =
+                    listOf(
+                        budget(
+                            id = "b-food",
+                            categoryId = "cat_food",
+                            spent = 300_000L,
+                            limit = 1_000_000L,
+                        ),
+                        budget(
+                            id = "b-shop",
+                            categoryId = "cat_shop",
+                            spent = 200_000L,
+                            limit = 1_000_000L,
+                        ),
+                    ),
+                categoriesById =
+                    mapOf(
+                        "cat_food" to category("cat_food", "Makanan", color = "#FF7043"),
+                        "cat_shop" to category("cat_shop", "Belanja", color = "#FFA726"),
+                    ),
+            )
+
+        assertThat(rows.map { it.tone }).containsExactly(
+            FamilyBudgetBarTone.Success,
+            FamilyBudgetBarTone.Success,
+        )
+        assertThat(rows.map { it.barColorHex }.toSet()).containsExactly("#FF7043", "#FFA726")
+        assertThat(rows.all { it.hasLimit }).isTrue()
+    }
+
+    @Test
+    fun `canEditBudgets is true only for owner with family and wallet`() {
+        val owner = user(familyId = "fam-1", familyRole = FamilyRole.OWNER.value)
+        val member = user(familyId = "fam-1", familyRole = FamilyRole.MEMBER.value)
+
+        assertThat(FamilyUiMapper.canEditBudgets(owner, hasFamilyWallet = true)).isTrue()
+        assertThat(FamilyUiMapper.canEditBudgets(member, hasFamilyWallet = true)).isFalse()
+        assertThat(FamilyUiMapper.canEditBudgets(owner, hasFamilyWallet = false)).isFalse()
+        assertThat(
+            FamilyUiMapper.canEditBudgets(
+                user(familyId = null, familyRole = FamilyRole.OWNER.value),
+                hasFamilyWallet = true,
+            ),
+        ).isFalse()
+    }
+
+    @Test
+    fun `toUiState sets canEditBudgets for owner with family wallet`() {
+        val state =
+            FamilyUiMapper.toUiState(
+                user = user(familyId = "fam-1", familyRole = FamilyRole.OWNER.value),
+                familyGroup = familyGroup(),
+                walletSummary = WalletSummary(null, listOf(familyWallet()), 0L, 0L),
+                familyTransactions = emptyList(),
+                budgets = emptyList(),
+                categoriesById = emptyMap(),
+                currentMonth = YearMonth.of(2026, 8),
+                priorMonth = YearMonth.of(2026, 7),
+            )
+
+        assertThat(state.canEditBudgets).isTrue()
+        assertThat(state.budgetSheet).isNull()
+        assertThat(state.isBudgetSaving).isFalse()
+        assertThat(state.budgetMonthLabel).isEqualTo("Agustus 2026")
+    }
+
+    @Test
+    fun `toUiState lists expense categories for the sheet picker`() {
+        val state =
+            FamilyUiMapper.toUiState(
+                user = user(familyId = "fam-1", familyRole = FamilyRole.OWNER.value),
+                familyGroup = familyGroup(),
+                walletSummary = WalletSummary(null, listOf(familyWallet()), 0L, 0L),
+                familyTransactions = emptyList(),
+                budgets = emptyList(),
+                categoriesById =
+                    mapOf(
+                        "cat_food" to category("cat_food", "Makanan"),
+                        "cat_pay" to
+                            category("cat_pay", "Gaji").copy(type = CategoryType.INCOME),
+                    ),
+                currentMonth = YearMonth.of(2026, 8),
+                priorMonth = YearMonth.of(2026, 7),
+            )
+
+        assertThat(state.expenseCategories.map { it.id }).containsExactly("cat_food")
+        assertThat(state.expenseCategories.first().name).isEqualTo("Makanan")
+    }
+
+    @Test
+    fun `toUiState hides canEditBudgets for member`() {
+        val state =
+            FamilyUiMapper.toUiState(
+                user = user(familyId = "fam-1", familyRole = FamilyRole.MEMBER.value),
+                familyGroup = familyGroup(),
+                walletSummary = WalletSummary(null, listOf(familyWallet()), 0L, 0L),
+                familyTransactions = emptyList(),
+                budgets = emptyList(),
+                categoriesById = emptyMap(),
+                currentMonth = YearMonth.of(2026, 8),
+                priorMonth = YearMonth.of(2026, 7),
+            )
+
+        assertThat(state.canEditBudgets).isFalse()
+    }
+
+    private fun limitRow(spent: Long, limit: Long) =
+        FamilyUiMapper.toBudgetRows(
+            budgets =
+                listOf(
+                    budget(
+                        id = "b-1",
+                        categoryId = "cat_food",
+                        spent = spent,
+                        limit = limit,
+                    ),
+                ),
+            categoriesById = mapOf("cat_food" to category("cat_food", "Household")),
+        ).first()
+
+    private fun user(
+        familyId: String?,
+        familyRole: String?,
+    ) = User(
+        uid = "user-1",
+        displayName = "Irul",
+        email = "a@b.c",
+        photoUrl = null,
+        familyId = familyId,
+        familyRole = familyRole,
+    )
+
+    private fun familyGroup() =
+        FamilyGroup(
+            id = "fam-1",
+            name = "Keluarga Irul",
+            inviteCode = "KEU-ABC-DEF",
+            ownerId = "user-1",
+            memberIds = listOf("user-1"),
+            createdAt = Instant.parse("2026-08-01T00:00:00Z"),
+        )
+
+    private fun familyWallet() =
+        Wallet(
+            id = "w-fam",
+            ownerId = "user-1",
+            familyId = "fam-1",
+            name = "Family",
+            type = WalletType.FAMILY,
+            balance = 0L,
+        )
 
     private fun expense(
         userId: String,
@@ -140,23 +432,24 @@ class FamilyUiMapperTest {
         categoryId: String,
         spent: Long,
         limit: Long,
+        familyId: String? = "fam-1",
     ): Budget =
         Budget(
             id = id,
             userId = "u-1",
-            familyId = "fam-1",
+            familyId = familyId,
             categoryId = categoryId,
             limit = limit,
             spent = spent,
             month = "2026-08",
         )
 
-    private fun category(id: String, name: String): Category =
+    private fun category(id: String, name: String, color: String = "#FF7043"): Category =
         Category(
             id = id,
             name = name,
             icon = "Restaurant",
-            color = "#FF7043",
+            color = color,
             type = CategoryType.EXPENSE,
         )
 }

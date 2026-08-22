@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.mascill.keutrack.core.designsystem.model.KeuTrackProgressTone
 
 enum class FamilyHistoryCategoryIcon {
     Restaurant,
@@ -42,9 +43,20 @@ fun FamilyHistoryCategoryIcon.toImageVector(): ImageVector =
 
 enum class FamilyBudgetBarTone {
     Success,
+    Watch,
+    Critical,
     Error,
-    Primary,
+    Neutral,
 }
+
+fun FamilyBudgetBarTone.toProgressTone(): KeuTrackProgressTone =
+    when (this) {
+        FamilyBudgetBarTone.Success -> KeuTrackProgressTone.Success
+        FamilyBudgetBarTone.Watch -> KeuTrackProgressTone.Warning
+        FamilyBudgetBarTone.Critical -> KeuTrackProgressTone.Caution
+        FamilyBudgetBarTone.Error -> KeuTrackProgressTone.Danger
+        FamilyBudgetBarTone.Neutral -> KeuTrackProgressTone.Primary
+    }
 
 internal const val DEFAULT_BUDGET_BAR_COLOR = "#78909C"
 
@@ -55,6 +67,7 @@ data class FamilySpendSegment(
 )
 
 data class FamilyBudgetRowUi(
+    val categoryId: String,
     val title: String,
     val spentLabel: String,
     val capLabel: String,
@@ -62,6 +75,7 @@ data class FamilyBudgetRowUi(
     val footnote: String?,
     val tone: FamilyBudgetBarTone,
     val muted: Boolean,
+    val hasLimit: Boolean,
     val barColorHex: String = DEFAULT_BUDGET_BAR_COLOR,
 )
 
@@ -105,6 +119,7 @@ val DefaultFamilyInsightsMockContent =
         budgetRows =
             listOf(
                 FamilyBudgetRowUi(
+                    categoryId = "cat_household",
                     title = "Household",
                     spentLabel = "Rp 1.200.000",
                     capLabel = "Rp 2.000.000",
@@ -112,26 +127,31 @@ val DefaultFamilyInsightsMockContent =
                     footnote = "On track — sisa Rp 800.000",
                     tone = FamilyBudgetBarTone.Success,
                     muted = false,
+                    hasLimit = true,
                     barColorHex = "#FFA726",
                 ),
                 FamilyBudgetRowUi(
+                    categoryId = "cat_education",
                     title = "Education",
                     spentLabel = "Rp 950.000",
                     capLabel = "Rp 1.000.000",
                     progress = 0.95f,
-                    footnote = "Mendekati limit (5% tersisa)",
+                    footnote = "Limit hampir habis (5% tersisa)",
                     tone = FamilyBudgetBarTone.Error,
                     muted = false,
+                    hasLimit = true,
                     barColorHex = "#26A69A",
                 ),
                 FamilyBudgetRowUi(
+                    categoryId = "cat_leisure",
                     title = "Shared Leisure",
                     spentLabel = "Rp 450.000",
                     capLabel = "Rp 800.000",
                     progress = 0.56f,
-                    footnote = null,
-                    tone = FamilyBudgetBarTone.Primary,
+                    footnote = "9% dari pengeluaran keluarga",
+                    tone = FamilyBudgetBarTone.Neutral,
                     muted = true,
+                    hasLimit = false,
                     barColorHex = "#EC407A",
                 ),
             ),
@@ -163,7 +183,7 @@ val DefaultFamilyInsightsMockContent =
         insightBody =
             "Pengeluaran keluarga turun 12% dibanding bulan lalu. " +
                 "Pertahankan kebiasaan baik ini bersama!",
-        insightCtaLabel = "Adjust Targets",
+        insightCtaLabel = "Atur Target",
         showJoinBanner = false,
         hasFamilyWallet = true,
     )
@@ -183,4 +203,8 @@ fun FamilyInsightsMockContent.toPreviewUiState(): FamilyUIState =
         insightBody = insightBody,
         insightCtaLabel = insightCtaLabel,
         showInsightCard = insightBody.isNotBlank(),
+        canEditBudgets = hasFamilyWallet,
+        budgetMonthLabel = "Agustus 2026",
+        expenseCategories =
+            budgetRows.map { FamilyBudgetCategoryOption(id = it.categoryId, name = it.title) },
     )

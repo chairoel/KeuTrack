@@ -37,6 +37,7 @@ fun FamilySavingTogetherCard(
     ctaLabel: String,
     onAdjustTargetsClick: () -> Unit,
     modifier: Modifier = Modifier,
+    showCta: Boolean = true,
 ) {
     val semantic = KeuTrackTheme.semanticColors
     val shapes = KeuTrackTheme.shapeTokens
@@ -77,13 +78,15 @@ fun FamilySavingTogetherCard(
                 color = neutral.white.copy(alpha = FAM_INSIGHT_BODY_TEXT_ALPHA),
                 modifier = Modifier.padding(top = FAM_INSIGHT_BODY_PT.dp),
             )
-            Spacer(modifier = Modifier.height(FAM_INSIGHT_CTA_PT.dp))
-            KeuTrackButton(
-                text = ctaLabel,
-                onClick = onAdjustTargetsClick,
-                style = KeuTrackButtonStyle.Secondary,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            if (showCta) {
+                Spacer(modifier = Modifier.height(FAM_INSIGHT_CTA_PT.dp))
+                KeuTrackButton(
+                    text = ctaLabel,
+                    onClick = onAdjustTargetsClick,
+                    style = KeuTrackButtonStyle.Secondary,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
     }
 }

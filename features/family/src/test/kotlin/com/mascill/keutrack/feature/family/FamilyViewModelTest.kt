@@ -2,24 +2,36 @@ package com.mascill.keutrack.feature.family
 
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
+import com.mascill.keutrack.core.domain.model.Budget
 import com.mascill.keutrack.core.domain.model.FamilyGroup
+import com.mascill.keutrack.core.domain.model.TransactionType
 import com.mascill.keutrack.core.domain.model.User
+import com.mascill.keutrack.core.domain.model.Wallet
+import com.mascill.keutrack.core.domain.model.WalletType
+import com.mascill.keutrack.core.domain.repository.BudgetRepository
 import com.mascill.keutrack.core.domain.repository.FamilyRepository
+import com.mascill.keutrack.core.domain.repository.TransactionRepository
 import com.mascill.keutrack.core.domain.repository.UserRepository
+import com.mascill.keutrack.core.domain.repository.WalletRepository
 import com.mascill.keutrack.core.domain.usecase.CreateFamilyGroupUseCase
+import com.mascill.keutrack.core.domain.usecase.DeleteFamilyBudgetUseCase
 import com.mascill.keutrack.core.domain.usecase.GetBudgetProgressUseCase
 import com.mascill.keutrack.core.domain.usecase.GetCategoriesUseCase
 import com.mascill.keutrack.core.domain.usecase.GetTransactionsUseCase
 import com.mascill.keutrack.core.domain.usecase.GetWalletSummaryUseCase
 import com.mascill.keutrack.core.domain.usecase.JoinFamilyGroupUseCase
 import com.mascill.keutrack.core.domain.usecase.SyncFamilyDataUseCase
+import com.mascill.keutrack.core.domain.usecase.UpsertFamilyBudgetUseCase
 import com.mascill.keutrack.core.domain.usecase.WalletSummary
 import com.mascill.keutrack.core.testing.MainDispatcherRule
 import com.mascill.keutrack.core.testing.testCommonDispatcher
 import com.mascill.keutrack.feature.family.presentation.FamilyViewModel
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
+import io.mockk.runs
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -27,6 +39,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
 import java.time.Instant
+import java.time.YearMonth
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class FamilyViewModelTest {
@@ -43,6 +56,21 @@ class FamilyViewModelTest {
     private val createFamilyGroup = mockk<CreateFamilyGroupUseCase>()
     private val joinFamilyGroup = mockk<JoinFamilyGroupUseCase>()
     private val syncFamilyData = mockk<SyncFamilyDataUseCase>(relaxed = true)
+    private val budgetRepository = mockk<BudgetRepository>(relaxed = true)
+    private val walletRepository = mockk<WalletRepository>(relaxed = true)
+    private val transactionRepository = mockk<TransactionRepository>(relaxed = true)
+    private val upsertFamilyBudget =
+        UpsertFamilyBudgetUseCase(
+            userRepository = userRepo,
+            budgetRepository = budgetRepository,
+            walletRepository = walletRepository,
+            transactionRepository = transactionRepository,
+        )
+    private val deleteFamilyBudget =
+        DeleteFamilyBudgetUseCase(
+            userRepository = userRepo,
+            budgetRepository = budgetRepository,
+        )
 
     @Test
     fun `family and user combine into content state`() = runTest(mainDispatcherRule.testDispatcher) {
@@ -99,9 +127,103 @@ class FamilyViewModelTest {
         }
     }
 
-    private fun stubFamilyMember() {
+    @Test
+    fun `owner save invokes upsert family budget and closes sheet`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            stubFamilyOwner()
+            stubFamilyBudgetWrites()
+            val vm = createViewModel()
+
+            vm.uiState.test {
+                skipItems(1)
+                advanceUntilIdle()
+                assertThat(awaitItem().canEditBudgets).isTrue()
+
+                vm.onAdjustTargetsClick()
+                vm.onSheetCategorySelected("cat_food")
+                vm.onLimitChanged("1000000")
+                advanceUntilIdle()
+                assertThat(expectMostRecentItem().budgetSheet?.limitInput).isEqualTo("1000000")
+
+                vm.onSaveBudget()
+                advanceUntilIdle()
+                val saved = expectMostRecentItem()
+                assertThat(saved.budgetMessage).isNull()
+                assertThat(saved.budgetSheet).isNull()
+                cancelAndIgnoreRemainingEvents()
+            }
+
+            coVerify {
+                budgetRepository.createBudget(
+                    match {
+                        it.categoryId == "cat_food" &&
+                            it.limit == 1_000_000L &&
+                            it.month == YearMonth.now().toString() &&
+                            it.familyId == "fam-1"
+                    },
+                )
+            }
+        }
+
+    @Test
+    fun `member click does not open budget sheet`() = runTest(mainDispatcherRule.testDispatcher) {
+        stubFamilyUser(role = "member", wallets = listOf(familyWallet()))
+        val vm = createViewModel()
+
+        vm.uiState.test {
+            skipItems(1)
+            advanceUntilIdle()
+            val state = awaitItem()
+            assertThat(state.canEditBudgets).isFalse()
+            vm.onAdjustTargetsClick()
+            vm.onBudgetRowClick("cat_food")
+            expectNoEvents()
+            assertThat(state.budgetSheet).isNull()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `owner row click prefills existing family budget`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            stubFamilyOwner(
+                budgets = listOf(sampleBudget(limit = 2_000_000L)),
+            )
+            val vm = createViewModel()
+
+            vm.uiState.test {
+                skipItems(1)
+                advanceUntilIdle()
+                awaitItem()
+                vm.onBudgetRowClick("cat_food")
+                val sheet = awaitItem().budgetSheet
+                assertThat(sheet?.categoryId).isEqualTo("cat_food")
+                assertThat(sheet?.categoryLocked).isTrue()
+                assertThat(sheet?.limitInput).isEqualTo("2000000")
+                assertThat(sheet?.existingBudgetId).isEqualTo("b-1")
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    private fun stubFamilyMember(role: String = "owner") {
+        stubFamilyUser(role = role, wallets = emptyList())
+    }
+
+    private fun stubFamilyOwner(budgets: List<Budget> = emptyList()) {
+        stubFamilyUser(
+            role = "owner",
+            wallets = listOf(familyWallet()),
+            budgets = budgets,
+        )
+    }
+
+    private fun stubFamilyUser(
+        role: String,
+        wallets: List<Wallet>,
+        budgets: List<Budget> = emptyList(),
+    ) {
         every { userRepo.getCurrentUser() } returns flowOf(
-            User("user-1", "Irul", "a@b.c", null, familyId = "fam-1", familyRole = "owner"),
+            User("user-1", "Irul", "a@b.c", null, familyId = "fam-1", familyRole = role),
         )
         every { familyRepo.observeCurrentFamily() } returns flowOf(
             FamilyGroup(
@@ -113,10 +235,28 @@ class FamilyViewModelTest {
                 createdAt = Instant.parse("2026-08-01T00:00:00Z"),
             ),
         )
-        every { getWalletSummary() } returns flowOf(WalletSummary(null, emptyList(), 0L, 0L))
+        every { getWalletSummary() } returns flowOf(WalletSummary(null, wallets, 0L, 0L))
         every { getTransactions(any()) } returns flowOf(emptyList())
-        every { getBudgetProgress(any()) } returns flowOf(emptyList())
+        every { getBudgetProgress(any()) } returns flowOf(budgets)
         every { getCategories() } returns flowOf(emptyList())
+    }
+
+    private fun stubFamilyBudgetWrites() {
+        every { walletRepository.observeWalletsByType(WalletType.FAMILY) } returns
+            flowOf(listOf(familyWallet()))
+        every {
+            transactionRepository.observeTransactions(
+                walletId = null,
+                familyId = "fam-1",
+                type = TransactionType.EXPENSE,
+                categoryId = "cat_food",
+                startDate = null,
+                endDate = null,
+                limit = 1_000,
+            )
+        } returns flowOf(emptyList())
+        coEvery { budgetRepository.findFamilyBudget(any(), any(), any()) } returns null
+        coEvery { budgetRepository.createBudget(any()) } just runs
     }
 
     private fun createViewModel() = FamilyViewModel(
@@ -129,6 +269,29 @@ class FamilyViewModelTest {
         createFamilyGroup = createFamilyGroup,
         joinFamilyGroup = joinFamilyGroup,
         syncFamilyData = syncFamilyData,
+        upsertFamilyBudget = upsertFamilyBudget,
+        deleteFamilyBudget = deleteFamilyBudget,
         dispatcher = testCommonDispatcher(mainDispatcherRule.testDispatcher),
     )
+
+    private fun familyWallet() =
+        Wallet(
+            id = "w-fam",
+            ownerId = "user-1",
+            familyId = "fam-1",
+            name = "Family",
+            type = WalletType.FAMILY,
+            balance = 0L,
+        )
+
+    private fun sampleBudget(limit: Long = 1_000_000L) =
+        Budget(
+            id = "b-1",
+            userId = "user-1",
+            familyId = "fam-1",
+            categoryId = "cat_food",
+            limit = limit,
+            spent = 100_000L,
+            month = YearMonth.now().toString(),
+        )
 }
