@@ -22,5 +22,8 @@ fun TransactionHistoryRouting(
         uiState = uiState,
         onBack = onBack,
         onAddTransaction = onAddTransaction,
+        onPeriodPresetSelected = viewModel::onPeriodPresetSelected,
+        onCustomRangeConfirmed = viewModel::onCustomRangeConfirmed,
+        onClearPeriodFilter = viewModel::onClearPeriodFilter,
     )
 }

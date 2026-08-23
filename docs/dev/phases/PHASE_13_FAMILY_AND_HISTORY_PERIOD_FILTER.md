@@ -3,9 +3,10 @@
 > **Modul target:** `:features:family` (13a) → `:features:transaction` (13b) · util tipis `:core:common` · pull budget additive `:core:data` (opsional 13a+)  
 > **Estimasi:** ~2.5–4 hari total · **13a** ~1.5–2 hari · **13b** ~1–1.5 hari  
 > **Prasyarat:** Phase 5 ✅ (history + `GetTransactionsUseCase.Params.startDate/endDate`) · Phase 6 ✅ (Family insights) · Phase 11 ✅ (budget per `yyyy-MM`, authoring bulan berjalan)  
-> **Status:** **13a implemented** (Family month picker + `PeriodBounds`) — siap commit. **13b belum** (history date-range filter). Jangan mulai 13b sebelum AC §15.1 + manual §22.1.  
+> **Status:** **13a implemented** (Family month picker + `PeriodBounds`). **13b implemented** (history date-range filter: chips Semua / 7 hari / Bulan ini / Custom). Manual QA §22.1 + §22.2 di device.  
 > **Hasil akhir:** Tab Family bisa pilih **bulan**; breakdown / shared budgets / history / insight mengikuti bulan itu. History transaksi bisa filter **rentang tanggal** (preset + custom). Saldo wallet **tidak** ikut filter.  
-> **13a as-shipped:** `PeriodBounds.ofYearMonth` / `ofLocalDates`; `FamilyMonthStepper`; `SavedStateHandle["selectedMonth"]`; query `GetTransactionsUseCase.Params(startDate, endDate, limit=200)`; authoring hanya `YearMonth.now()` + owner. Hydrate budget remote bulan lama (**Task 6**) **tidak** dikerjakan.
+> **13a as-shipped:** `PeriodBounds.ofYearMonth` / `ofLocalDates`; `FamilyMonthStepper`; `SavedStateHandle["selectedMonth"]`; query `GetTransactionsUseCase.Params(startDate, endDate, limit=200)`; authoring hanya `YearMonth.now()` + owner. Hydrate budget remote bulan lama (**Task 6**) **tidak** dikerjakan.  
+> **13b as-shipped:** `HistoryPeriodPreset` + sticky `HistoryPeriodBar`; `GetTransactionsUseCase.Params(startDate, endDate)` via `PeriodBounds`; default Semua (`null`/`null`); Custom dua `DatePickerDialogHost` (`maxDate` = hari ini); empty copy terpisah saat filter aktif.
 
 ---
 
@@ -533,24 +534,24 @@ Mockk: `getTransactions` / `getBudgetProgress` harus `every { invoke(any()) } an
 ./gradlew :features:family:compileDevDebugKotlin
 ```
 
-### 13b — Task 8: `HistoryPeriod` + UIState
+### 13b — Task 8: `HistoryPeriod` + UIState — **Done**
 
 - Enum/sealed: `All`, `Last7Days`, `CurrentMonth`, `Custom`.
 - `hasActivePeriodFilter`.
 
-### 13b — Task 9: ViewModel range
+### 13b — Task 9: ViewModel range — **Done**
 
 - `period` di `SavedStateHandle` (preset name + optional epoch days).
 - `transactionsFlow` `flatMapLatest` period.
 - Tes: Last7Days → non-null start/end; All → null/null; Custom from>to ditolak.
 
-### 13b — Task 10: `HistoryPeriodBar` + Screen
+### 13b — Task 10: `HistoryPeriodBar` + Screen — **Done**
 
 - Chips; Custom → dua `DatePickerDialogHost`.
 - Empty copy cabang `hasActivePeriodFilter`.
 - Preview: filled, empty default, empty filtered, dark.
 
-### 13b — Task 11: compile + tes history
+### 13b — Task 11: compile + tes history — **Done** (unit tes)
 
 ```
 ./gradlew :features:transaction:testDevDebugUnitTest
@@ -580,14 +581,14 @@ Sisa sebelum 13b: manual §22.1 di device.
 
 ### 15.2 13b History
 
-- [ ] Default **Semua**: list sama baseline (limit 50/200).
-- [ ] **7 hari** / **Bulan ini** memotong list; tx di luar range hilang.
-- [ ] Custom `from <= to` inclusive kedua ujung.
-- [ ] Personal/Family/All: filter tanggal **dan** scope.
-- [ ] Empty + Semua: copy lama + CTA tambah.
-- [ ] Empty + filter: copy periode; bisa kembali ke Semua.
-- [ ] Rotation: preset + custom persist.
-- [ ] Tes VM Params Instant; preview.
+- [x] Default **Semua**: list sama baseline (limit 50/200). *(unit tes Params `startDate`/`endDate` null)*
+- [x] **7 hari** / **Bulan ini** memotong list; tx di luar range hilang. *(unit tes Instant range; visual = §22.2)*
+- [x] Custom `from <= to` inclusive kedua ujung. *(unit tes; from>to ditolak)*
+- [x] Personal/Family/All: filter tanggal **dan** scope. *(unit tes personal + bulan ini)*
+- [ ] Empty + Semua: copy lama + CTA tambah. *(manual §22.2)*
+- [ ] Empty + filter: copy periode; bisa kembali ke Semua. *(manual §22.2)*
+- [x] Rotation: preset + custom persist. *(SavedStateHandle restore test)*
+- [x] Tes VM Params Instant; preview. *(unit tes hijau; Preview filled/empty/filtered/dark)*
 
 ### 15.3 Non-regresi
 

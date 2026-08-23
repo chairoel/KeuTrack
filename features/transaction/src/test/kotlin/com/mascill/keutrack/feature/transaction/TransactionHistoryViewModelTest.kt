@@ -16,7 +16,9 @@ import com.mascill.keutrack.core.domain.usecase.RetryPendingSyncUseCase
 import com.mascill.keutrack.core.domain.usecase.WalletSummary
 import com.mascill.keutrack.core.testing.MainDispatcherRule
 import com.mascill.keutrack.core.testing.testCommonDispatcher
+import com.mascill.keutrack.core.common.utils.PeriodBounds
 import com.mascill.keutrack.feature.transaction.presentation.history.TransactionHistoryViewModel
+import com.mascill.keutrack.feature.transaction.presentation.model.HistoryPeriodPreset
 import com.mascill.keutrack.feature.transaction.presentation.model.HistoryScope
 import io.mockk.every
 import io.mockk.mockk
@@ -28,6 +30,8 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
 import java.time.Instant
+import java.time.LocalDate
+import java.time.YearMonth
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class TransactionHistoryViewModelTest {
@@ -131,7 +135,10 @@ class TransactionHistoryViewModelTest {
             verify {
                 getTransactions(
                     match { params ->
-                        params.familyId == "fam-1" && params.limit == 200
+                        params.familyId == "fam-1" &&
+                            params.limit == 200 &&
+                            params.startDate == null &&
+                            params.endDate == null
                     },
                 )
             }
@@ -191,7 +198,10 @@ class TransactionHistoryViewModelTest {
             verify {
                 getTransactions(
                     match { params ->
-                        params.walletId == "w-p" && params.limit == 50
+                        params.walletId == "w-p" &&
+                            params.limit == 50 &&
+                            params.startDate == null &&
+                            params.endDate == null
                     },
                 )
             }
@@ -213,6 +223,189 @@ class TransactionHistoryViewModelTest {
             }
 
             verify(exactly = 0) { getTransactions(any()) }
+        }
+
+    @Test
+    fun `last 7 days uses inclusive local date range`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            stub(emptyList())
+            val vm = createViewModel()
+            val range =
+                PeriodBounds.ofLocalDates(
+                    LocalDate.now().minusDays(6),
+                    LocalDate.now(),
+                )
+
+            vm.uiState.test {
+                skipItems(1)
+                advanceUntilIdle()
+                awaitItem()
+                vm.onPeriodPresetSelected(HistoryPeriodPreset.Last7Days)
+                advanceUntilIdle()
+                val state = expectMostRecentItem()
+                assertThat(state.periodPreset).isEqualTo(HistoryPeriodPreset.Last7Days)
+                assertThat(state.hasActivePeriodFilter).isTrue()
+                cancelAndIgnoreRemainingEvents()
+            }
+
+            verify {
+                getTransactions(
+                    match { params ->
+                        params.startDate == range.start && params.endDate == range.endInclusive
+                    },
+                )
+            }
+        }
+
+    @Test
+    fun `all preset uses null date bounds`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            stub(emptyList())
+            val vm = createViewModel()
+
+            vm.uiState.test {
+                skipItems(1)
+                advanceUntilIdle()
+                awaitItem()
+                vm.onPeriodPresetSelected(HistoryPeriodPreset.Last7Days)
+                advanceUntilIdle()
+                expectMostRecentItem()
+                vm.onPeriodPresetSelected(HistoryPeriodPreset.All)
+                advanceUntilIdle()
+                val state = expectMostRecentItem()
+                assertThat(state.periodPreset).isEqualTo(HistoryPeriodPreset.All)
+                assertThat(state.hasActivePeriodFilter).isFalse()
+                cancelAndIgnoreRemainingEvents()
+            }
+
+            verify {
+                getTransactions(
+                    match { params ->
+                        params.startDate == null && params.endDate == null
+                    },
+                )
+            }
+        }
+
+    @Test
+    fun `custom from after to is rejected`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            stub(emptyList())
+            val vm = createViewModel()
+            val today = LocalDate.now()
+
+            vm.uiState.test {
+                skipItems(1)
+                advanceUntilIdle()
+                awaitItem()
+                vm.onCustomRangeConfirmed(today, today.minusDays(1))
+                advanceUntilIdle()
+                val state = expectMostRecentItem()
+                assertThat(state.periodPreset).isEqualTo(HistoryPeriodPreset.All)
+                assertThat(state.hasActivePeriodFilter).isFalse()
+                assertThat(state.periodRangeError).isNotEmpty()
+                cancelAndIgnoreRemainingEvents()
+            }
+
+            verify(exactly = 0) {
+                getTransactions(match { it.startDate != null })
+            }
+        }
+
+    @Test
+    fun `custom range applies inclusive bounds`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            stub(emptyList())
+            val vm = createViewModel()
+            val from = LocalDate.now().minusDays(3)
+            val to = LocalDate.now()
+            val range = PeriodBounds.ofLocalDates(from, to)
+
+            vm.uiState.test {
+                skipItems(1)
+                advanceUntilIdle()
+                awaitItem()
+                vm.onCustomRangeConfirmed(from, to)
+                advanceUntilIdle()
+                val state = expectMostRecentItem()
+                assertThat(state.periodPreset).isEqualTo(HistoryPeriodPreset.Custom)
+                assertThat(state.customFrom).isEqualTo(from)
+                assertThat(state.customTo).isEqualTo(to)
+                assertThat(state.hasActivePeriodFilter).isTrue()
+                cancelAndIgnoreRemainingEvents()
+            }
+
+            verify {
+                getTransactions(
+                    match { params ->
+                        params.startDate == range.start && params.endDate == range.endInclusive
+                    },
+                )
+            }
+        }
+
+    @Test
+    fun `restores custom period from SavedStateHandle`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val from = LocalDate.of(2026, 8, 12)
+            val to = LocalDate.of(2026, 8, 20)
+            val range = PeriodBounds.ofLocalDates(from, to)
+            stub(emptyList())
+            val vm =
+                createViewModel(
+                    extraState =
+                        mapOf(
+                            "periodPreset" to HistoryPeriodPreset.Custom.name,
+                            "customFromEpochDay" to from.toEpochDay(),
+                            "customToEpochDay" to to.toEpochDay(),
+                        ),
+                )
+
+            vm.uiState.test {
+                skipItems(1)
+                advanceUntilIdle()
+                val state = awaitItem()
+                assertThat(state.periodPreset).isEqualTo(HistoryPeriodPreset.Custom)
+                assertThat(state.customFrom).isEqualTo(from)
+                assertThat(state.customTo).isEqualTo(to)
+                cancelAndIgnoreRemainingEvents()
+            }
+
+            verify {
+                getTransactions(
+                    match { params ->
+                        params.startDate == range.start && params.endDate == range.endInclusive
+                    },
+                )
+            }
+        }
+
+    @Test
+    fun `personal current month applies wallet and month range`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            stub(emptyList(), personalOnly = true, personalWalletId = "w-p")
+            val vm = createViewModel(personalOnly = true)
+            val monthRange = PeriodBounds.ofYearMonth(YearMonth.now())
+
+            vm.uiState.test {
+                skipItems(1)
+                advanceUntilIdle()
+                awaitItem()
+                vm.onPeriodPresetSelected(HistoryPeriodPreset.CurrentMonth)
+                advanceUntilIdle()
+                cancelAndIgnoreRemainingEvents()
+            }
+
+            verify {
+                getTransactions(
+                    match { params ->
+                        params.walletId == "w-p" &&
+                            params.startDate == monthRange.start &&
+                            params.endDate == monthRange.endInclusive &&
+                            params.limit == 50
+                    },
+                )
+            }
         }
 
     private fun stub(
@@ -248,12 +441,13 @@ class TransactionHistoryViewModelTest {
     private fun createViewModel(
         familyOnly: Boolean = false,
         personalOnly: Boolean = false,
+        extraState: Map<String, Any> = emptyMap(),
     ) = TransactionHistoryViewModel(
         savedStateHandle = SavedStateHandle(
             mapOf(
                 "familyOnly" to familyOnly,
                 "personalOnly" to personalOnly,
-            ),
+            ) + extraState,
         ),
         userRepository = userRepository,
         getTransactions = getTransactions,
