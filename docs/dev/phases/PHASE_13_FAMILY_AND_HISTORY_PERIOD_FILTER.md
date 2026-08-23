@@ -3,8 +3,9 @@
 > **Modul target:** `:features:family` (13a) → `:features:transaction` (13b) · util tipis `:core:common` · pull budget additive `:core:data` (opsional 13a+)  
 > **Estimasi:** ~2.5–4 hari total · **13a** ~1.5–2 hari · **13b** ~1–1.5 hari  
 > **Prasyarat:** Phase 5 ✅ (history + `GetTransactionsUseCase.Params.startDate/endDate`) · Phase 6 ✅ (Family insights) · Phase 11 ✅ (budget per `yyyy-MM`, authoring bulan berjalan)  
-> **Status:** Planning — **belum diimplementasi**. Kerjakan **13a dulu**, baru 13b.  
-> **Hasil akhir:** Tab Family bisa pilih **bulan**; breakdown / shared budgets / history / insight mengikuti bulan itu. History transaksi bisa filter **rentang tanggal** (preset + custom). Saldo wallet **tidak** ikut filter.
+> **Status:** **13a implemented** (Family month picker + `PeriodBounds`) — siap commit. **13b belum** (history date-range filter). Jangan mulai 13b sebelum AC §15.1 + manual §22.1.  
+> **Hasil akhir:** Tab Family bisa pilih **bulan**; breakdown / shared budgets / history / insight mengikuti bulan itu. History transaksi bisa filter **rentang tanggal** (preset + custom). Saldo wallet **tidak** ikut filter.  
+> **13a as-shipped:** `PeriodBounds.ofYearMonth` / `ofLocalDates`; `FamilyMonthStepper`; `SavedStateHandle["selectedMonth"]`; query `GetTransactionsUseCase.Params(startDate, endDate, limit=200)`; authoring hanya `YearMonth.now()` + owner. Hydrate budget remote bulan lama (**Task 6**) **tidak** dikerjakan.
 
 ---
 
@@ -37,7 +38,7 @@
 
 ## 1. Konteks & Tujuan
 
-Hari ini angka “bulan ini” di Family **hard-code** `YearMonth.now()` di `FamilyViewModel`. User tidak bisa melihat Juli jika sekarang Agustus. History Family di tab itu juga **tidak** ikut bulan (5 transaksi terbaru apa pun tanggalnya).
+**Sebelum 13a:** angka “bulan ini” di Family **hard-code** `YearMonth.now()` di `FamilyViewModel`. User tidak bisa melihat Juli jika sekarang Agustus. History Family di tab itu juga **tidak** ikut bulan (5 transaksi terbaru apa pun tanggalnya).
 
 History full-screen (`TransactionHistoryScreen`) mengambil N transaksi terbaru tanpa `startDate`/`endDate`, padahal DAO/use case **sudah** mendukung range.
 
@@ -85,7 +86,9 @@ Bug laten yang phase ini perbaiki di Family: transaksi di-query `limit = 200` **
 | Pull budget remote | `SyncRepositoryImpl.familyBudgetMonths()` | Hanya current + prior |
 | Pull tx family | `getByFamilyId(..., limit=200)` | Terbaru dulu, tanpa tanggal |
 | Top bar | `KeuTrackTopBar(title = "Family Insights")` | Tidak ada trailing / chip bulan |
-| `canEditBudgets` | owner + family wallet | Tidak cek bulan terpilih |
+| `canEditBudgets` | owner + family wallet | Tidak cek bulan terpilih *(baseline sebelum 13a)* |
+
+**Setelah 13a (kode staged):** stepper `FamilyMonthStepper` setelah banner, sebelum hero. `selectedMonth` di VM + `SavedStateHandle` key `"selectedMonth"`. Query Room pakai `PeriodBounds.ofYearMonth` → `startDate`/`endDate`. History 5 baris, breakdown, shared budgets, insight, `budgetMonthLabel` ikut bulan terpilih. `canEditBudgets` juga butuh `isCurrentCalendarMonth`. Prev cap `FamilyUiMapper.MONTH_LOOK_BACK_LIMIT` (24). Saldo / join / invite / FAB tidak ikut bulan. Pull budget remote tetap current+prior saja.
 
 ### History (13b)
 
@@ -105,7 +108,7 @@ Bug laten yang phase ini perbaiki di Family: transaksi di-query `limit = 200` **
 | `YearMonth.toString()` | `"yyyy-MM"` — sama dengan `Budget.month` |
 | Zone | `ZoneId.systemDefault()` — sama `FamilyUiMapper.toYearMonth` & New Entry |
 | `:features:*` tidak boleh saling depend | Chip Family di `:features:family`; bar History di `:features:transaction` |
-| Util tanggal | Belum ada di `:core:common`; tambah `PeriodBounds` agar 13a & 13b tidak duplikasi Instant range |
+| Util tanggal | `PeriodBounds` di `:core:common` (**13a done**) — `ofYearMonth` / `ofLocalDates` → `ClosedRange<Instant>` inclusive. 13b memakai `ofLocalDates` untuk preset + custom. |
 
 ---
 
@@ -140,15 +143,15 @@ Bug laten yang phase ini perbaiki di Family: transaksi di-query `limit = 200` **
 
 ### 13a — FamilyScreen
 
-1. State `selectedMonth: YearMonth` di `FamilyViewModel` (default now; persist handle).
-2. Util `PeriodBounds` di `:core:common` (start/end Instant dari `YearMonth` / `LocalDate`).
-3. `flatMapLatest` transaksi + budget berdasarkan `selectedMonth`.
-4. Mapper: history ikut transaksi bulan terpilih; insight vs prior; `canEditBudgets` && bulan berjalan.
-5. UI: chip/stepper bulan di bawah top bar (atau trailing chevron).
-6. `onSelectedMonthChange`; disable Adjust Targets + row-edit di bulan lampau.
-7. `upsert`/`delete` tetap `YearMonth.now()`; guard di VM jika selected ≠ now.
-8. Preview + tes mapper/VM.
-9. (Opsional 13a+) `hydrateFamilyBudgets(familyId, month)` saat pilih bulan di luar current/prior.
+1. State `selectedMonth: YearMonth` di `FamilyViewModel` (default now; persist handle). **Done.**
+2. Util `PeriodBounds` di `:core:common` (start/end Instant dari `YearMonth` / `LocalDate`). **Done.**
+3. `flatMapLatest` transaksi + budget berdasarkan `selectedMonth`. **Done.**
+4. Mapper: history ikut transaksi bulan terpilih; insight vs prior; `canEditBudgets` && bulan berjalan. **Done.**
+5. UI: `FamilyMonthStepper` setelah banner membership/wallet, sebelum hero. **Done.**
+6. `onPreviousMonth` / `onNextMonth`; disable Adjust Targets + row-edit di bulan lampau. **Done.**
+7. `upsert`/`delete` tetap `YearMonth.now()`; guard di VM jika selected ≠ now. **Done.**
+8. Preview + tes mapper/VM. **Done** (unit tes hijau; manual §22.1 masih QA device).
+9. (Opsional 13a+) `hydrateFamilyBudgets(familyId, month)` saat pilih bulan di luar current/prior. **Skip** — 13a+ jika QA butuh budget bulan −2 dari cloud.
 
 ### 13b — TransactionHistoryScreen
 
@@ -225,18 +228,18 @@ Sesuai skill KeuTrack + batas phase:
 
 | Path | Aksi |
 |------|------|
-| `core/common/.../utils/PeriodBounds.kt` | **Baru** — `yearMonthRange`, `localDateRange` |
-| `core/common/src/test/.../PeriodBoundsTest.kt` | **Baru** |
-| `features/family/.../model/FamilyUIState.kt` | Tambah `selectedMonthLabel`, `canSelectNextMonth`, opsional `isSelectedMonthCurrent` |
-| `features/family/.../model/FamilyUiMapper.kt` | `canEditBudgets(..., isCurrentCalendarMonth)`; history dari txs bulan terpilih |
-| `features/family/.../FamilyViewModel.kt` | `selectedMonth` flow; query range; guard authoring |
-| `features/family/.../FamilyScreen.kt` + `FamilyRouting.kt` | Kontrol bulan + callback |
-| `features/family/.../components/FamilyMonthStepper.kt` | **Baru** — prev / label / next |
-| `features/family/.../model/FamilyInsightsMockContent.kt` | Preview dengan label bulan |
-| `features/family/src/test/.../FamilyUiMapperTest.kt` | History ikut bulan; canEdit false di bulan lampau |
-| `features/family/src/test/.../FamilyViewModelTest.kt` | Ganti bulan → `getTransactions`/`getBudgetProgress` args baru |
-| `core/data/.../SyncRepository.kt` + impl | **Hanya 13a+** pull budget bulan terpilih |
-| `docs/dev/phases/PHASE_13_*.md` | Status setelah implementasi |
+| `core/common/.../utils/PeriodBounds.kt` | **Done** — `ofYearMonth`, `ofLocalDates` |
+| `core/common/src/test/.../PeriodBoundsTest.kt` | **Done** |
+| `features/family/.../model/FamilyUIState.kt` | **Done** — `selectedMonthLabel`, `canSelectNextMonth`, `canSelectPreviousMonth` |
+| `features/family/.../model/FamilyUiMapper.kt` | **Done** — `canEditBudgets(..., isCurrentCalendarMonth)`; `toUiState(selectedMonthTxs, priorMonthTxs, selectedMonth)` |
+| `features/family/.../FamilyViewModel.kt` | **Done** — `selectedMonth` flow; query range; guard authoring |
+| `features/family/.../FamilyScreen.kt` | **Done** — `FamilyMonthStepper` + `onPreviousMonth` / `onNextMonth` |
+| `features/family/.../components/FamilyMonthStepper.kt` | **Done** — prev / label / next; a11y “Bulan sebelumnya” / “Bulan berikutnya” |
+| `features/family/.../model/FamilyInsightsMockContent.kt` | **Done** — preview label bulan |
+| `features/family/src/test/.../FamilyUiMapperTest.kt` | **Done** |
+| `features/family/src/test/.../FamilyViewModelTest.kt` | **Done** |
+| `core/data/.../SyncRepository.kt` + impl | **Skip 13a** — hanya 13a+ pull budget bulan terpilih |
+| `docs/dev/phases/PHASE_13_*.md` | Status 13a (file ini) |
 
 ### 13b
 
@@ -257,16 +260,16 @@ Sesuai skill KeuTrack + batas phase:
 
 ```
 core/common/src/main/kotlin/.../utils/
-└── PeriodBounds.kt                         ← BARU (13a, dipakai 13b)
+└── PeriodBounds.kt                         ← 13a DONE (dipakai 13b)
 
 features/family/.../presentation/
-├── FamilyViewModel.kt                      ← UBAH
-├── FamilyScreen.kt                         ← UBAH
+├── FamilyViewModel.kt                      ← 13a DONE
+├── FamilyScreen.kt                         ← 13a DONE
 ├── components/
-│   └── FamilyMonthStepper.kt               ← BARU
+│   └── FamilyMonthStepper.kt               ← 13a DONE
 └── model/
-    ├── FamilyUIState.kt                    ← UBAH
-    └── FamilyUiMapper.kt                   ← UBAH
+    ├── FamilyUIState.kt                    ← 13a DONE
+    └── FamilyUiMapper.kt                   ← 13a DONE
 
 features/transaction/.../presentation/
 ├── history/
@@ -443,6 +446,7 @@ Dokumen di UI **jangan** klaim “semua sejarah cloud”. 13a+ opsional: saat `s
 |-------|--------|
 | `selectedMonthLabel` | `FamilyUiMapper.formatBudgetMonth(selectedMonth)` |
 | `canSelectNextMonth` | `selectedMonth < YearMonth.now()` |
+| `canSelectPreviousMonth` | `selectedMonth > YearMonth.now().minusMonths(FamilyUiMapper.MONTH_LOOK_BACK_LIMIT)` |
 | `monthlyTotalExpense` | expense txs bulan terpilih |
 | `spendSegments` | txs bulan terpilih |
 | `budgetRows` | budgets `observeByMonth(selected)` + spent txs bulan terpilih |
@@ -477,20 +481,20 @@ Callback: `onPeriodPresetSelected`, `onCustomRangeConfirmed(from, to)`, `onClear
 
 Kerjakan berurutan. **Jangan mulai 13b sebelum 13a AC §15.1 hijau** (kecuali util `PeriodBounds` yang memang shared).
 
-### 13a — Task 1: `PeriodBounds` + tes
+### 13a — Task 1: `PeriodBounds` + tes — **Done**
 
 - File baru di `:core:common`.
 - Tes: bulan 31 hari, Februari non-kabisat, range 1 hari, `from == to`.
-- Verify: `./gradlew :core:common:testDebugUnitTest`
+- Verify: `./gradlew :core:common:testDevDebugUnitTest`
 
-### 13a — Task 2: Mapper + UIState
+### 13a — Task 2: Mapper + UIState — **Done**
 
 - `canEditBudgets(..., isCurrentCalendarMonth: Boolean = true)` — default true agar tes lama tetap lolos, lalu tes baru `false` → tidak edit.
 - `toUiState` terima `selectedMonthTxs` (atau tetap filter jika VM masih kirim gabungan — **lebih bersih** VM kirim list sudah ter-scope).
 - History dari list bulan terpilih.
 - Tes: tx Juli + Agustus → selected Juli → history/segments hanya Juli; insight vs Juni.
 
-### 13a — Task 3: ViewModel query
+### 13a — Task 3: ViewModel query — **Done**
 
 - `SavedStateHandle` key `"selectedMonth"` string `yyyy-MM`.
 - `selectedMonth: StateFlow<YearMonth>`.
@@ -503,27 +507,28 @@ Kerjakan berurutan. **Jangan mulai 13b sebelum 13a AC §15.1 hijau** (kecuali ut
 
 Mockk: `getTransactions` / `getBudgetProgress` harus `every { invoke(any()) } answers { ... }` longgar **atau** stub per Params. Lebih rapat: `slot` / `match`.
 
-### 13a — Task 4: UI stepper
+### 13a — Task 4: UI stepper — **Done**
 
 - `FamilyMonthStepper` + Preview light/dark.
 - Pasang di `FamilyScreen`.
 - Next grey/disabled di bulan sekarang (`KeuTrackTheme` / alpha, bukan warna mentah di luar token).
 
-### 13a — Task 5: Authoring guard
+### 13a — Task 5: Authoring guard — **Done**
 
 - Tes VM: selected prior → `onAdjustTargetsClick` tidak buka sheet; `onSaveBudget` tidak panggil upsert.
 - UI: `canEdit = false` di kartu budget.
 
-### 13a — Task 6 (opsional): hydrate budget bulan terpilih
+### 13a — Task 6 (opsional): hydrate budget bulan terpilih — **Skip**
 
 - Signature additive `SyncRepository.syncFamilyBudgets(familyId, month: String)` atau perluas `hydrateFamilyBudgets`.
 - Panggil dari `FamilyViewModel` saat month change (IO, best-effort, jangan tutup UI).
 - Tes `SyncRepositoryImpl` bulan arbitrary.
+- Tidak masuk commit 13a. Kerjakan hanya jika QA butuh Shared Budgets untuk bulan di luar current/prior dari cloud.
 
-### 13a — Task 7: compile + tes family
+### 13a — Task 7: compile + tes family — **Done** (unit tes)
 
 ```
-./gradlew :core:common:testDebugUnitTest
+./gradlew :core:common:testDevDebugUnitTest
 ./gradlew :features:family:testDevDebugUnitTest
 ./gradlew :features:family:compileDevDebugKotlin
 ```
@@ -558,18 +563,20 @@ Mockk: `getTransactions` / `getBudgetProgress` harus `every { invoke(any()) } an
 
 ### 15.1 13a Family (wajib sebelum 13b)
 
-- [ ] Default buka tab Family = bulan kalender sekarang; angka sama seperti sebelum phase (regresi breakdown/budget).
-- [ ] Tap prev → label bulan − 1; donut, budgets, history 5, insight, sheet label ikut.
-- [ ] Tap next di bulan sekarang: tidak pindah.
-- [ ] Setelah prev, next kembali ke sekarang.
-- [ ] Owner di bulan sekarang: Adjust Targets tetap jalan; save menulis `Budget.month = yyyy-MM` sekarang.
-- [ ] Owner di bulan lampau: tidak ada CTA atur; tap row tidak buka sheet; tidak ada write budget.
-- [ ] Member: tetap tidak bisa edit (semua bulan).
-- [ ] Join banner / saldo / invite **tidak** berubah saat ganti bulan.
-- [ ] ≥ 200 tx bulan ini + beberapa tx bulan lalu di Room: prev ke bulan lalu **masih menampilkan** tx bulan lalu (bukti query range, bukan filter setelah limit).
-- [ ] Rotation: bulan terpilih persist.
-- [ ] Preview light/dark stepper + screen.
-- [ ] Unit tes mapper + VM di atas hijau.
+- [x] Default buka tab Family = bulan kalender sekarang; angka sama seperti sebelum phase (regresi breakdown/budget). *(unit tes VM; regresi visual = §22.1)*
+- [x] Tap prev → label bulan − 1; donut, budgets, history 5, insight, sheet label ikut. *(unit tes mapper + VM query range)*
+- [x] Tap next di bulan sekarang: tidak pindah.
+- [x] Setelah prev, next kembali ke sekarang. *(clamp + `canSelectNextMonth`)*
+- [x] Owner di bulan sekarang: Adjust Targets tetap jalan; save menulis `Budget.month = yyyy-MM` sekarang.
+- [x] Owner di bulan lampau: tidak ada CTA atur; tap row tidak buka sheet; tidak ada write budget.
+- [x] Member: tetap tidak bisa edit (semua bulan).
+- [ ] Join banner / saldo / invite **tidak** berubah saat ganti bulan. *(manual §22.1 #9)*
+- [ ] ≥ 200 tx bulan ini + beberapa tx bulan lalu di Room: prev ke bulan lalu **masih menampilkan** tx bulan lalu (bukti query range, bukan filter setelah limit). *(manual §22.1 #12)*
+- [x] Rotation: bulan terpilih persist. *(SavedStateHandle restore test)*
+- [x] Preview light/dark stepper + screen. *(composable Preview ada; cek visual di IDE/device)*
+- [x] Unit tes mapper + VM di atas hijau.
+
+Sisa sebelum 13b: manual §22.1 di device.
 
 ### 15.2 13b History
 
@@ -671,14 +678,14 @@ Phase 11 P4 (“hanya bulan berjalan di MVP”) **tidak dibatalkan**: yang baru 
 Ikuti `[TAG]` repo.
 
 ```
-[FEAT] Add PeriodBounds for month and local-date Instant ranges
-[FEAT] Filter Family insights by selected calendar month
+[FEAT] Add family calendar-month picker for insights
 [FEAT] Filter transaction history by date range presets
-[TEST] Cover Family month switch and history period Params
-[DOCS] Mark Phase 13 period filter implemented
+[TEST] Cover history period Params
 ```
 
-Jangan satu commit campur Family + History jika review ingin pisah PR.
+Commit 13a (kode staged + update status di file ini): PeriodBounds, Family month stepper, mapper/VM, tes. **Jangan** campur 13b.
+
+Commit 13b nanti: history date-range saja.
 
 ---
 
@@ -722,7 +729,7 @@ Build: `./gradlew :features:family:compileDevDebugKotlin` lalu Run `devDebug`.
 ### Verify compile
 
 ```
-./gradlew :core:common:testDebugUnitTest
+./gradlew :core:common:testDevDebugUnitTest
 ./gradlew :features:family:testDevDebugUnitTest
 ./gradlew :features:transaction:testDevDebugUnitTest
 ./gradlew assembleDevDebug

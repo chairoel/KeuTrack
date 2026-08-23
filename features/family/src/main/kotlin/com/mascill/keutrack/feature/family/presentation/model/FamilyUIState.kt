@@ -27,6 +27,9 @@ data class FamilyUIState(
     val isBudgetSaving: Boolean = false,
     val budgetMessage: String? = null,
     val budgetMonthLabel: String = "",
+    val selectedMonthLabel: String = "",
+    val canSelectNextMonth: Boolean = false,
+    val canSelectPreviousMonth: Boolean = true,
     val expenseCategories: List<FamilyBudgetCategoryOption> = emptyList(),
 )
 

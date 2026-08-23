@@ -45,6 +45,7 @@ import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
 import com.mascill.keutrack.feature.family.presentation.budget.FamilyBudgetTargetSheet
 import com.mascill.keutrack.feature.family.presentation.components.FamilyBreakdownCard
 import com.mascill.keutrack.feature.family.presentation.components.FamilyHistoryLogSection
+import com.mascill.keutrack.feature.family.presentation.components.FamilyMonthStepper
 import com.mascill.keutrack.feature.family.presentation.components.FamilySavingTogetherCard
 import com.mascill.keutrack.feature.family.presentation.components.FamilySharedBudgetsCard
 import com.mascill.keutrack.feature.family.presentation.membership.FamilyMembershipDialog
@@ -99,6 +100,8 @@ fun FamilyRouting(
         onDismissBudgetSheet = viewModel::onDismissBudgetSheet,
         onDismissBudgetMessage = viewModel::dismissBudgetMessage,
         onFabClick = onAddTransaction,
+        onPreviousMonth = viewModel::onPreviousMonth,
+        onNextMonth = viewModel::onNextMonth,
         onCreateFamily = viewModel::createFamily,
         onJoinFamily = viewModel::joinFamily,
         onDismissMembershipMessage = viewModel::dismissMembershipMessage,
@@ -121,6 +124,8 @@ fun FamilyScreen(
     onDismissBudgetSheet: () -> Unit = {},
     onDismissBudgetMessage: () -> Unit = {},
     onFabClick: () -> Unit = {},
+    onPreviousMonth: () -> Unit = {},
+    onNextMonth: () -> Unit = {},
     onCreateFamily: (String) -> Unit = {},
     onJoinFamily: (String) -> Unit = {},
     onDismissError: () -> Unit = {},
@@ -225,6 +230,16 @@ fun FamilyScreen(
                             item {
                                 FamilyInfoBanner(message = FAM_NO_WALLET_BANNER)
                             }
+                        }
+
+                        item {
+                            FamilyMonthStepper(
+                                monthLabel = uiState.selectedMonthLabel,
+                                canSelectPreviousMonth = uiState.canSelectPreviousMonth,
+                                canSelectNextMonth = uiState.canSelectNextMonth,
+                                onPreviousMonth = onPreviousMonth,
+                                onNextMonth = onNextMonth,
+                            )
                         }
 
                         item {

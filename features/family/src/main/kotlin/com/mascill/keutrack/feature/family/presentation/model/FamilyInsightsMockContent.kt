@@ -205,6 +205,9 @@ fun FamilyInsightsMockContent.toPreviewUiState(): FamilyUIState =
         showInsightCard = insightBody.isNotBlank(),
         canEditBudgets = hasFamilyWallet,
         budgetMonthLabel = "Agustus 2026",
+        selectedMonthLabel = "Agustus 2026",
+        canSelectNextMonth = false,
+        canSelectPreviousMonth = true,
         expenseCategories =
             budgetRows.map { FamilyBudgetCategoryOption(id = it.categoryId, name = it.title) },
     )
