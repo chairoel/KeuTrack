@@ -1,8 +1,10 @@
 package com.mascill.keutrack.feature.family.presentation
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mascill.keutrack.core.common.utils.CommonDispatcher
+import com.mascill.keutrack.core.common.utils.PeriodBounds
 import com.mascill.keutrack.core.designsystem.format.MAX_AMOUNT_RUPIAH
 import com.mascill.keutrack.core.domain.model.Budget
 import com.mascill.keutrack.core.domain.model.FamilyGroup
@@ -36,6 +38,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.YearMonth
+import java.time.format.DateTimeParseException
 import javax.inject.Inject
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.min
@@ -43,10 +46,11 @@ import kotlin.math.min
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class FamilyViewModel @Inject constructor(
+    private val savedStateHandle: SavedStateHandle,
     userRepository: UserRepository,
     familyRepository: FamilyRepository,
     getWalletSummary: GetWalletSummaryUseCase,
-    getTransactions: GetTransactionsUseCase,
+    private val getTransactions: GetTransactionsUseCase,
     getBudgetProgress: GetBudgetProgressUseCase,
     getCategories: GetCategoriesUseCase,
     private val createFamilyGroup: CreateFamilyGroupUseCase,
@@ -57,9 +61,7 @@ class FamilyViewModel @Inject constructor(
     private val dispatcher: CommonDispatcher,
 ) : ViewModel() {
 
-    private val currentMonth = YearMonth.now()
-    private val priorMonth = currentMonth.minusMonths(1)
-    private val currentMonthKey = currentMonth.toString()
+    private val selectedMonth = MutableStateFlow(readSelectedMonth(savedStateHandle))
 
     private val _membershipLoading = MutableStateFlow(false)
     private val _membershipMessage = MutableStateFlow<String?>(null)
@@ -72,20 +74,22 @@ class FamilyViewModel @Inject constructor(
     private val userFlow = userRepository.getCurrentUser()
     private val familyGroupFlow = familyRepository.observeCurrentFamily()
 
-    private val familyTransactionsFlow =
-        userFlow.flatMapLatest { user ->
-            val familyId = user?.familyId
-            if (familyId.isNullOrBlank()) {
-                flowOf(emptyList())
-            } else {
-                // Filter by familyId so History includes all members even if wallet ids split.
-                getTransactions(
-                    GetTransactionsUseCase.Params(
-                        familyId = familyId,
-                        limit = FAMILY_TX_LIMIT,
-                    ),
-                )
+    private val selectedMonthTxsFlow =
+        combine(userFlow, selectedMonth) { user, month -> user to month }
+            .flatMapLatest { (user, month) ->
+                observeFamilyTransactions(user?.familyId, month)
             }
+
+    private val priorMonthTxsFlow =
+        combine(userFlow, selectedMonth) { user, month ->
+            user to month.minusMonths(1)
+        }.flatMapLatest { (user, prior) ->
+            observeFamilyTransactions(user?.familyId, prior)
+        }
+
+    private val budgetsFlow =
+        selectedMonth.flatMapLatest { month ->
+            getBudgetProgress(month.toString())
         }
 
     private val insightsFlow =
@@ -94,39 +98,50 @@ class FamilyViewModel @Inject constructor(
                 userFlow,
                 familyGroupFlow,
                 walletSummaryFlow,
-                familyTransactionsFlow,
-                getBudgetProgress(currentMonthKey),
-            ) { user, familyGroup, walletSummary, transactions, budgets ->
-                latestFamilyBudgets =
-                    FamilyUiMapper.filterSharedBudgets(
-                        budgets = budgets,
-                        familyId = user?.familyId,
-                    )
-                FamilyLoadBundle(
+                selectedMonthTxsFlow,
+                priorMonthTxsFlow,
+            ) { user, familyGroup, walletSummary, selectedTxs, priorTxs ->
+                FamilyPartyBundle(
                     user = user,
                     familyGroup = familyGroup,
                     walletSummary = walletSummary,
-                    transactions = transactions,
-                    budgets = budgets,
+                    selectedMonthTxs = selectedTxs,
+                    priorMonthTxs = priorTxs,
                 )
             },
-            getCategories(),
-        ) { bundle, categories ->
+            combine(budgetsFlow, getCategories(), selectedMonth) { budgets, categories, month ->
+                Triple(budgets, categories, month)
+            },
+        ) { party, extra ->
+            val budgets = extra.first
+            val categories = extra.second
+            val month = extra.third
+            latestFamilyBudgets =
+                FamilyUiMapper.filterSharedBudgets(
+                    budgets = budgets,
+                    familyId = party.user?.familyId,
+                )
             FamilyUiMapper.toUiState(
-                user = bundle.user,
-                familyGroup = bundle.familyGroup,
-                walletSummary = bundle.walletSummary,
-                familyTransactions = bundle.transactions,
-                budgets = bundle.budgets,
+                user = party.user,
+                familyGroup = party.familyGroup,
+                walletSummary = party.walletSummary,
+                selectedMonthTxs = party.selectedMonthTxs,
+                priorMonthTxs = party.priorMonthTxs,
+                budgets = budgets,
                 categoriesById = categories.associateBy { it.id },
-                currentMonth = currentMonth,
-                priorMonth = priorMonth,
+                selectedMonth = month,
             )
         }.catch { e ->
+            val month = selectedMonth.value
+            val now = YearMonth.now()
             emit(
                 FamilyUIState(
                     isLoading = false,
                     errorMessage = e.message ?: ERR_LOAD_FAILED,
+                    selectedMonthLabel = FamilyUiMapper.formatBudgetMonth(month),
+                    canSelectNextMonth = month < now,
+                    canSelectPreviousMonth =
+                        month > now.minusMonths(FamilyUiMapper.MONTH_LOOK_BACK_LIMIT),
                 ),
             )
         }
@@ -156,6 +171,14 @@ class FamilyViewModel @Inject constructor(
         viewModelScope.launch(dispatcher.io) {
             pullFamilyData(showError = true)
         }
+    }
+
+    fun onPreviousMonth() {
+        persistSelectedMonth(selectedMonth.value.minusMonths(1))
+    }
+
+    fun onNextMonth() {
+        persistSelectedMonth(selectedMonth.value.plusMonths(1))
     }
 
     fun onAdjustTargetsClick() {
@@ -227,6 +250,7 @@ class FamilyViewModel @Inject constructor(
     }
 
     fun onSaveBudget() {
+        if (!isCurrentCalendarMonth()) return
         val sheet = _budgetEditor.value.sheet ?: return
         if (_budgetEditor.value.isSaving) return
         val categoryId = sheet.categoryId
@@ -246,7 +270,7 @@ class FamilyViewModel @Inject constructor(
                     UpsertFamilyBudgetUseCase.Params(
                         categoryId = categoryId,
                         limit = limit,
-                        month = currentMonthKey,
+                        month = YearMonth.now().toString(),
                     ),
                 ).onSuccess {
                     _budgetEditor.update { BudgetEditorState() }
@@ -264,6 +288,7 @@ class FamilyViewModel @Inject constructor(
     }
 
     fun onDeleteBudget() {
+        if (!isCurrentCalendarMonth()) return
         val budgetId = _budgetEditor.value.sheet?.existingBudgetId ?: return
         if (_budgetEditor.value.isSaving) return
         viewModelScope.launch(dispatcher.io) {
@@ -349,6 +374,48 @@ class FamilyViewModel @Inject constructor(
         _membershipMessage.update { null }
     }
 
+    private fun observeFamilyTransactions(
+        familyId: String?,
+        month: YearMonth,
+    ): kotlinx.coroutines.flow.Flow<List<Transaction>> {
+        if (familyId.isNullOrBlank()) return flowOf(emptyList())
+        val range = PeriodBounds.ofYearMonth(month)
+        return getTransactions(
+            GetTransactionsUseCase.Params(
+                familyId = familyId,
+                startDate = range.start,
+                endDate = range.endInclusive,
+                limit = FAMILY_TX_LIMIT,
+            ),
+        )
+    }
+
+    private fun persistSelectedMonth(month: YearMonth) {
+        val now = YearMonth.now()
+        val min = now.minusMonths(FamilyUiMapper.MONTH_LOOK_BACK_LIMIT)
+        val clamped = month.coerceIn(min, now)
+        if (clamped == selectedMonth.value) return
+        selectedMonth.value = clamped
+        savedStateHandle[KEY_SELECTED_MONTH] = clamped.toString()
+        if (clamped != now) {
+            _budgetEditor.update { it.copy(sheet = null) }
+        }
+    }
+
+    private fun isCurrentCalendarMonth(): Boolean =
+        selectedMonth.value == YearMonth.now()
+
+    private fun readSelectedMonth(handle: SavedStateHandle): YearMonth {
+        val raw = handle.get<String>(KEY_SELECTED_MONTH) ?: return YearMonth.now()
+        return try {
+            val parsed = YearMonth.parse(raw)
+            val now = YearMonth.now()
+            parsed.coerceIn(now.minusMonths(FamilyUiMapper.MONTH_LOOK_BACK_LIMIT), now)
+        } catch (_: DateTimeParseException) {
+            YearMonth.now()
+        }
+    }
+
     private fun existingBudget(categoryId: String): Budget? =
         latestFamilyBudgets
             .filter { it.categoryId == categoryId }
@@ -388,12 +455,12 @@ class FamilyViewModel @Inject constructor(
         }
     }
 
-    private data class FamilyLoadBundle(
+    private data class FamilyPartyBundle(
         val user: User?,
         val familyGroup: FamilyGroup?,
         val walletSummary: WalletSummary,
-        val transactions: List<Transaction>,
-        val budgets: List<Budget>,
+        val selectedMonthTxs: List<Transaction>,
+        val priorMonthTxs: List<Transaction>,
     )
 
     private data class BudgetEditorState(
@@ -403,6 +470,7 @@ class FamilyViewModel @Inject constructor(
     )
 
     private companion object {
+        const val KEY_SELECTED_MONTH = "selectedMonth"
         const val FAMILY_TX_LIMIT = 200
         const val MAX_AMOUNT_DIGITS = 15
         const val ERR_LOAD_FAILED = "Gagal memuat family insights"

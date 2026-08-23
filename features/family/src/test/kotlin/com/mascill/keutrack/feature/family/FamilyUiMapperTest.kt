@@ -19,6 +19,7 @@ import com.mascill.keutrack.feature.family.presentation.model.toProgressTone
 import org.junit.Test
 import java.time.Instant
 import java.time.YearMonth
+import java.time.ZoneId
 
 class FamilyUiMapperTest {
 
@@ -301,6 +302,13 @@ class FamilyUiMapperTest {
                 hasFamilyWallet = true,
             ),
         ).isFalse()
+        assertThat(
+            FamilyUiMapper.canEditBudgets(
+                owner,
+                hasFamilyWallet = true,
+                isCurrentCalendarMonth = false,
+            ),
+        ).isFalse()
     }
 
     @Test
@@ -310,17 +318,21 @@ class FamilyUiMapperTest {
                 user = user(familyId = "fam-1", familyRole = FamilyRole.OWNER.value),
                 familyGroup = familyGroup(),
                 walletSummary = WalletSummary(null, listOf(familyWallet()), 0L, 0L),
-                familyTransactions = emptyList(),
+                selectedMonthTxs = emptyList(),
+                priorMonthTxs = emptyList(),
                 budgets = emptyList(),
                 categoriesById = emptyMap(),
-                currentMonth = YearMonth.of(2026, 8),
-                priorMonth = YearMonth.of(2026, 7),
+                selectedMonth = YearMonth.of(2026, 8),
+                calendarMonthNow = YearMonth.of(2026, 8),
             )
 
         assertThat(state.canEditBudgets).isTrue()
         assertThat(state.budgetSheet).isNull()
         assertThat(state.isBudgetSaving).isFalse()
         assertThat(state.budgetMonthLabel).isEqualTo("Agustus 2026")
+        assertThat(state.selectedMonthLabel).isEqualTo("Agustus 2026")
+        assertThat(state.canSelectNextMonth).isFalse()
+        assertThat(state.canSelectPreviousMonth).isTrue()
     }
 
     @Test
@@ -330,7 +342,8 @@ class FamilyUiMapperTest {
                 user = user(familyId = "fam-1", familyRole = FamilyRole.OWNER.value),
                 familyGroup = familyGroup(),
                 walletSummary = WalletSummary(null, listOf(familyWallet()), 0L, 0L),
-                familyTransactions = emptyList(),
+                selectedMonthTxs = emptyList(),
+                priorMonthTxs = emptyList(),
                 budgets = emptyList(),
                 categoriesById =
                     mapOf(
@@ -338,8 +351,8 @@ class FamilyUiMapperTest {
                         "cat_pay" to
                             category("cat_pay", "Gaji").copy(type = CategoryType.INCOME),
                     ),
-                currentMonth = YearMonth.of(2026, 8),
-                priorMonth = YearMonth.of(2026, 7),
+                selectedMonth = YearMonth.of(2026, 8),
+                calendarMonthNow = YearMonth.of(2026, 8),
             )
 
         assertThat(state.expenseCategories.map { it.id }).containsExactly("cat_food")
@@ -353,14 +366,66 @@ class FamilyUiMapperTest {
                 user = user(familyId = "fam-1", familyRole = FamilyRole.MEMBER.value),
                 familyGroup = familyGroup(),
                 walletSummary = WalletSummary(null, listOf(familyWallet()), 0L, 0L),
-                familyTransactions = emptyList(),
+                selectedMonthTxs = emptyList(),
+                priorMonthTxs = emptyList(),
                 budgets = emptyList(),
                 categoriesById = emptyMap(),
-                currentMonth = YearMonth.of(2026, 8),
-                priorMonth = YearMonth.of(2026, 7),
+                selectedMonth = YearMonth.of(2026, 8),
+                calendarMonthNow = YearMonth.of(2026, 8),
             )
 
         assertThat(state.canEditBudgets).isFalse()
+    }
+
+    @Test
+    fun `toUiState selected July uses only July txs for history segments and insight vs June`() {
+        val july = YearMonth.of(2026, 7)
+        val august = YearMonth.of(2026, 8)
+        val juneTx =
+            expense(
+                userId = "u-budi",
+                addedByName = "Budi",
+                amount = 100_000L,
+                date = atMonth(YearMonth.of(2026, 6)),
+            )
+        val julyTx =
+            expense(
+                userId = "u-siti",
+                addedByName = "Siti",
+                amount = 200_000L,
+                date = atMonth(july),
+            )
+        val augustTx =
+            expense(
+                userId = "u-budi",
+                addedByName = "Budi",
+                amount = 999_000L,
+                date = atMonth(august),
+            )
+
+        val state =
+            FamilyUiMapper.toUiState(
+                user = user(familyId = "fam-1", familyRole = FamilyRole.OWNER.value),
+                familyGroup = familyGroup(),
+                walletSummary = WalletSummary(null, listOf(familyWallet()), 0L, 0L),
+                selectedMonthTxs = listOf(julyTx, augustTx),
+                priorMonthTxs = listOf(juneTx),
+                budgets = emptyList(),
+                categoriesById = mapOf("cat_food" to category("cat_food", "Makanan")),
+                selectedMonth = july,
+                calendarMonthNow = august,
+            )
+
+        assertThat(state.monthlyTotalExpense).isEqualTo(200_000L)
+        assertThat(state.spendSegments).hasSize(1)
+        assertThat(state.spendSegments.first().label).isEqualTo("Siti")
+        assertThat(state.historyRows).hasSize(1)
+        assertThat(state.historyRows.first().addedByLabel).isEqualTo("Siti")
+        assertThat(state.showInsightCard).isTrue()
+        assertThat(state.canEditBudgets).isFalse()
+        assertThat(state.canSelectNextMonth).isTrue()
+        assertThat(state.selectedMonthLabel).isEqualTo("Juli 2026")
+        assertThat(state.budgetMonthLabel).isEqualTo("Juli 2026")
     }
 
     private fun limitRow(spent: Long, limit: Long) =
@@ -414,6 +479,7 @@ class FamilyUiMapperTest {
         addedByName: String,
         amount: Long,
         categoryId: String = "cat_food",
+        date: Instant = Instant.parse("2026-08-10T00:00:00Z"),
     ): Transaction =
         Transaction(
             id = "tx-$userId-$amount",
@@ -423,9 +489,12 @@ class FamilyUiMapperTest {
             type = TransactionType.EXPENSE,
             amount = amount,
             categoryId = categoryId,
-            date = Instant.parse("2026-08-10T00:00:00Z"),
+            date = date,
             addedByName = addedByName,
         )
+
+    private fun atMonth(yearMonth: YearMonth, day: Int = 15): Instant =
+        yearMonth.atDay(day).atStartOfDay(ZoneId.systemDefault()).toInstant()
 
     private fun budget(
         id: String,

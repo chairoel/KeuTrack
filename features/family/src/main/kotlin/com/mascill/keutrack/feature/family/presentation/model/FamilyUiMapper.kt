@@ -20,6 +20,7 @@ import kotlin.math.roundToInt
 
 internal object FamilyUiMapper {
 
+    internal const val MONTH_LOOK_BACK_LIMIT = 24L
     private const val TOP_SPEND_SEGMENTS = 5
     private const val HISTORY_LIMIT = 5
     private const val BUDGET_SUCCESS_MAX = 0.60f
@@ -35,18 +36,23 @@ internal object FamilyUiMapper {
         user: User?,
         familyGroup: FamilyGroup?,
         walletSummary: WalletSummary,
-        familyTransactions: List<Transaction>,
+        selectedMonthTxs: List<Transaction>,
+        priorMonthTxs: List<Transaction>,
         budgets: List<Budget>,
         categoriesById: Map<String, Category>,
-        currentMonth: YearMonth,
-        priorMonth: YearMonth,
+        selectedMonth: YearMonth,
+        calendarMonthNow: YearMonth = YearMonth.now(),
     ): FamilyUIState {
         val familyWallet = resolveFamilyWallet(user, walletSummary)
-        val currentMonthTxs = familyTransactions.filter { it.date.toYearMonth() == currentMonth }
-        val priorMonthTxs = familyTransactions.filter { it.date.toYearMonth() == priorMonth }
+        val currentMonthTxs =
+            selectedMonthTxs.filter { it.date.toYearMonth() == selectedMonth }
+        val priorTxs =
+            priorMonthTxs.filter { it.date.toYearMonth() == selectedMonth.minusMonths(1) }
         val currentExpense = currentMonthTxs.expenseTotal()
-        val priorExpense = priorMonthTxs.expenseTotal()
+        val priorExpense = priorTxs.expenseTotal()
         val insight = savingTogetherInsight(currentExpense, priorExpense)
+        val monthLabel = formatBudgetMonth(selectedMonth)
+        val isCurrentCalendarMonth = selectedMonth == calendarMonthNow
 
         return FamilyUIState(
             isLoading = false,
@@ -74,7 +80,7 @@ internal object FamilyUiMapper {
                 ),
             historyRows =
                 toHistoryRows(
-                    transactions = familyTransactions.take(HISTORY_LIMIT),
+                    transactions = currentMonthTxs.take(HISTORY_LIMIT),
                     categoriesById = categoriesById,
                 ),
             insightTitle = insight?.title.orEmpty(),
@@ -85,8 +91,13 @@ internal object FamilyUiMapper {
                 canEditBudgets(
                     user = user,
                     hasFamilyWallet = familyWallet != null,
+                    isCurrentCalendarMonth = isCurrentCalendarMonth,
                 ),
-            budgetMonthLabel = formatBudgetMonth(currentMonth),
+            budgetMonthLabel = monthLabel,
+            selectedMonthLabel = monthLabel,
+            canSelectNextMonth = selectedMonth < calendarMonthNow,
+            canSelectPreviousMonth =
+                selectedMonth > calendarMonthNow.minusMonths(MONTH_LOOK_BACK_LIMIT),
             expenseCategories = toExpenseCategoryOptions(categoriesById),
         )
     }
@@ -198,11 +209,13 @@ internal object FamilyUiMapper {
     fun canEditBudgets(
         user: User?,
         hasFamilyWallet: Boolean,
+        isCurrentCalendarMonth: Boolean = true,
     ): Boolean {
         val familyId = user?.familyId
         return !familyId.isNullOrBlank() &&
             FamilyRole.fromValue(user?.familyRole.orEmpty()) == FamilyRole.OWNER &&
-            hasFamilyWallet
+            hasFamilyWallet &&
+            isCurrentCalendarMonth
     }
 
     fun formatBudgetMonth(month: YearMonth): String =

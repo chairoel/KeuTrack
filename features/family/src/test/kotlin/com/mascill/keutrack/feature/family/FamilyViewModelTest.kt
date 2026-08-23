@@ -1,7 +1,9 @@
 package com.mascill.keutrack.feature.family
 
 import app.cash.turbine.test
+import androidx.lifecycle.SavedStateHandle
 import com.google.common.truth.Truth.assertThat
+import com.mascill.keutrack.core.common.utils.PeriodBounds
 import com.mascill.keutrack.core.domain.model.Budget
 import com.mascill.keutrack.core.domain.model.FamilyGroup
 import com.mascill.keutrack.core.domain.model.TransactionType
@@ -26,12 +28,14 @@ import com.mascill.keutrack.core.domain.usecase.WalletSummary
 import com.mascill.keutrack.core.testing.MainDispatcherRule
 import com.mascill.keutrack.core.testing.testCommonDispatcher
 import com.mascill.keutrack.feature.family.presentation.FamilyViewModel
+import com.mascill.keutrack.feature.family.presentation.model.FamilyUiMapper
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.runs
+import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -205,6 +209,124 @@ class FamilyViewModelTest {
             }
         }
 
+    @Test
+    fun `onPreviousMonth queries prior month range and budgets`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            stubFamilyMember()
+            val vm = createViewModel()
+            val prior = YearMonth.now().minusMonths(1)
+            val twoBack = prior.minusMonths(1)
+            val priorRange = PeriodBounds.ofYearMonth(prior)
+            val twoBackRange = PeriodBounds.ofYearMonth(twoBack)
+
+            vm.uiState.test {
+                skipItems(1)
+                advanceUntilIdle()
+                awaitItem()
+                vm.onPreviousMonth()
+                advanceUntilIdle()
+                val state = expectMostRecentItem()
+                assertThat(state.selectedMonthLabel)
+                    .isEqualTo(FamilyUiMapper.formatBudgetMonth(prior))
+                assertThat(state.canSelectNextMonth).isTrue()
+                cancelAndIgnoreRemainingEvents()
+            }
+
+            verify {
+                getTransactions(
+                    match {
+                        it.familyId == "fam-1" &&
+                            it.startDate == priorRange.start &&
+                            it.endDate == priorRange.endInclusive
+                    },
+                )
+            }
+            verify {
+                getTransactions(
+                    match {
+                        it.familyId == "fam-1" &&
+                            it.startDate == twoBackRange.start &&
+                            it.endDate == twoBackRange.endInclusive
+                    },
+                )
+            }
+            verify { getBudgetProgress(prior.toString()) }
+        }
+
+    @Test
+    fun `onNextMonth from current month does not advance`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            stubFamilyMember()
+            val vm = createViewModel()
+            val nowLabel = FamilyUiMapper.formatBudgetMonth(YearMonth.now())
+
+            vm.uiState.test {
+                skipItems(1)
+                advanceUntilIdle()
+                val state = awaitItem()
+                assertThat(state.selectedMonthLabel).isEqualTo(nowLabel)
+                assertThat(state.canSelectNextMonth).isFalse()
+                vm.onNextMonth()
+                advanceUntilIdle()
+                expectNoEvents()
+                cancelAndIgnoreRemainingEvents()
+            }
+
+            verify(exactly = 0) {
+                getBudgetProgress(YearMonth.now().plusMonths(1).toString())
+            }
+        }
+
+    @Test
+    fun `owner cannot open budget sheet or save on a past month`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            stubFamilyOwner()
+            stubFamilyBudgetWrites()
+            val vm = createViewModel()
+
+            vm.uiState.test {
+                skipItems(1)
+                advanceUntilIdle()
+                assertThat(awaitItem().canEditBudgets).isTrue()
+                vm.onPreviousMonth()
+                advanceUntilIdle()
+                val past = expectMostRecentItem()
+                assertThat(past.canEditBudgets).isFalse()
+                vm.onAdjustTargetsClick()
+                vm.onBudgetRowClick("cat_food")
+                expectNoEvents()
+                assertThat(vm.uiState.value.budgetSheet).isNull()
+                vm.onSaveBudget()
+                advanceUntilIdle()
+                cancelAndIgnoreRemainingEvents()
+            }
+
+            coVerify(exactly = 0) { budgetRepository.createBudget(any()) }
+        }
+
+    @Test
+    fun `restores selected month from SavedStateHandle`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val prior = YearMonth.now().minusMonths(1)
+            stubFamilyMember()
+            val vm =
+                createViewModel(
+                    SavedStateHandle(mapOf("selectedMonth" to prior.toString())),
+                )
+
+            vm.uiState.test {
+                skipItems(1)
+                advanceUntilIdle()
+                val state = awaitItem()
+                assertThat(state.selectedMonthLabel)
+                    .isEqualTo(FamilyUiMapper.formatBudgetMonth(prior))
+                assertThat(state.canSelectNextMonth).isTrue()
+                cancelAndIgnoreRemainingEvents()
+            }
+
+            verify { getBudgetProgress(prior.toString()) }
+        }
+
     private fun stubFamilyMember(role: String = "owner") {
         stubFamilyUser(role = role, wallets = emptyList())
     }
@@ -259,7 +381,10 @@ class FamilyViewModelTest {
         coEvery { budgetRepository.createBudget(any()) } just runs
     }
 
-    private fun createViewModel() = FamilyViewModel(
+    private fun createViewModel(
+        savedStateHandle: SavedStateHandle = SavedStateHandle(),
+    ) = FamilyViewModel(
+        savedStateHandle = savedStateHandle,
         userRepository = userRepo,
         familyRepository = familyRepo,
         getWalletSummary = getWalletSummary,
