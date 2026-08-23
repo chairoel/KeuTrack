@@ -21,16 +21,20 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
 
+private const val CARD_FOCUSED_BORDER_WIDTH = 2
+
 @Composable
 fun KeuTrackCard(
     modifier: Modifier = Modifier,
     highlighted: Boolean = false,
+    focused: Boolean = false,
     contentPadding: PaddingValues = PaddingValues(16.dp),
     onClick: (() -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
     val semantic = KeuTrackTheme.semanticColors
     val shapes = KeuTrackTheme.shapeTokens
+    val effects = KeuTrackTheme.effectTokens
     val cardShape = RoundedCornerShape(shapes.radiusLg)
 
     Box(
@@ -46,8 +50,8 @@ fun KeuTrackCard(
                     },
                 )
                 .border(
-                    width = KeuTrackTheme.effectTokens.ghostBorderWidth,
-                    color = KeuTrackTheme.effectTokens.ghostBorderColor,
+                    width = if (focused) CARD_FOCUSED_BORDER_WIDTH.dp else effects.ghostBorderWidth,
+                    color = if (focused) semantic.primary else effects.ghostBorderColor,
                     shape = cardShape,
                 )
                 .then(
@@ -78,6 +82,23 @@ private fun KeuTrackCardPreview() {
                     text = "Default card",
                     style = KeuTrackTheme.typography.bodyBold16,
                     color = KeuTrackTheme.textColors.title,
+                )
+            }
+        }
+    }
+}
+
+@Preview(name = "Focused — Light", showBackground = true)
+@Preview(name = "Focused — Dark", uiMode = Configuration.UI_MODE_NIGHT_YES, showBackground = true)
+@Composable
+private fun KeuTrackCardFocusedPreview() {
+    KeuTrackTheme {
+        Column(modifier = Modifier.padding(16.dp)) {
+            KeuTrackCard(highlighted = true, focused = true) {
+                Text(
+                    text = "Focused card",
+                    style = KeuTrackTheme.typography.bodyBold16,
+                    color = KeuTrackTheme.semanticColors.primary,
                 )
             }
         }

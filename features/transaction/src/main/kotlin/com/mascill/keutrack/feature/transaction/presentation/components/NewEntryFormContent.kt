@@ -1,9 +1,15 @@
 package com.mascill.keutrack.feature.transaction.presentation.components
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -13,6 +19,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -23,14 +30,15 @@ import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.mascill.keutrack.core.designsystem.component.KeuTrackAmountKeypad
 import com.mascill.keutrack.core.designsystem.component.KeuTrackButton
 import com.mascill.keutrack.core.designsystem.component.KeuTrackCard
 import com.mascill.keutrack.core.designsystem.component.KeuTrackCategoryChip
@@ -69,8 +77,6 @@ private const val NEW_ENTRY_AFTER_AMOUNT_CARD_SPACER = 16
 private const val NEW_ENTRY_WALLET_ROW_SPACING = 12
 private const val NEW_ENTRY_CATEGORY_HEADER_PB = 12
 private const val NEW_ENTRY_CATEGORY_ROW_SPACING = 12
-private const val NEW_ENTRY_BEFORE_KEYPAD_SPACER = 20
-private const val NEW_ENTRY_AFTER_KEYPAD_SPACER = 12
 private const val NEW_ENTRY_AFTER_NOTE_SPACER = 20
 private const val NEW_ENTRY_WALLET_CHIP_LABEL_GAP = 6
 private const val NEW_ENTRY_WALLET_CHIP_PH = 12
@@ -78,14 +84,17 @@ private const val NEW_ENTRY_WALLET_CHIP_PV = 12
 private const val NEW_ENTRY_WALLET_CHIP_ICON_TEXT_SPACING = 8
 private const val NEW_ENTRY_WALLET_CHIP_ICON = 20
 private const val NEW_ENTRY_ERROR_PT = 8
+private const val NEW_ENTRY_AMOUNT_CARET_WIDTH = 2
+private const val NEW_ENTRY_AMOUNT_CARET_HEIGHT = 32
+private const val NEW_ENTRY_AMOUNT_CARET_START = 4
+private const val NEW_ENTRY_AMOUNT_CARET_BLINK_MS = 530
 
 @Composable
 fun NewEntryFormContent(
     uiState: NewEntryUIState,
     onKindChanged: (EntryTransactionKind) -> Unit,
-    onDigit: (Long) -> Unit,
-    onTripleZero: () -> Unit,
-    onBackspace: () -> Unit,
+    onAmountClick: () -> Unit,
+    amountFocused: Boolean,
     onCategorySelected: (String) -> Unit,
     onWalletChipClick: () -> Unit,
     onDateChipClick: () -> Unit,
@@ -151,20 +160,29 @@ fun NewEntryFormContent(
         KeuTrackCard(
             modifier = Modifier.fillMaxWidth(),
             highlighted = true,
+            focused = amountFocused,
             contentPadding =
                 PaddingValues(
                     vertical = NEW_ENTRY_AMOUNT_CARD_PV.dp,
                     horizontal = NEW_ENTRY_AMOUNT_CARD_PH.dp,
                 ),
-            onClick = null,
+            onClick = onAmountClick,
         ) {
-            KeuTrackCurrencyText(
-                amount = uiState.amount,
-                style = typography.headingBold36,
-                color = semantic.primary,
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                textAlign = TextAlign.Center,
-            )
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                KeuTrackCurrencyText(
+                    amount = uiState.amount,
+                    style = typography.headingBold36,
+                    color = semantic.primary,
+                    textAlign = TextAlign.Center,
+                )
+                if (amountFocused) {
+                    AmountFocusCaret()
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(NEW_ENTRY_AFTER_AMOUNT_CARD_SPACER.dp))
@@ -230,24 +248,7 @@ fun NewEntryFormContent(
             )
         }
 
-        Spacer(modifier = Modifier.height(NEW_ENTRY_BEFORE_KEYPAD_SPACER.dp))
-
-        KeuTrackAmountKeypad(
-            onDigit = { d ->
-                onClearError()
-                onDigit(d)
-            },
-            onTripleZero = {
-                onClearError()
-                onTripleZero()
-            },
-            onBackspace = {
-                onClearError()
-                onBackspace()
-            },
-        )
-
-        Spacer(modifier = Modifier.height(NEW_ENTRY_AFTER_KEYPAD_SPACER.dp))
+        Spacer(modifier = Modifier.height(NEW_ENTRY_SECTION_SPACER_LG.dp))
 
         KeuTrackTextField(
             value = uiState.note,
@@ -287,6 +288,30 @@ fun NewEntryFormContent(
             isLoading = uiState.isSaving,
         )
     }
+}
+
+@Composable
+private fun AmountFocusCaret() {
+    val infinite = rememberInfiniteTransition(label = "amountCaret")
+    val alpha by infinite.animateFloat(
+        initialValue = 1f,
+        targetValue = 0f,
+        animationSpec =
+            infiniteRepeatable(
+                animation = tween(NEW_ENTRY_AMOUNT_CARET_BLINK_MS),
+                repeatMode = RepeatMode.Reverse,
+            ),
+        label = "amountCaretAlpha",
+    )
+    Box(
+        modifier =
+            Modifier
+                .padding(start = NEW_ENTRY_AMOUNT_CARET_START.dp)
+                .width(NEW_ENTRY_AMOUNT_CARET_WIDTH.dp)
+                .height(NEW_ENTRY_AMOUNT_CARET_HEIGHT.dp)
+                .alpha(alpha)
+                .background(KeuTrackTheme.semanticColors.primary),
+    )
 }
 
 @Composable
