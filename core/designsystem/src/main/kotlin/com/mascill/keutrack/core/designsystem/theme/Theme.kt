@@ -45,7 +45,7 @@ private val textDarkColors =
         subtitle = MidnightOnSurface,
         body = MidnightOnSurfaceVariant,
         placeholder = MidnightOnSurfaceVariant,
-        disable = CadetBlue,
+        disable = DarkElectricBlue,
         link = MidnightPrimaryTint,
     )
 

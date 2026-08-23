@@ -35,7 +35,7 @@ import com.mascill.keutrack.core.designsystem.component.snackbar.KeuTrackInlineS
 import com.mascill.keutrack.core.designsystem.model.KeuTrackButtonStyle
 import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
 import com.mascill.keutrack.core.domain.model.SyncStatus
-import com.mascill.keutrack.feature.transaction.presentation.components.DatePickerDialogHost
+import com.mascill.keutrack.feature.transaction.presentation.components.DateRangePickerDialogHost
 import com.mascill.keutrack.feature.transaction.presentation.components.HistoryPeriodBar
 import com.mascill.keutrack.feature.transaction.presentation.components.TransactionHistoryRow
 import com.mascill.keutrack.feature.transaction.presentation.model.HistoryPeriodPreset
@@ -70,8 +70,6 @@ private const val HISTORY_CONTENT_PB = 24
 private const val HISTORY_ROW_SPACING = 10
 private const val HISTORY_EMPTY_SPACING = 12
 
-private enum class HistoryCustomPickerStep { From, To }
-
 @Composable
 fun TransactionHistoryScreen(
     uiState: HistoryUIState,
@@ -87,8 +85,7 @@ fun TransactionHistoryScreen(
     val typography = KeuTrackTheme.typography
     val textColors = KeuTrackTheme.textColors
     val today = LocalDate.now()
-    var customPickerStep by remember { mutableStateOf<HistoryCustomPickerStep?>(null) }
-    var pendingCustomFrom by remember { mutableStateOf<LocalDate?>(null) }
+    var showCustomRangePicker by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
@@ -138,8 +135,7 @@ fun TransactionHistoryScreen(
                     rangeError = uiState.periodRangeError,
                     onPresetSelected = { preset ->
                         if (preset == HistoryPeriodPreset.Custom) {
-                            pendingCustomFrom = uiState.customFrom ?: today
-                            customPickerStep = HistoryCustomPickerStep.From
+                            showCustomRangePicker = true
                         } else {
                             onPeriodPresetSelected(preset)
                         }
@@ -200,37 +196,15 @@ fun TransactionHistoryScreen(
         }
     }
 
-    DatePickerDialogHost(
-        visible = customPickerStep == HistoryCustomPickerStep.From,
-        selectedDate = pendingCustomFrom ?: uiState.customFrom ?: today,
-        onDateSelected = { date ->
-            pendingCustomFrom = date
-            customPickerStep = HistoryCustomPickerStep.To
+    DateRangePickerDialogHost(
+        visible = showCustomRangePicker,
+        startDate = uiState.customFrom,
+        endDate = uiState.customTo,
+        onRangeSelected = { from, to ->
+            onCustomRangeConfirmed(from, to)
+            showCustomRangePicker = false
         },
-        onDismiss = {
-            if (customPickerStep == HistoryCustomPickerStep.From) {
-                customPickerStep = null
-                pendingCustomFrom = null
-            }
-        },
-        maxDate = today,
-    )
-    DatePickerDialogHost(
-        visible = customPickerStep == HistoryCustomPickerStep.To,
-        selectedDate = uiState.customTo ?: today,
-        onDateSelected = { date ->
-            val from = pendingCustomFrom ?: today
-            onCustomRangeConfirmed(from, date)
-            customPickerStep = null
-            pendingCustomFrom = null
-        },
-        onDismiss = {
-            if (customPickerStep == HistoryCustomPickerStep.To) {
-                customPickerStep = null
-                pendingCustomFrom = null
-            }
-        },
-        minDate = pendingCustomFrom,
+        onDismiss = { showCustomRangePicker = false },
         maxDate = today,
     )
 }
