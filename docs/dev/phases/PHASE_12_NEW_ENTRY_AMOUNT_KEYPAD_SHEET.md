@@ -5,7 +5,7 @@
 > **Prasyarat:** Phase 5 ✅ (New Entry form + history) · Phase 3 ✅ (`KeuTrackAmountKeypad`, `KeuTrackModalBottomSheet`, `KeuTrackCard`)  
 > **Status:** Done (implemented)  
 > **Status baseline (sebelum perubahan):** Keypad numerik menempel di body form di bawah Category; Note di bawah keypad. Kartu AMOUNT tidak bisa diklik.  
-> **Hasil akhir:** Tap kartu **AMOUNT** membuka keypad seperti **keyboard custom** (sheet tanpa header amount, scrim transparan); Note langsung di bawah Category; logic amount (`onDigit` / `000` / backspace) tidak berubah
+> **Hasil akhir:** Tap kartu **AMOUNT** membuka keypad seperti **keyboard custom** (sheet tanpa header amount, scrim transparan); hardware/emulator number keys selaras dengan keypad; Note langsung di bawah Category; logic amount (`onDigit` / `000` / backspace) tidak berubah
 
 ---
 
@@ -52,12 +52,13 @@ Phase 5 memproductize `NewEntryScreen` dengan form lengkap. Keypad amount **inli
 1. Keypad numerik pindah ke **bottom sheet** (`KeuTrackModalBottomSheet`), muncul **hanya** saat kartu AMOUNT diklik.
 2. Field **Note** langsung di bawah **Category** (lalu error + tombol Add).
 3. Sheet berperilaku seperti keyboard custom: **tanpa** label/nilai AMOUNT (sudah ada di form), **scrim transparan** agar kartu amount di form tetap terlihat dan update live.
-4. Tidak mengubah ViewModel, domain, data, atau aturan digit (`MAX_AMOUNT_RUPIAH`).
+4. Keyboard laptop / hardware (emulator) memasukkan **hanya digit** lewat handler keypad yang sama; huruf/simbol tidak masuk amount atau Note.
+5. Tidak mengubah ViewModel, domain, data, atau aturan digit (`MAX_AMOUNT_RUPIAH`).
 
 **Bukan tujuan:**
 
 - Edit transaksi / keypad di history
-- Keyboard sistem untuk amount
+- Keyboard IME sistem untuk amount (soft keyboard Android)
 - Redesign visual Atelier / dark-token baru
 - Family budget sheet memakai keypad yang sama (boleh follow-up; di luar scope)
 
@@ -100,6 +101,7 @@ Phase 5 memproductize `NewEntryScreen` dengan form lengkap. Keypad amount **inli
 | Note position | Langsung setelah Category | Permintaan produk; Note tidak lagi “terjepit” keypad |
 | Digit logic | Tetap di ViewModel | Sheet hanya UI; cap `MAX_AMOUNT_RUPIAH` tidak berubah |
 | Focus indicator | Border primary 2.dp + caret berkedip saat keypad terbuka | Kartu AMOUNT harus terasa field aktif (bukan display statis); selaras `KeuTrackTextField` (`focusedIndicatorColor = primary`) |
+| Hardware keyboard | `onPreviewKeyEvent` di sheet; digit/numpad → `onDigit`; Backspace/Delete → `onBackspace`; Enter/Esc → dismiss; **selain itu consume** | Emulator + laptop harus selaras dengan keypad on-screen; huruf tidak boleh bocor ke Note. Bukan IME sistem. |
 
 Keypad **tidak** auto-open saat screen pertama kali muncul.
 
@@ -114,7 +116,8 @@ Keypad **tidak** auto-open saat screen pertama kali muncul.
 5. `BackHandler` overlay mencakup `showAmountKeypad`.
 6. Preview light/dark untuk content sheet.
 7. Focus indicator kartu AMOUNT saat keypad terbuka (`KeuTrackCard.focused` + caret).
-8. Dokumentasi phase ini.
+8. Hardware / emulator keyboard: intercept di `AmountKeypadBottomSheet` (`AmountHardwareKey.kt`); bukan `TextField`.
+9. Dokumentasi phase ini.
 
 ---
 
@@ -165,8 +168,10 @@ Keypad **tidak** auto-open saat screen pertama kali muncul.
 | File | Aksi |
 |------|------|
 | `.../components/AmountKeypadBottomSheet.kt` | **Buat** |
+| `.../components/AmountHardwareKey.kt` | **Buat** — mapping Key → digit / backspace / dismiss / consume |
 | `.../components/NewEntryFormContent.kt` | Ubah urutan + `onAmountClick`; hapus keypad inline |
 | `.../presentation/NewEntryScreen.kt` | State `showAmountKeypad` + host sheet |
+| `.../test/.../AmountHardwareKeyTest.kt` | **Buat** |
 | `docs/dev/phases/PHASE_12_NEW_ENTRY_AMOUNT_KEYPAD_SHEET.md` | Dokumen ini |
 
 ---
@@ -181,6 +186,7 @@ features/transaction/src/main/kotlin/.../feature/transaction/presentation/
 └── components/
     ├── NewEntryFormContent.kt     ← Amount clickable; Note setelah Category
     ├── AmountKeypadBottomSheet.kt ← BARU
+    ├── AmountHardwareKey.kt       ← BARU (hardware/emulator keys)
     ├── WalletPickerBottomSheet.kt
     ├── CategorySeeAllSheet.kt
     └── DatePickerField.kt
@@ -215,6 +221,20 @@ Done
 
 Tidak ada label AMOUNT / `Rp …` di sheet — angka hanya di kartu form, yang tetap terlihat karena scrim transparan.
 
+### Hardware / emulator keyboard (saat sheet terbuka)
+
+| Key | Aksi |
+|-----|------|
+| `0`–`9` / numpad | `onDigit` (sama dengan tombol on-screen) |
+| Backspace / Delete | `onBackspace` |
+| Enter / Esc | tutup sheet |
+| Huruf, spasi, `.` `,` `-`, dll. | **consume** — tidak mengubah amount, tidak masuk Note |
+| Tombol `000` | hanya on-screen (ketik `0` tiga kali = efek sama) |
+
+Sheet `requestFocus()` setelah frame pertama. Bukan `TextField` — IME sistem tidak muncul.
+
+Hanya aktif **saat keypad amount terbuka**. Sheet tertutup + fokus Note → huruf tetap bisa diketik di note.
+
 ### Overlay state
 
 Satu overlay terbuka pada satu waktu secara praktis (tap AMOUNT menutup via BackHandler reset-all, sama seperti overlay lain). `rememberSaveable` supaya sheet tetap terbuka setelah rotation.
@@ -229,6 +249,7 @@ Satu overlay terbuka pada satu waktu secara praktis (tap AMOUNT menutup via Back
 - Content: `KeuTrackAmountKeypad` + tombol Done → `onDismiss`. **Tanpa** label/nilai AMOUNT.
 - Extract `AmountKeypadSheetContent` internal untuk `@Preview` light + dark.
 - Padding horizontal 20 / bottom 16 + `navigationBarsPadding()` (selaras wallet picker).
+- `focusable` + `onPreviewKeyEvent` + `requestFocus()`; mapping di `AmountHardwareKey.kt`.
 
 ### Task 2 — Form reorder + clickable amount
 
@@ -263,6 +284,9 @@ Satu overlay terbuka pada satu waktu secara praktis (tap AMOUNT menutup via Back
 - [x] Rotation: sheet tetap terbuka jika sudah terbuka (`rememberSaveable`).
 - [x] Preview light/dark sheet content ada.
 - [x] Saat keypad terbuka, kartu AMOUNT punya **focus indicator** (border `semantic.primary` + caret berkedip); hilang saat sheet ditutup.
+- [x] Keyboard laptop/emulator: digit & numpad mengubah amount lewat `onDigit`; Backspace menghapus; huruf/simbol **tidak** masuk amount atau Note.
+- [x] Enter / Esc menutup sheet keypad.
+- [x] IME sistem **tidak** muncul untuk amount (bukan `TextField`).
 
 ---
 
@@ -298,6 +322,9 @@ Tidak ada perubahan Gradle / Hilt.
 | Sheet tertutup tanpa konfirmasi | Amount sudah di state; tidak hilang | Done + persist ViewModel state |
 | Dua overlay sekaligus | Wallet + keypad | BackHandler reset semua; tap target terpisah |
 | IME sistem muncul di Note lalu bentrok sheet | Keyboard + sheet | Sheet hanya dari tap AMOUNT, bukan fokus Note |
+| Keyboard laptop tidak merespons di emulator | Digit tidak masuk | AVD `hw.keyboard=yes` / Enable keyboard input; sheet `requestFocus` |
+| Huruf bocor ke Note saat keypad terbuka | Data salah | `onPreviewKeyEvent` consume semua non-digit |
+| Digit ter-double (KeyDown+KeyUp) | Amount 2× | Hanya `KeyEventType.KeyDown` yang memicu digit |
 | Cap amount terlewati | Data invalid | Logic tetap di ViewModel (`MAX_AMOUNT_RUPIAH`) |
 
 ---
@@ -349,6 +376,11 @@ Phase 5 § form “keypad di body” dianggap **superseded** untuk New Entry. Do
 | 10 | Amount `0` → Add | Error “Amount must be greater than 0” (atau copy existing) |
 | 11 | Buka keypad → rotate | Sheet tetap terbuka, amount tidak reset, focus tetap |
 | 12 | Dark theme | Sheet + form token benar; border primary terlihat |
+| 13 | Emulator, keypad terbuka, ketik `1` `2` `5` di laptop | Kartu form = `Rp 125` |
+| 14 | Numpad `0` dan Backspace laptop | Sama seperti tombol on-screen |
+| 15 | Ketik `abc`, spasi, `.` `,` `-` | Amount **tidak** berubah; Note **tidak** terisi |
+| 16 | Enter atau Esc | Sheet tutup; amount tetap |
+| 17 | Tutup keypad, fokus Note, ketik huruf | Note menerima teks seperti biasa |
 
 ### Verify compile
 

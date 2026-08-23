@@ -1,6 +1,7 @@
 package com.mascill.keutrack.feature.transaction.presentation.components
 
 import android.content.res.Configuration
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -8,8 +9,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.mascill.keutrack.core.designsystem.component.KeuTrackAmountKeypad
@@ -49,10 +58,35 @@ internal fun AmountKeypadSheetContent(
     onBackspace: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        withFrameNanos { }
+        focusRequester.requestFocus()
+    }
+
     Column(
         modifier =
             Modifier
                 .fillMaxWidth()
+                .focusRequester(focusRequester)
+                .focusable()
+                .onPreviewKeyEvent { event ->
+                    when (val action = amountHardwareKeyAction(event.key, event.type)) {
+                        is AmountHardwareKeyAction.Digit -> {
+                            onDigit(action.value)
+                            true
+                        }
+                        AmountHardwareKeyAction.Backspace -> {
+                            onBackspace()
+                            true
+                        }
+                        AmountHardwareKeyAction.Dismiss -> {
+                            onDismiss()
+                            true
+                        }
+                        AmountHardwareKeyAction.Consume -> true
+                    }
+                }
                 .padding(horizontal = KEYPAD_SHEET_PH.dp)
                 .padding(bottom = KEYPAD_SHEET_PB.dp)
                 .navigationBarsPadding(),
