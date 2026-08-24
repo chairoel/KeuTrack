@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+option java_package = "com.mascill.keutrack.core.datastore";
+option java_multiple_files = true;
+
+message PeriodPreferences {
+  // 0 = unset → domain default 1. Valid stored values are 1–28.
+  int32 cycle_start_day = 1;
+}

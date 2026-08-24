@@ -1,5 +1,6 @@
 package com.mascill.keutrack.core.domain.repository
 
+import com.mascill.keutrack.core.domain.model.PeriodTotals
 import com.mascill.keutrack.core.domain.model.Transaction
 import com.mascill.keutrack.core.domain.model.TransactionType
 import kotlinx.coroutines.flow.Flow
@@ -18,6 +19,11 @@ interface TransactionRepository {
     ): Flow<List<Transaction>>
 
     fun observeRecentTransactions(limit: Int = 5): Flow<List<Transaction>>
+
+    fun observePeriodTotals(
+        startDate: Instant,
+        endDate: Instant,
+    ): Flow<PeriodTotals>
 
     suspend fun getTransactionById(id: String): Transaction?
 

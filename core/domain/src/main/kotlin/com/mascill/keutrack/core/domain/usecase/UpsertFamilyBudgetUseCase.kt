@@ -13,6 +13,7 @@ import com.mascill.keutrack.core.domain.repository.UserRepository
 import com.mascill.keutrack.core.domain.repository.WalletRepository
 import kotlinx.coroutines.flow.first
 import java.time.DateTimeException
+import java.time.Instant
 import java.time.YearMonth
 import java.time.ZoneId
 import java.util.UUID
@@ -29,6 +30,8 @@ class UpsertFamilyBudgetUseCase @Inject constructor(
         val categoryId: String,
         val limit: Long,
         val month: String,
+        val periodStart: Instant? = null,
+        val periodEnd: Instant? = null,
     )
 
     suspend operator fun invoke(params: Params): Result<Budget> {
@@ -78,7 +81,13 @@ class UpsertFamilyBudgetUseCase @Inject constructor(
                         familyId = familyId,
                         categoryId = params.categoryId,
                         limit = params.limit,
-                        spent = seedSpent(familyId, params.categoryId, params.month),
+                        spent = seedSpent(
+                            familyId = familyId,
+                            categoryId = params.categoryId,
+                            month = params.month,
+                            periodStart = params.periodStart,
+                            periodEnd = params.periodEnd,
+                        ),
                         period = BudgetPeriod.MONTHLY,
                         month = params.month,
                         walletId = familyWallet.id,
@@ -98,16 +107,26 @@ class UpsertFamilyBudgetUseCase @Inject constructor(
         familyId: String,
         categoryId: String,
         month: String,
+        periodStart: Instant?,
+        periodEnd: Instant?,
     ): Long =
         transactionRepository
             .observeTransactions(
                 familyId = familyId,
                 type = TransactionType.EXPENSE,
                 categoryId = categoryId,
+                startDate = periodStart,
+                endDate = periodEnd,
                 limit = SEED_TX_LIMIT,
             )
             .first()
-            .filter { it.toMonthKey() == month }
+            .filter { tx ->
+                if (periodStart != null && periodEnd != null) {
+                    !tx.date.isBefore(periodStart) && !tx.date.isAfter(periodEnd)
+                } else {
+                    tx.toMonthKey() == month
+                }
+            }
             .sumOf { it.amount }
 
     private fun Transaction.toMonthKey(): String =

@@ -8,6 +8,7 @@ import com.mascill.keutrack.core.data.db.dao.TransactionDao
 import com.mascill.keutrack.core.data.db.dao.WalletDao
 import com.mascill.keutrack.core.data.db.entity.CategorySummaryEntity
 import com.mascill.keutrack.core.data.db.entity.TransactionEntity
+import com.mascill.keutrack.core.data.db.model.AmountByTypeRow
 import com.mascill.keutrack.core.domain.model.SyncStatus
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
@@ -41,6 +42,9 @@ class TransactionLocalDataSourceImpl @Inject constructor(
 
     override fun observeRecent(limit: Int): Flow<List<TransactionEntity>> =
         transactionDao.observeRecent(limit)
+
+    override fun observeSumsByType(startMs: Long, endMs: Long): Flow<List<AmountByTypeRow>> =
+        transactionDao.observeSumsByType(startMs, endMs)
 
     override suspend fun getById(id: String): TransactionEntity? =
         transactionDao.getById(id)

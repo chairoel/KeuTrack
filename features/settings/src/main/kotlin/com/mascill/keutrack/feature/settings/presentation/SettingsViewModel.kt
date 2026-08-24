@@ -11,6 +11,8 @@ import com.mascill.keutrack.core.domain.usecase.CreateFamilyGroupUseCase
 import com.mascill.keutrack.core.domain.usecase.GetWalletSummaryUseCase
 import com.mascill.keutrack.core.domain.usecase.JoinFamilyGroupUseCase
 import com.mascill.keutrack.core.domain.usecase.LeaveFamilyGroupUseCase
+import com.mascill.keutrack.core.domain.usecase.ObservePeriodPreferencesUseCase
+import com.mascill.keutrack.core.domain.usecase.SetCycleStartDayUseCase
 import com.mascill.keutrack.core.domain.usecase.WalletSummary
 import com.mascill.keutrack.feature.settings.presentation.model.SettingsUIState
 import com.mascill.keutrack.feature.settings.presentation.model.SettingsUiMapper
@@ -35,6 +37,8 @@ class SettingsViewModel @Inject constructor(
     private val createFamilyGroup: CreateFamilyGroupUseCase,
     private val joinFamilyGroup: JoinFamilyGroupUseCase,
     private val leaveFamilyGroup: LeaveFamilyGroupUseCase,
+    observePeriodPreferences: ObservePeriodPreferencesUseCase,
+    private val setCycleStartDay: SetCycleStartDayUseCase,
     private val dispatcher: CommonDispatcher,
 ) : ViewModel() {
 
@@ -48,8 +52,9 @@ class SettingsViewModel @Inject constructor(
             userRepository.getCurrentUser(),
             familyRepository.observeCurrentFamily(),
             getWalletSummary(),
-        ) { user: User?, family: FamilyGroup?, walletSummary: WalletSummary ->
-            SettingsUiMapper.from(user, family, walletSummary)
+            observePeriodPreferences(),
+        ) { user: User?, family: FamilyGroup?, walletSummary: WalletSummary, prefs ->
+            SettingsUiMapper.from(user, family, walletSummary, prefs.cycleStartDay)
         }.catch { e ->
             emit(
                 SettingsUIState(
@@ -165,6 +170,18 @@ class SettingsViewModel @Inject constructor(
         _infoMessage.update { null }
     }
 
+    fun onSaveCycleStartDay(day: Int) {
+        viewModelScope.launch(dispatcher.io) {
+            try {
+                setCycleStartDay(day)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                _infoMessage.value = ERR_PERIOD_SAVE
+            }
+        }
+    }
+
     fun signOut() {
         viewModelScope.launch(dispatcher.io) {
             _signOutState.value = SignOutState.Loading
@@ -182,5 +199,6 @@ class SettingsViewModel @Inject constructor(
     private companion object {
         const val ERR_LOAD_FAILED = "Gagal memuat settings"
         const val MSG_SHEETS_COMING_SOON = "Segera hadir"
+        const val ERR_PERIOD_SAVE = "Gagal menyimpan siklus bulanan"
     }
 }
