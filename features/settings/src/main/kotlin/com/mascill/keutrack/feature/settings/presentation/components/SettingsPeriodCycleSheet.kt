@@ -10,9 +10,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
@@ -24,6 +25,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.mascill.keutrack.core.common.utils.PeriodBounds
@@ -43,9 +45,10 @@ private const val SHEET_CANCEL = "Batal"
 private const val SHEET_PH = 20
 private const val SHEET_PB = 16
 private const val SHEET_TITLE_PB = 4
-private const val SHEET_LIST_MAX_HEIGHT = 280
+private const val SHEET_GRID_MAX_HEIGHT = 280
+private const val SHEET_GRID_COLUMNS = 7
+private const val SHEET_GRID_SPACING = 8
 private const val SHEET_DAY_PV = 10
-private const val SHEET_DAY_PH = 12
 private val DAY_OPTIONS = (PeriodBounds.MIN_CYCLE_START_DAY..PeriodBounds.MAX_CYCLE_START_DAY).toList()
 
 @Composable
@@ -74,13 +77,13 @@ internal fun SettingsPeriodCycleSheetContent(
     val semantic = KeuTrackTheme.semanticColors
     val shapes = KeuTrackTheme.shapeTokens
     var draftDay by rememberSaveable { mutableIntStateOf(cycleStartDay) }
-    val listState = rememberLazyListState()
+    val gridState = rememberLazyGridState()
     val preview =
         PeriodLabels.formatPreview(PeriodBounds.containing(LocalDate.now(), draftDay))
 
     LaunchedEffect(Unit) {
         val index = (draftDay - PeriodBounds.MIN_CYCLE_START_DAY).coerceAtLeast(0)
-        listState.scrollToItem(index)
+        gridState.scrollToItem(index)
     }
 
     Column(
@@ -105,19 +108,23 @@ internal fun SettingsPeriodCycleSheetContent(
                 color = textColors.body,
             )
         }
-        LazyColumn(
-            state = listState,
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(SHEET_GRID_COLUMNS),
+            state = gridState,
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .heightIn(max = SHEET_LIST_MAX_HEIGHT.dp),
+                    .heightIn(max = SHEET_GRID_MAX_HEIGHT.dp),
+            horizontalArrangement = Arrangement.spacedBy(SHEET_GRID_SPACING.dp),
+            verticalArrangement = Arrangement.spacedBy(SHEET_GRID_SPACING.dp),
         ) {
             items(DAY_OPTIONS, key = { it }) { day ->
                 val selected = day == draftDay
                 Text(
-                    text = "Tanggal $day",
+                    text = day.toString(),
                     style = if (selected) typography.bodyBold16 else typography.bodyRegular16,
                     color = if (selected) semantic.primary else textColors.title,
+                    textAlign = TextAlign.Center,
                     modifier =
                         Modifier
                             .fillMaxWidth()
@@ -130,7 +137,7 @@ internal fun SettingsPeriodCycleSheetContent(
                                 },
                             )
                             .clickable { draftDay = day }
-                            .padding(horizontal = SHEET_DAY_PH.dp, vertical = SHEET_DAY_PV.dp),
+                            .padding(vertical = SHEET_DAY_PV.dp),
                 )
             }
         }

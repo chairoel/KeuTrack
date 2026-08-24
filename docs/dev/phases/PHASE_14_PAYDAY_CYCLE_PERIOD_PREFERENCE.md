@@ -291,7 +291,7 @@ Sheet (`SettingsPeriodCycleSheet`):
 
 - Judul: `Mulai siklus`
 - Body: `Pemasukan gajian sering tidak di tanggal 1. Pilih hari mulai, filter Family dan riwayat mengikuti rentang ini setiap periode.`
-- Picker 1–28 (`LazyColumn` + `rememberSaveable` draft)
+- Picker 1–28 (`LazyVerticalGrid` 7 kolom + `rememberSaveable` draft)
 - Preview live: `Periode berjalan: ` + `PeriodLabels.formatPreview` (contoh `25 Jul 2026 – 24 Agu 2026`)
 - `Simpan` / `Batal`
 - Disabled 29–31
