@@ -3,16 +3,19 @@ package com.mascill.keutrack.feature.dashboard.presentation
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mascill.keutrack.core.common.utils.CommonDispatcher
+import com.mascill.keutrack.core.common.utils.PeriodBounds
 import com.mascill.keutrack.core.domain.model.FamilyGroup
+import com.mascill.keutrack.core.domain.model.PeriodTotals
 import com.mascill.keutrack.core.domain.model.User
 import com.mascill.keutrack.core.domain.model.WalletType
 import com.mascill.keutrack.core.domain.model.WalletUiPreferences
 import com.mascill.keutrack.core.domain.repository.FamilyRepository
 import com.mascill.keutrack.core.domain.repository.UserRepository
 import com.mascill.keutrack.core.domain.usecase.GetCategoriesUseCase
-import com.mascill.keutrack.core.domain.usecase.GetMonthlySummaryUseCase
+import com.mascill.keutrack.core.domain.usecase.GetPeriodTotalsUseCase
 import com.mascill.keutrack.core.domain.usecase.GetTransactionsUseCase
 import com.mascill.keutrack.core.domain.usecase.GetWalletSummaryUseCase
+import com.mascill.keutrack.core.domain.usecase.ObservePeriodPreferencesUseCase
 import com.mascill.keutrack.core.domain.usecase.ObserveWalletUiPreferencesUseCase
 import com.mascill.keutrack.core.domain.usecase.RetryPendingSyncUseCase
 import com.mascill.keutrack.core.domain.usecase.SetWalletBalanceVisibilityUseCase
@@ -21,28 +24,32 @@ import com.mascill.keutrack.core.domain.usecase.SyncPersonalDataUseCase
 import com.mascill.keutrack.feature.dashboard.presentation.model.DashboardUIState
 import com.mascill.keutrack.feature.dashboard.presentation.model.DashboardUiMapper
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.time.YearMonth
+import java.time.LocalDate
 import javax.inject.Inject
 import kotlin.coroutines.cancellation.CancellationException
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
     userRepository: UserRepository,
     familyRepository: FamilyRepository,
     getWalletSummary: GetWalletSummaryUseCase,
     getTransactions: GetTransactionsUseCase,
-    getMonthlySummary: GetMonthlySummaryUseCase,
+    getPeriodTotals: GetPeriodTotalsUseCase,
     getCategories: GetCategoriesUseCase,
     observeWalletUiPreferences: ObserveWalletUiPreferencesUseCase,
+    observePeriodPreferences: ObservePeriodPreferencesUseCase,
     private val setWalletBalanceVisibility: SetWalletBalanceVisibilityUseCase,
     private val retryPendingSync: RetryPendingSyncUseCase,
     private val syncPersonalData: SyncPersonalDataUseCase,
@@ -50,14 +57,27 @@ class DashboardViewModel @Inject constructor(
     private val dispatcher: CommonDispatcher,
 ) : ViewModel() {
 
-    private val currentMonth = YearMonth.now()
-    private val priorMonth = currentMonth.minusMonths(1)
-    private val currentMonthKey = currentMonth.toString()
-    private val priorMonthKey = priorMonth.toString()
-
     private val _syncError = MutableStateFlow<String?>(null)
     private val _isPersonalWalletSyncing = MutableStateFlow(false)
     private val _isFamilyWalletSyncing = MutableStateFlow(false)
+
+    private val periodTotalsFlow =
+        observePeriodPreferences().flatMapLatest { prefs ->
+            val current = PeriodBounds.containing(LocalDate.now(), prefs.cycleStartDay)
+            val prior = current.minusPeriods(1)
+            val currentRange = current.toInstantRange()
+            val priorRange = prior.toInstantRange()
+            combine(
+                getPeriodTotals(currentRange.start, currentRange.endInclusive),
+                getPeriodTotals(priorRange.start, priorRange.endInclusive),
+            ) { currentTotals, priorTotals ->
+                PeriodDashboardBundle(
+                    cycleStartDay = prefs.cycleStartDay,
+                    current = currentTotals,
+                    prior = priorTotals,
+                )
+            }
+        }
 
     val uiState: StateFlow<DashboardUIState> =
         combine(
@@ -84,16 +104,11 @@ class DashboardViewModel @Inject constructor(
             },
             getWalletSummary(),
             getTransactions(GetTransactionsUseCase.Params(limit = RECENT_TX_LIMIT)),
-            getMonthlySummary(
-                currentMonth = currentMonthKey,
-                trendMonths = listOf(priorMonthKey),
-            ),
+            periodTotalsFlow,
             getCategories(),
-        ) { session, walletSummary, transactions, monthlySummary, categories ->
+        ) { session, walletSummary, transactions, periodTotals, categories ->
             val categoriesById = categories.associateBy { it.id }
             val walletTypes = DashboardUiMapper.mapWalletTypes(walletSummary)
-            val prior =
-                DashboardUiMapper.priorFromTrend(monthlySummary, priorMonthKey)
 
             DashboardUIState(
                 isLoading = false,
@@ -108,11 +123,12 @@ class DashboardViewModel @Inject constructor(
                     DashboardUiMapper.familySharedSummary(walletSummary.familyWallets.size),
                 monthChangeLabel =
                     DashboardUiMapper.monthChangeLabel(
-                        current = monthlySummary.currentMonth,
-                        prior = prior,
+                        currentNet = periodTotals.current.netBalance,
+                        priorNet = periodTotals.prior.netBalance,
+                        cycleStartDay = periodTotals.cycleStartDay,
                     ),
-                incomeTotal = monthlySummary.currentMonth?.totalIncome ?: 0L,
-                expenseTotal = monthlySummary.currentMonth?.totalExpense ?: 0L,
+                incomeTotal = periodTotals.current.incomeTotal,
+                expenseTotal = periodTotals.current.expenseTotal,
                 recentTransactions =
                     DashboardUiMapper.toTransactionRows(
                         transactions = transactions,
@@ -200,6 +216,12 @@ class DashboardViewModel @Inject constructor(
         val syncError: String?,
         val isPersonalWalletSyncing: Boolean,
         val isFamilyWalletSyncing: Boolean,
+    )
+
+    private data class PeriodDashboardBundle(
+        val cycleStartDay: Int,
+        val current: PeriodTotals,
+        val prior: PeriodTotals,
     )
 
     private data class WalletSyncFlags(

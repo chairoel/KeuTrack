@@ -109,4 +109,26 @@ class DashboardUiMapperTest {
         assertThat(map["w-p"]).isEqualTo(WalletType.PERSONAL)
         assertThat(map["w-f"]).isEqualTo(WalletType.FAMILY)
     }
+
+    @Test
+    fun `monthChangeLabel uses this month when cycle starts on day 1`() {
+        assertThat(
+            DashboardUiMapper.monthChangeLabel(
+                currentNet = 120L,
+                priorNet = 100L,
+                cycleStartDay = 1,
+            ),
+        ).isEqualTo("+20,0% this month")
+    }
+
+    @Test
+    fun `monthChangeLabel uses this period when cycle start day is not 1`() {
+        assertThat(
+            DashboardUiMapper.monthChangeLabel(
+                currentNet = 80L,
+                priorNet = 100L,
+                cycleStartDay = 25,
+            ),
+        ).isEqualTo("-20,0% periode ini")
+    }
 }

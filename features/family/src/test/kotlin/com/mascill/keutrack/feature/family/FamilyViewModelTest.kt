@@ -4,6 +4,7 @@ import app.cash.turbine.test
 import androidx.lifecycle.SavedStateHandle
 import com.google.common.truth.Truth.assertThat
 import com.mascill.keutrack.core.common.utils.PeriodBounds
+import com.mascill.keutrack.core.common.utils.PeriodLabels
 import com.mascill.keutrack.core.domain.model.Budget
 import com.mascill.keutrack.core.domain.model.FamilyGroup
 import com.mascill.keutrack.core.domain.model.TransactionType
@@ -22,6 +23,8 @@ import com.mascill.keutrack.core.domain.usecase.GetCategoriesUseCase
 import com.mascill.keutrack.core.domain.usecase.GetTransactionsUseCase
 import com.mascill.keutrack.core.domain.usecase.GetWalletSummaryUseCase
 import com.mascill.keutrack.core.domain.usecase.JoinFamilyGroupUseCase
+import com.mascill.keutrack.core.domain.model.PeriodPreferences
+import com.mascill.keutrack.core.domain.usecase.ObservePeriodPreferencesUseCase
 import com.mascill.keutrack.core.domain.usecase.SyncFamilyDataUseCase
 import com.mascill.keutrack.core.domain.usecase.UpsertFamilyBudgetUseCase
 import com.mascill.keutrack.core.domain.usecase.WalletSummary
@@ -43,6 +46,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
 import java.time.Instant
+import java.time.LocalDate
 import java.time.YearMonth
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -59,6 +63,7 @@ class FamilyViewModelTest {
     private val getCategories = mockk<GetCategoriesUseCase>()
     private val createFamilyGroup = mockk<CreateFamilyGroupUseCase>()
     private val joinFamilyGroup = mockk<JoinFamilyGroupUseCase>()
+    private val observePeriodPreferences = mockk<ObservePeriodPreferencesUseCase>()
     private val syncFamilyData = mockk<SyncFamilyDataUseCase>(relaxed = true)
     private val budgetRepository = mockk<BudgetRepository>(relaxed = true)
     private val walletRepository = mockk<WalletRepository>(relaxed = true)
@@ -102,6 +107,8 @@ class FamilyViewModelTest {
         every { getWalletSummary() } returns flowOf(WalletSummary(null, emptyList(), 0L, 0L))
         every { getBudgetProgress(any()) } returns flowOf(emptyList())
         every { getCategories() } returns flowOf(emptyList())
+        every { getTransactions(any()) } returns flowOf(emptyList())
+        every { observePeriodPreferences() } returns flowOf(PeriodPreferences())
         val vm = createViewModel()
 
         vm.uiState.test {
@@ -327,8 +334,31 @@ class FamilyViewModelTest {
             verify { getBudgetProgress(prior.toString()) }
         }
 
-    private fun stubFamilyMember(role: String = "owner") {
-        stubFamilyUser(role = role, wallets = emptyList())
+    @Test
+    fun `cycle start day 25 labels current payday window and disables next`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            stubFamilyMember(cycleStartDay = 25)
+            val vm = createViewModel()
+            val today = LocalDate.now()
+            val period = PeriodBounds.containing(today, 25)
+
+            vm.uiState.test {
+                skipItems(1)
+                advanceUntilIdle()
+                val state = awaitItem()
+                assertThat(state.selectedMonthLabel)
+                    .isEqualTo(PeriodLabels.format(period, 25))
+                assertThat(state.canSelectNextMonth).isFalse()
+                vm.onPreviousMonth()
+                advanceUntilIdle()
+                assertThat(expectMostRecentItem().selectedMonthLabel)
+                    .isEqualTo(PeriodLabels.format(period.minusPeriods(1), 25))
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    private fun stubFamilyMember(role: String = "owner", cycleStartDay: Int = 1) {
+        stubFamilyUser(role = role, wallets = emptyList(), cycleStartDay = cycleStartDay)
     }
 
     private fun stubFamilyOwner(budgets: List<Budget> = emptyList()) {
@@ -343,6 +373,7 @@ class FamilyViewModelTest {
         role: String,
         wallets: List<Wallet>,
         budgets: List<Budget> = emptyList(),
+        cycleStartDay: Int = 1,
     ) {
         every { userRepo.getCurrentUser() } returns flowOf(
             User("user-1", "Irul", "a@b.c", null, familyId = "fam-1", familyRole = role),
@@ -361,6 +392,7 @@ class FamilyViewModelTest {
         every { getTransactions(any()) } returns flowOf(emptyList())
         every { getBudgetProgress(any()) } returns flowOf(budgets)
         every { getCategories() } returns flowOf(emptyList())
+        every { observePeriodPreferences() } returns flowOf(PeriodPreferences(cycleStartDay = cycleStartDay))
     }
 
     private fun stubFamilyBudgetWrites() {
@@ -372,8 +404,8 @@ class FamilyViewModelTest {
                 familyId = "fam-1",
                 type = TransactionType.EXPENSE,
                 categoryId = "cat_food",
-                startDate = null,
-                endDate = null,
+                startDate = any(),
+                endDate = any(),
                 limit = 1_000,
             )
         } returns flowOf(emptyList())
@@ -396,6 +428,7 @@ class FamilyViewModelTest {
         syncFamilyData = syncFamilyData,
         upsertFamilyBudget = upsertFamilyBudget,
         deleteFamilyBudget = deleteFamilyBudget,
+        observePeriodPreferences = observePeriodPreferences,
         dispatcher = testCommonDispatcher(mainDispatcherRule.testDispatcher),
     )
 

@@ -6,13 +6,15 @@ import com.google.common.truth.Truth.assertThat
 import com.mascill.keutrack.core.domain.model.User
 import com.mascill.keutrack.core.domain.repository.FamilyRepository
 import com.mascill.keutrack.core.domain.repository.UserRepository
+import com.mascill.keutrack.core.domain.model.PeriodPreferences
+import com.mascill.keutrack.core.domain.model.PeriodTotals
 import com.mascill.keutrack.core.domain.usecase.GetCategoriesUseCase
-import com.mascill.keutrack.core.domain.usecase.GetMonthlySummaryUseCase
+import com.mascill.keutrack.core.domain.usecase.GetPeriodTotalsUseCase
 import com.mascill.keutrack.core.domain.usecase.GetTransactionsUseCase
+import com.mascill.keutrack.core.domain.usecase.ObservePeriodPreferencesUseCase
 import com.mascill.keutrack.core.domain.model.WalletType
 import com.mascill.keutrack.core.domain.model.WalletUiPreferences
 import com.mascill.keutrack.core.domain.usecase.GetWalletSummaryUseCase
-import com.mascill.keutrack.core.domain.usecase.MonthlySummaryResult
 import com.mascill.keutrack.core.domain.usecase.ObserveWalletUiPreferencesUseCase
 import com.mascill.keutrack.core.domain.usecase.RetryPendingSyncUseCase
 import com.mascill.keutrack.core.domain.usecase.SetWalletBalanceVisibilityUseCase
@@ -47,9 +49,10 @@ class DashboardViewModelTest {
     private val familyRepo = mockk<FamilyRepository>()
     private val getWalletSummary = mockk<GetWalletSummaryUseCase>()
     private val getTransactions = mockk<GetTransactionsUseCase>()
-    private val getMonthlySummary = mockk<GetMonthlySummaryUseCase>()
+    private val getPeriodTotals = mockk<GetPeriodTotalsUseCase>()
     private val getCategories = mockk<GetCategoriesUseCase>()
     private val observeWalletUiPreferences = mockk<ObserveWalletUiPreferencesUseCase>()
+    private val observePeriodPreferences = mockk<ObservePeriodPreferencesUseCase>()
     private val setWalletBalanceVisibility = mockk<SetWalletBalanceVisibilityUseCase>()
     private val retryPendingSync = mockk<RetryPendingSyncUseCase>()
     private val syncPersonalData = mockk<SyncPersonalDataUseCase>()
@@ -213,11 +216,10 @@ class DashboardViewModelTest {
             ),
         )
         every { getTransactions(any()) } returns flowOf(emptyList())
-        every { getMonthlySummary(any(), any()) } returns flowOf(
-            MonthlySummaryResult(currentMonth = null, trend = emptyList()),
-        )
+        every { getPeriodTotals(any(), any()) } returns flowOf(PeriodTotals())
         every { getCategories() } returns flowOf(emptyList())
         every { observeWalletUiPreferences() } returns flowOf(WalletUiPreferences())
+        every { observePeriodPreferences() } returns flowOf(PeriodPreferences())
         coEvery { syncPersonalData() } returns Result.success(Unit)
         coEvery { syncFamilyData() } returns Result.success(Unit)
         coEvery { retryPendingSync() } just runs
@@ -228,9 +230,10 @@ class DashboardViewModelTest {
         familyRepository = familyRepo,
         getWalletSummary = getWalletSummary,
         getTransactions = getTransactions,
-        getMonthlySummary = getMonthlySummary,
+        getPeriodTotals = getPeriodTotals,
         getCategories = getCategories,
         observeWalletUiPreferences = observeWalletUiPreferences,
+        observePeriodPreferences = observePeriodPreferences,
         setWalletBalanceVisibility = setWalletBalanceVisibility,
         retryPendingSync = retryPendingSync,
         syncPersonalData = syncPersonalData,

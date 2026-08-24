@@ -3,8 +3,10 @@
 > **Modul target:** `:features:settings` (UI + persist) → `:core:datastore` / `:core:domain` / `:core:common` → konsumsi di `:features:family`, `:features:transaction` (history preset), `:features:dashboard` (income/expense)  
 > **Estimasi:** ~2–3.5 hari · **14a** ~1.5–2.5 hari (pref + filter ikut siklus) · **14b** ~0.5–1 hari (matching `Budget.spent` / `monthKey` tulis)  
 > **Prasyarat:** Phase 13 ✅ **selesai** (13a Family month stepper + 13b History date range + `PeriodBounds`)  
-> **Status:** Planning — **jangan mulai sebelum Phase 13 AC hijau**.  
-> **Hasil akhir:** User set **hari mulai siklus** di Settings (default tanggal 1 = bulan kalender). “Bulan ini” di Family / History / kartu income-expense Dashboard mengikuti jendela gajian yang berulang (contoh: 25 Jul – 24 Agu, lalu 25 Agu – 24 Sep). Saldo wallet **tetap** kumulatif.
+> **Status:** **14a + 14b implemented** (payday cycle pref + Family/History/Dashboard filters + `monthKey` tulis). Manual QA §22 di device.  
+> **Hasil akhir:** User set **hari mulai siklus** di Settings (default tanggal 1 = bulan kalender). “Bulan ini” di Family / History / kartu income-expense Dashboard mengikuti jendela gajian yang berulang (contoh: 25 Jul – 24 Agu, lalu 25 Agu – 24 Sep). Saldo wallet **tetap** kumulatif.  
+> **14a as-shipped:** `FinancePeriod` + `PeriodLabels` di `FinancePeriod.kt`; `PeriodBounds.containing` / `plusPeriods` / `periodKey` / `toInstantRange` / `clampCycleStartDay`; Proto DataStore `period_preferences.proto` (`cycle_start_day`, 0 = unset → 1); `ObservePeriodPreferencesUseCase` / `SetCycleStartDayUseCase` (tolak di luar 1–28); Settings section **Periode keuangan** + `SettingsPeriodCycleCard` / `SettingsPeriodCycleSheet`; Family selected = `FinancePeriod` (`SavedStateHandle["selectedMonth"]` = ISO `LocalDate` start; `yyyy-MM` lama di-parse `YearMonth.atDay(1)`); History chip **Periode ini** = `containing(today)`; Dashboard `GetPeriodTotalsUseCase` + DAO `SUM` (`observeSumsByType`); `%` suffix `"this month"` jika day==1 else `"periode ini"` (locale id-ID, koma desimal).  
+> **14b as-shipped:** `TransactionRepositoryImpl.monthKey` baca `periodPreferences.observe().first().cycleStartDay` lalu `PeriodBounds.periodKey`; tes 26 Jul + day 25 → `2026-08`, day 1 → `2026-07`. `UpsertFamilyBudgetUseCase` seed `spent` pakai Instant range periode. `SyncRepositoryImpl.monthKey` **tetap** kalender (rebuild summary, bukan matching budget tulis).
 
 ---
 
@@ -77,19 +79,19 @@ App menggeser jendela itu otomatis:
 
 ## 2. Inventory — Apa yang Sudah Ada (setelah Phase 13)
 
-Asumsi DoR: 13a + 13b sudah di kode.
+Tabel ini = **baseline setelah Phase 13, sebelum 14**. Nama as-shipped ada di header + §9–§10.
 
 | Item | Peran vs Phase 14 |
 |------|-------------------|
-| `PeriodBounds.ofYearMonth` / `ofLocalDates` | Kalender & custom range History; **belum** ada `cycleStartDay` |
-| Family stepper `YearMonth` | Harus jadi stepper **FinancePeriod** |
-| History preset `CurrentMonth` | Harus jadi periode siklus (“Periode ini”) |
-| `Budget.month` | String `yyyy-MM` — **tetap schema**; arti kunci disepakati §12.3 |
-| `TransactionRepositoryImpl.monthKey` | `YearMonth` dari `tx.date` — salah untuk gajian sampai 14b |
-| `FamilyUiMapper.toBudgetRows` | Spent tampilan dari **txs terfilter** — 14a sudah bisa jujur di UI |
-| `GetMonthlySummaryUseCase` / `CategorySummary.period` | Agregat **kalender**; Dashboard 14a jangan andalkan ini untuk siklus ≠ 1 |
-| `WalletUiPreferences` proto | Hanya visibility saldo; pola persist siap ditambah field atau proto baru |
-| `SettingsScreen` | Profile, Family Network, Wallets, Sheets, Sign out — **belum** periode |
+| `PeriodBounds.ofYearMonth` / `ofLocalDates` | Kalender & custom range History; **sebelum 14** belum ada `cycleStartDay` |
+| Family stepper `YearMonth` | **14a:** stepper **FinancePeriod** |
+| History preset `CurrentMonth` | **14a:** chip **Periode ini** = siklus current |
+| `Budget.month` | String `yyyy-MM` — **tetap schema**; arti kunci §12.3 |
+| `TransactionRepositoryImpl.monthKey` | **14b:** `PeriodBounds.periodKey` + pref. `SyncRepositoryImpl.monthKey` tetap kalender |
+| `FamilyUiMapper.toBudgetRows` | Spent tampilan dari **txs terfilter** — 14a jujur di UI |
+| `GetMonthlySummaryUseCase` / `CategorySummary.period` | Agregat **kalender**; Dashboard 14a pakai `GetPeriodTotalsUseCase` + DAO `SUM` |
+| `WalletUiPreferences` proto | Hanya visibility saldo; 14 memakai proto terpisah `period_preferences.proto` |
+| `SettingsScreen` | **14a:** section **Periode keuangan** setelah wallets, sebelum Sheets |
 | Saldo wallet | Kumulatif — **jangan** diikat siklus |
 
 ---
@@ -125,11 +127,11 @@ Asumsi DoR: 13a + 13b sudah di kode.
 
 1. Domain `PeriodPreferences(cycleStartDay: Int)` + validasi 1–28.
 2. Proto DataStore + repository + `ObservePeriodPreferencesUseCase` / `SetCycleStartDayUseCase`.
-3. `FinancePeriod` + perluasan `PeriodBounds` (`containing`, `plusPeriods`, `toInstantRange`, `periodKey`).
+3. `FinancePeriod` + `PeriodLabels` + perluasan `PeriodBounds` (`containing`, `plusPeriods`, `toInstantRange`, `periodKey`).
 4. Settings: section + kartu + sheet pilih tanggal 1–28 + preview rentang.
 5. Family VM: stepper + query + authoring guard memakai `FinancePeriod`, bukan `YearMonth` mentah.
-6. History: preset current = siklus now; copy chip.
-7. Dashboard: `incomeTotal` / `expenseTotal` / `monthChangeLabel` dari txs siklus (observe `GetTransactionsUseCase` range), **bukan** ganti schema `CategorySummary`.
+6. History: preset current = siklus now; chip **Periode ini**.
+7. Dashboard: `incomeTotal` / `expenseTotal` / `monthChangeLabel` dari `GetPeriodTotalsUseCase` (DAO `SUM`), **bukan** ganti schema `CategorySummary`.
 8. Tes util + mapper + Settings VM + regresi Family/History `startDay=1`.
 
 ### 14b — Tulis budget selaras siklus
@@ -155,13 +157,11 @@ Asumsi DoR: 13a + 13b sudah di kode.
 
 ## 6. Prasyarat (Definition of Ready)
 
-- [ ] Phase 13a: Family query `startDate`/`endDate`, stepper, authoring hanya “periode current”
-- [ ] Phase 13b: History presets + Custom
-- [ ] `PeriodBounds` tes kalender hijau
-- [ ] `GetTransactionsUseCase.Params` range dipakai Family & History
-- [ ] Settings Phase 7 (DataStore visibility) sebagai pola persist
-
-Jika 13 belum merge, **jangan** implementasi 14.
+- [x] Phase 13a: Family query `startDate`/`endDate`, stepper, authoring hanya “periode current”
+- [x] Phase 13b: History presets + Custom
+- [x] `PeriodBounds` tes kalender hijau
+- [x] `GetTransactionsUseCase.Params` range dipakai Family & History
+- [x] Settings Phase 7 (DataStore visibility) sebagai pola persist
 
 ---
 
@@ -171,9 +171,9 @@ Jika 13 belum merge, **jangan** implementasi 14.
 |------|--------|
 | `docs/dev/phases/PHASE_13_FAMILY_AND_HISTORY_PERIOD_FILTER.md` | Kontrak filter yang 14 override definisi bulan |
 | `PeriodBounds.kt` (hasil 13) | Titik perluasan siklus |
-| `FamilyViewModel.kt` | Ganti `YearMonth` selected → `FinancePeriod` |
-| `TransactionHistoryViewModel.kt` | Preset current month |
-| `DashboardViewModel.kt` | Income/expense dari summary kalender |
+| `FamilyViewModel.kt` | Selected `FinancePeriod`; query Instant range; authoring `contains(today)` |
+| `TransactionHistoryViewModel.kt` | Preset `CurrentMonth` = siklus |
+| `DashboardViewModel.kt` | Income/expense dari `GetPeriodTotalsUseCase` (bukan `CategorySummary`) |
 | `wallet_ui_preferences.proto` | Pola DataStore; **jangan** campur kecuali P17 dibatalkan |
 | `SettingsScreen.kt` | Titik pasang kartu |
 | `Budget.kt` / `TransactionRepositoryImpl.monthKey` | 14b |
@@ -199,64 +199,79 @@ Boleh sentuh Dashboard **hanya** sumber income/expense / monthChangeLabel, bukan
 
 | Path | Aksi |
 |------|------|
-| `core/datastore/.../period_preferences.proto` | **Baru** `cycle_start_day` (int32, 0 = unset → 1) |
-| Serializer + `PeriodPreferencesDataStoreModule` | **Baru** (pola wallet prefs) |
-| `core/domain/.../model/PeriodPreferences.kt` | **Baru** |
-| `PeriodPreferencesRepository` + impl + DataSource | **Baru** |
-| `ObservePeriodPreferencesUseCase` / `SetCycleStartDayUseCase` | **Baru** |
-| `core/common/.../PeriodBounds.kt` + `FinancePeriod.kt` | Perluas |
-| Tes `PeriodBounds` siklus (23 Agu + day 25, 1 Feb + day 28, day 1 = kalender) | **Baru/ubah** |
+| `core/datastore/src/main/proto/.../period_preferences.proto` | **Done** — `cycle_start_day` (int32, 0 = unset → 1) |
+| `PeriodPreferencesSerializer` + `PeriodPreferencesDataStoreModule` | **Done** — file `period_preferences.pb` |
+| `core/domain/.../model/PeriodPreferences.kt` + `PeriodTotals.kt` | **Done** |
+| `PeriodPreferencesRepository` + `PeriodPreferencesRepositoryImpl` | **Done** |
+| `PeriodPreferencesLocalDataSource` + Impl + `PeriodPreferencesProtoMapper` | **Done** |
+| `ObservePeriodPreferencesUseCase` / `SetCycleStartDayUseCase` | **Done** — reject di luar 1–28 |
+| `GetPeriodTotalsUseCase` + `TransactionRepository.observePeriodTotals` | **Done** |
+| `core/common/.../PeriodBounds.kt` + `FinancePeriod.kt` (`PeriodLabels`) | **Done** |
+| Tes `PeriodBounds` siklus + `PeriodPreferencesProtoMapper` + `SetCycleStartDayUseCase` | **Done** |
 
 ### Settings
 
 | Path | Aksi |
 |------|------|
-| `SettingsUIState` / mapper / VM | Field + save |
-| `SettingsScreen.kt` / Routing | Section + callback |
-| `components/SettingsPeriodCycleCard.kt` | **Baru** |
-| `components/SettingsPeriodCycleSheet.kt` | **Baru** — pilih 1–28 |
-| Tes `SettingsViewModel` | Save/observe |
+| `SettingsUIState` / mapper / VM | **Done** — `cycleStartDay`; `onSaveCycleStartDay` |
+| `SettingsScreen.kt` | **Done** — section **Periode keuangan** |
+| `components/SettingsPeriodCycleCard.kt` | **Done** |
+| `components/SettingsPeriodCycleSheet.kt` | **Done** — list 1–28 + `rememberSaveable` draft |
+| Tes `SettingsViewModel` / `SettingsUiMapper` | **Done** |
 
 ### Konsumen filter (14a)
 
 | Path | Aksi |
 |------|------|
-| `FamilyViewModel` / mapper / stepper / UIState label | `FinancePeriod` |
-| `TransactionHistoryViewModel` / `HistoryPeriod` copy | Current = siklus |
-| `DashboardViewModel` | Income/expense dari txs range |
-| Tes Family / History / Dashboard terkait periode | Ubah |
+| `FamilyViewModel` / mapper / UIState label | **Done** — `FinancePeriod`; `SavedStateHandle["selectedMonth"]` = ISO start |
+| `UpsertFamilyBudgetUseCase` | **Done** — seed `spent` via `periodStart` / `periodEnd` Instant |
+| `TransactionHistoryViewModel` / `HistoryPeriod` / `HistoryPeriodBar` | **Done** — chip **Periode ini** |
+| `DashboardViewModel` / `DashboardUiMapper.monthChangeLabel` | **Done** — totals siklus + suffix `%` |
+| `TransactionDao.observeSumsByType` + `AmountByTypeRow` | **Done** |
+| Tes Family / History / Dashboard terkait periode | **Done** |
 
 ### 14b
 
 | Path | Aksi |
 |------|------|
-| `TransactionRepositoryImpl.monthKey` | Pakai `PeriodBounds.periodKey(tx.date, startDay)` |
-| Inject `PeriodPreferences` / baca DataStore di repo | Hindari `YearMonth` buta |
-| Tes repo: 26 Jul + startDay 25 → `2026-08` | **Baru** |
+| `TransactionRepositoryImpl.monthKey` | **Done** — `observe().first().cycleStartDay` + `PeriodBounds.periodKey` |
+| Tes repo: 26 Jul + startDay 25 → `2026-08`; startDay 1 → `2026-07` | **Done** |
+| `SyncRepositoryImpl.monthKey` | **Tidak diubah** — tetap kalender (rebuild summary) |
 
-`monthKey` di data layer butuh `cycleStartDay`. Jangan hard-code 1. Baca pref di addTransaction (suspend) atau inject store. Jika repo tidak boleh block: `PeriodPreferencesRepository.observe().first()`.
+`monthKey` tulis (14b) di `:core:data`: `PeriodPreferencesRepository.observe().first()`.
 
 ---
 
 ## 10. Struktur File Target
 
 ```
-core/datastore/src/main/proto/.../period_preferences.proto     ← BARU
-core/common/.../utils/
-├── PeriodBounds.kt                                            ← UBAH (siklus)
-└── FinancePeriod.kt                                           ← BARU (data class start/end)
+core/datastore/src/main/proto/com/mascill/keutrack/data/period_preferences.proto
+core/datastore/.../serialization/PeriodPreferencesSerializer.kt
+core/datastore/.../di/PeriodPreferencesDataStoreModule.kt
 
-core/domain/.../model/PeriodPreferences.kt                     ← BARU
-core/domain/.../repository/PeriodPreferencesRepository.kt      ← BARU
-core/domain/.../usecase/SetCycleStartDayUseCase.kt             ← BARU
-core/domain/.../usecase/ObservePeriodPreferencesUseCase.kt     ← BARU
+core/common/.../utils/
+├── PeriodBounds.kt                         ← siklus + clamp 1–28
+└── FinancePeriod.kt                        ← data class + PeriodLabels
+
+core/domain/.../model/PeriodPreferences.kt + PeriodTotals.kt
+core/domain/.../repository/PeriodPreferencesRepository.kt
+core/domain/.../usecase/
+├── ObservePeriodPreferencesUseCase.kt
+├── SetCycleStartDayUseCase.kt
+└── GetPeriodTotalsUseCase.kt               ← startDate/endDate Instant
+
+core/data/.../datasource/PeriodPreferencesLocalDataSource.kt + Impl
+core/data/.../mapper/PeriodPreferencesProtoMapper.kt
+core/data/.../repository/PeriodPreferencesRepositoryImpl.kt
+core/data/.../db/dao/TransactionDao.kt      ← observeSumsByType
+core/data/.../db/model/AmountByTypeRow.kt
 
 features/settings/.../presentation/
-├── SettingsScreen.kt / SettingsViewModel.kt                   ← UBAH
-└── components/SettingsPeriodCycleCard.kt + Sheet.kt           ← BARU
+├── SettingsScreen.kt / SettingsViewModel.kt
+└── components/SettingsPeriodCycleCard.kt + SettingsPeriodCycleSheet.kt
 ```
 
-Family / History / Dashboard: ubah file Phase 13 + `DashboardViewModel.kt`.
+Family / History / Dashboard: file Phase 13 + `DashboardViewModel.kt` / `DashboardUiMapper.kt`. Stepper Family **tetap** `FamilyMonthStepper` / `onPreviousMonth` / `onNextMonth` (geser satu siklus).
 
 ---
 
@@ -267,23 +282,27 @@ Letak: section **Periode keuangan** setelah Connected Wallets, sebelum Google Sh
 Kartu (`SettingsPeriodCycleCard`):
 
 - Title: `Siklus bulanan`
-- Subtitle default: `Tanggal 1 – akhir bulan (kalender)`
-- Subtitle custom: `Tanggal 25 – sehari sebelum tanggal 25 berikutnya`
-- Trailing: chevron / “Atur”
+- Subtitle: `PeriodLabels.cycleSubtitle` — default `Tanggal 1 – akhir bulan (kalender)`; custom `Tanggal $day – sehari sebelum tanggal $day berikutnya`
+- Trailing: teks `Atur` + chevron
 - Tap → sheet
+- `contentDescription`: `"Siklus bulanan, tanggal $day. $subtitle"`
 
 Sheet (`SettingsPeriodCycleSheet`):
 
 - Judul: `Mulai siklus`
-- Penjelasan 1–2 baris: “Pemasukan gajian sering tidak di tanggal 1. Pilih hari mulai, filter Family dan riwayat mengikuti rentang ini setiap periode.”
-- Picker 1–28 (list / `LazyColumn` / slider — Material 2, token tema)
-- Preview live: `Periode berjalan: 25 Jul 2026 – 24 Agu 2026`
-- Simpan / Batal
+- Body: `Pemasukan gajian sering tidak di tanggal 1. Pilih hari mulai, filter Family dan riwayat mengikuti rentang ini setiap periode.`
+- Picker 1–28 (`LazyColumn` + `rememberSaveable` draft)
+- Preview live: `Periode berjalan: ` + `PeriodLabels.formatPreview` (contoh `25 Jul 2026 – 24 Agu 2026`)
+- `Simpan` / `Batal`
 - Disabled 29–31
 
 Tidak ada date picker from–to.
 
 Accessibility: kartu `contentDescription` termasuk angka hari.
+
+History chip (bukan Settings): label **selalu** `Periode ini` (termasuk `startDay == 1`). Ringkasan filter `startDay == 1` tetap `MMMM yyyy` via `PeriodLabels.format`.
+
+Copy Settings “Limit lama mengikuti bulan kalender…” (§12.4) **tidak** di-ship; hanya dokumentasi di plan ini.
 
 ---
 
@@ -297,8 +316,14 @@ data class FinancePeriod(
     val end: LocalDate,   // inclusive
 ) {
     val periodKey: String get() = YearMonth.from(end).toString() // P13
+    fun contains(date: LocalDate): Boolean
+    fun plusPeriods(periods: Long): FinancePeriod
+    fun minusPeriods(periods: Long): FinancePeriod
+    fun toInstantRange(zone: ZoneId = ZoneId.systemDefault()): ClosedRange<Instant>
 }
 ```
+
+`PeriodLabels` (objek di file yang sama): `format` (P6/P7), `formatRange`, `formatPreview` (sheet, selalu `d MMM yyyy – d MMM yyyy`), `cycleSubtitle`.
 
 ### 12.2 Algoritma `containing(today, startDay)`
 
@@ -329,29 +354,27 @@ Identik Phase 13: Family label “Agustus 2026”, History “bulan ini”, budg
 
 **14a (baca):** Family `getBudgetProgress(selected.periodKey)`; spent bar dari txs di `[start, end]`. Limit dari baris `Budget.month == periodKey`.
 
-**14b (tulis):** `monthKey(tx)` = `FinancePeriod.containing(txDate, startDay).periodKey`.
+**14b (tulis):** `monthKey(tx)` = `PeriodBounds.periodKey(txDate, startDay)` (= `containing(…).periodKey`).
 
 Tanpa 14b: user `startDay=25`, expense 26 Jul masuk budget kalender `2026-07` di Room, sementara UI periode current key `2026-08` — limit Agustus tidak naik `spent` tersimpan, tapi **bar UI 14a tetap** dari txs. 14b menutup gap footnote / sync Firestore `spent`.
 
-Data lama Phase 11: tetap `yyyy-MM` kalender. Ganti ke 25 tidak memindahkan limit. Copy Settings: “Limit lama mengikuti bulan kalender; siklus baru memakai kunci bulan tanggal akhir periode.”
+Data lama Phase 11: tetap `yyyy-MM` kalender. Ganti ke 25 tidak memindahkan limit. Copy Settings “Limit lama mengikuti bulan kalender…” **tidak** masuk UI; seed `spent` budget baru memakai Instant range siklus (`UpsertFamilyBudgetUseCase.Params.periodStart` / `periodEnd`).
 
 ### 12.5 CategorySummary Dashboard
 
 Jangan remap `category_summaries` di 14a. Kartu income/expense = `sum` txs personal+family? **Dashboard hari ini:** summary **user** period kalender, bukan split wallet.
 
-Tetap satu total income/expense di Dashboard (seperti sekarang), tapi window = siklus current untuk **semua tx yang masuk summary lama** (semua wallet user). Implementasi: `GetTransactionsUseCase.Params(start, end, limit cukup besar)` lalu sum type — atau use case baru `GetPeriodTotalsUseCase` di domain (lebih bersih, tes mudah).
-
-`limit`: pakai 200+ atau tanpa limit jika DAO mendukung; jika LIMIT memotong, total salah. Pertimbangkan query **tanpa limit** / limit tinggi khusus totals, atau DAO `SUM` (additive). **Keputusan 14a:** `GetPeriodTotalsUseCase` → repo `observeTotals(start, end)` **atau** observe list dengan limit 500 + dokumentasi risiko. Lebih baik DAO:
+Tetap satu total income/expense di Dashboard (semua tx di Room pada window), window = siklus current. **As-shipped:** `GetPeriodTotalsUseCase(startDate, endDate)` → `TransactionRepository.observePeriodTotals` → `TransactionDao.observeSumsByType` (tanpa LIMIT, tanpa filter wallet):
 
 ```sql
-SELECT type, SUM(amount) FROM transactions
-WHERE dateEpochMs BETWEEN :start AND :end
+SELECT type AS type, SUM(amount) AS total FROM transactions
+WHERE dateEpochMs >= :startMs AND dateEpochMs <= :endMs
 GROUP BY type
 ```
 
-Additive `TransactionDao`, tidak pecah observe list.
+Instant range memakai `ClosedRange`: `range.start` / `range.endInclusive`.
 
-Prior siklus untuk `%`: totals periode `selected - 1`.
+Prior siklus untuk `%`: totals `current.minusPeriods(1)`. Suffix label: `startDay == 1` → `"this month"`; selain itu `"periode ini"`. Format persen `Locale` id-ID (`+20,0%`).
 
 ---
 
@@ -361,19 +384,20 @@ Prior siklus untuk `%`: totals periode `selected - 1`.
 
 | UI | State / use case |
 |----|------------------|
-| Subtitle kartu | `ObservePeriodPreferences` → format |
-| Simpan sheet | `SetCycleStartDayUseCase(day)` validasi 1–28 |
-| Preview sheet | `FinancePeriod.containing(today, draftDay)` |
+| Subtitle kartu | `ObservePeriodPreferencesUseCase` → `PeriodLabels.cycleSubtitle` |
+| Simpan sheet | `onSaveCycleStartDay` → `SetCycleStartDayUseCase(day)` validasi 1–28 |
+| Preview sheet | `PeriodLabels.formatPreview(PeriodBounds.containing(today, draftDay))` |
 
 ### Family
 
 | UI | Sumber |
 |----|--------|
-| Label stepper | `format(period, startDay)` P6/P7 |
-| Query txs | Instant range `period` + prior period |
-| Budgets | `period.periodKey` |
-| `canEditBudgets` | owner ∧ wallet ∧ `period.contains(today)` |
-| Next enabled | `period < currentPeriod` (banding `start` date) |
+| Label stepper | `PeriodLabels.format(period, startDay)` P6/P7 |
+| Query txs | Instant range `period.toInstantRange()` + prior |
+| Budgets | `GetBudgetProgressUseCase(period.periodKey)` |
+| `canEditBudgets` | owner ∧ wallet ∧ `period.contains(today)` (param mapper masih `isCurrentCalendarMonth`) |
+| Next enabled | `selected.start.isBefore(current.start)` |
+| Persist selection | `SavedStateHandle["selectedMonth"]` = `period.start.toString()` (ISO) |
 
 ### History
 
@@ -389,64 +413,66 @@ Prior siklus untuk `%`: totals periode `selected - 1`.
 | Field | Sumber 14a |
 |-------|------------|
 | `personalBalance` / `familyBalance` | `GetWalletSummary` — tidak berubah |
-| `incomeTotal` / `expenseTotal` | totals siklus current |
-| `monthChangeLabel` | net current vs prior siklus; copy boleh “periode ini” jika `startDay != 1` |
+| `incomeTotal` / `expenseTotal` | `GetPeriodTotalsUseCase` siklus current |
+| `monthChangeLabel` | net current vs prior; `"this month"` jika day==1 else `"periode ini"` |
 
 ---
 
 ## 14. Task Breakdown Detail
 
-**Jangan mulai sebelum 13 merge.**
+Phase 13 sudah merge. Task di bawah = **Done** kecuali catatan 14b sync.
 
-### 14a — Task 1: `FinancePeriod` + `PeriodBounds` siklus + tes
+### 14a — Task 1: `FinancePeriod` + `PeriodBounds` siklus + tes — **Done**
 
 - `containing`, `plusPeriods`, `periodKey`, clamp Feb.
 - Tes tabel §12.2.
 - `startDay=1` ≡ `ofYearMonth`.
 
-### 14a — Task 2: DataStore + use case
+### 14a — Task 2: DataStore + use case — **Done**
 
 - Proto, serializer, module Hilt, mapper 0→1.
 - `SetCycleStartDayUseCase`: reject <1 or >28.
 - Tes mapper + use case.
 
-### 14a — Task 3: Settings UI
+### 14a — Task 3: Settings UI — **Done**
 
 - Kartu + sheet + preview.
 - Preview light/dark.
 - Tes VM save.
 
-### 14a — Task 4: Family konsumsi pref
+### 14a — Task 4: Family konsumsi pref — **Done**
 
 - `flatMapLatest` prefs + selected period.
 - Default selected = `containing(today)`.
 - Guard authoring `contains(today)`.
 - Tes: startDay 25, today 23 Agu → label 25 Jul–24 Agu; next disabled; prev = 25 Jun–24 Jul.
 
-### 14a — Task 5: History preset
+### 14a — Task 5: History preset — **Done**
 
 - Current = siklus; copy chip.
 - Tes Params Instant.
 
-### 14a — Task 6: Dashboard totals
+### 14a — Task 6: Dashboard totals — **Done**
 
-- DAO sum atau use case list.
-- Tes totals; saldo tidak berubah.
+- `GetPeriodTotalsUseCase` + DAO `SUM` (`observeSumsByType`), bukan list-sum.
+- Tes totals / `%`; saldo tidak berubah.
 
-### 14a — Task 7: `startDay=1` regresi
+### 14a — Task 7: `startDay=1` regresi — **Done**
 
 - Manual + tes: perilaku = Phase 13.
 
-### 14b — Task 8: `monthKey` siklus
+### 14b — Task 8: `monthKey` siklus — **Done** (`TransactionRepositoryImpl` saja)
 
 - Repo baca `cycleStartDay`.
 - Tes 26 Jul + 25 → `2026-08`; startDay 1 + 26 Jul → `2026-07`.
 
-### 14a/14b — Task 9: compile
+### 14a/14b — Task 9: compile — **Done** (unit tes + `assembleDevDebug`)
+
+Flavor tes: `testDevDebugUnitTest` (bukan `testDebugUnitTest` — task ambiguous).
 
 ```
-./gradlew :core:common:testDebugUnitTest
-./gradlew :core:domain:testDebugUnitTest
+./gradlew :core:common:testDevDebugUnitTest
+./gradlew :core:domain:testDevDebugUnitTest
 ./gradlew :core:data:testDevDebugUnitTest
 ./gradlew :features:settings:testDevDebugUnitTest
 ./gradlew :features:family:testDevDebugUnitTest
@@ -461,28 +487,28 @@ Prior siklus untuk `%`: totals periode `selected - 1`.
 
 ### 15.1 14a
 
-- [ ] Default install: `cycleStartDay=1`; Family/History/Dashboard **sama** Phase 13.
-- [ ] Settings: set 25, persist; kill app; tetap 25.
-- [ ] Invalid 0/29 ditolak, pref tidak rusak.
-- [ ] 23 Agu 2026 + day 25: Family = 25 Jul–24 Agu; expense 26 Jul masuk donut; expense 25 Agu **tidak**.
-- [ ] Next tidak masuk 25 Agu–24 Sep sebelum 25 Agu.
-- [ ] Owner hanya bisa Adjust Targets di periode yang mengandung today.
-- [ ] History “Periode ini” = range yang sama.
-- [ ] Dashboard income/expense ikut siklus; **saldo** tidak berubah saat ganti day.
-- [ ] Custom / 7 hari History tidak rusak.
-- [ ] Sheet Settings preview sesuai today + draft day.
-- [ ] Rotation di sheet: draft tidak hilang (`rememberSaveable`).
+- [x] Default install: `cycleStartDay=1`; Family/History/Dashboard **sama** Phase 13. *(unit tes regresi `startDay=1`)*
+- [ ] Settings: set 25, persist; kill app; tetap 25. *(manual §22.1)*
+- [x] Invalid 0/29 ditolak, pref tidak rusak. *(SetCycleStartDayUseCase + proto mapper 0→1)*
+- [x] 23 Agu 2026 + day 25: Family = 25 Jul–24 Agu; expense 26 Jul masuk donut; expense 25 Agu **tidak**. *(unit tes Family)*
+- [x] Next tidak masuk 25 Agu–24 Sep sebelum 25 Agu. *(clamp stepper)*
+- [x] Owner hanya bisa Adjust Targets di periode yang mengandung today. *(canEditBudgets + `contains(today)`)*
+- [x] History “Periode ini” = range yang sama. *(VM Instant range + chip copy)*
+- [x] Dashboard income/expense ikut siklus; **saldo** tidak berubah saat ganti day. *(GetPeriodTotalsUseCase; wallet summary terpisah)*
+- [x] Custom / 7 hari History tidak rusak. *(regresi History VM)*
+- [x] Sheet Settings preview sesuai today + draft day. *(PeriodLabels.formatPreview)*
+- [ ] Rotation di sheet: draft tidak hilang (`rememberSaveable`). *(manual §22; `rememberSaveable` ada di kode)*
 
 ### 15.2 14b
 
-- [ ] Add expense 26 Jul, startDay 25 → budget `2026-08` (family matching tetap familyId).
-- [ ] startDay 1 → tetap `2026-07` untuk tx 26 Jul.
+- [x] Add expense 26 Jul, startDay 25 → budget `2026-08` (family matching tetap familyId). *(TransactionRepositoryImplTest)*
+- [x] startDay 1 → tetap `2026-07` untuk tx 26 Jul.
 
 ### 15.3 Non-regresi
 
-- [ ] Sign out / family membership Settings tidak rusak.
-- [ ] New Entry tanggal tidak terpengaruh.
-- [ ] Visibility saldo wallet tetap.
+- [ ] Sign out / family membership Settings tidak rusak. *(manual §22)*
+- [ ] New Entry tanggal tidak terpengaruh. *(manual §22)*
+- [x] Visibility saldo wallet tetap. *(proto terpisah; Settings visibility tidak disentuh)*
 
 ---
 
@@ -526,8 +552,8 @@ ObservePeriodPreferences ──────────────────�
 | `YearMonth.minusMonths` vs siklus 25–24 | Prev/next salah 1 hari | Stepper hanya `plusPeriods` |
 | Hari 31 | Crash Feb | Cap 28 + clamp |
 | Budget key vs kalender lama | Limit “hilang” setelah ganti 1→25 | Copy Settings; tidak migrate |
-| Dashboard masih `CategorySummary` | Angka beda dari Family | 14a totals dari txs/DAO sum |
-| LIMIT 50 pada totals | Income/expense terpotong | DAO `SUM` atau limit tinggi khusus |
+| Dashboard masih `CategorySummary` | Angka beda dari Family | **Mitigasi shipped:** `GetPeriodTotalsUseCase` + DAO `SUM` |
+| LIMIT 50 pada totals | Income/expense terpotong | **Mitigasi shipped:** DAO `SUM` tanpa LIMIT |
 | Pref beda antar anggota family | Donut beda di dua HP | Dokumentasikan MVP; future family field |
 | 14b tanpa inject pref | monthKey tetap kalender | Task 8 wajib baca store |
 | Label “Agustus” untuk 25 Jul–24 Agu | Menyesatkan | P7 range dates |
@@ -545,7 +571,7 @@ ObservePeriodPreferences ──────────────────�
 7. Task 8 (14b) matching tulis.
 8. `assembleDevDebug`.
 
-Jangan ship Settings yang menulis pref jika Family masih `YearMonth` kalender-only — user pilih 25 tidak kelihatan efeknya. Minimal Task 4+5 dalam PR yang sama dengan Settings, **atau** hide kartu sampai konsumen siap. **Keputusan:** satu PR 14a (Settings + konsumen); 14b boleh PR kedua segera setelahnya.
+Jangan ship Settings yang menulis pref jika Family masih `YearMonth` kalender-only — user pilih 25 tidak kelihatan efeknya. Minimal Task 4+5 dalam PR yang sama dengan Settings, **atau** hide kartu sampai konsumen siap. **Keputusan:** 14a + 14b dikerjakan bersama (Settings + konsumen + `monthKey` tulis).
 
 ---
 

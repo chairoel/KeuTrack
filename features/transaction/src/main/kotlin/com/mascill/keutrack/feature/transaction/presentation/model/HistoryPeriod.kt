@@ -1,7 +1,8 @@
 package com.mascill.keutrack.feature.transaction.presentation.model
 
+import com.mascill.keutrack.core.common.utils.PeriodBounds
+import com.mascill.keutrack.core.common.utils.PeriodLabels
 import java.time.LocalDate
-import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -34,11 +35,16 @@ object HistoryPeriodLabels {
         preset: HistoryPeriodPreset,
         customFrom: LocalDate? = null,
         customTo: LocalDate? = null,
+        cycleStartDay: Int = PeriodBounds.MIN_CYCLE_START_DAY,
     ): String =
         when (preset) {
             HistoryPeriodPreset.All -> "Semua"
             HistoryPeriodPreset.Last7Days -> "7 hari"
-            HistoryPeriodPreset.CurrentMonth -> YearMonth.now().format(monthYearFormatter)
+            HistoryPeriodPreset.CurrentMonth ->
+                PeriodLabels.format(
+                    PeriodBounds.containing(LocalDate.now(), cycleStartDay),
+                    cycleStartDay,
+                )
             HistoryPeriodPreset.Custom ->
                 if (customFrom != null && customTo != null) {
                     formatCustomRange(customFrom, customTo)

@@ -4,10 +4,13 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mascill.keutrack.core.common.utils.CommonDispatcher
+import com.mascill.keutrack.core.common.utils.FinancePeriod
 import com.mascill.keutrack.core.common.utils.PeriodBounds
+import com.mascill.keutrack.core.common.utils.PeriodLabels
 import com.mascill.keutrack.core.designsystem.format.MAX_AMOUNT_RUPIAH
 import com.mascill.keutrack.core.domain.model.Budget
 import com.mascill.keutrack.core.domain.model.FamilyGroup
+import com.mascill.keutrack.core.domain.model.PeriodPreferences
 import com.mascill.keutrack.core.domain.model.Transaction
 import com.mascill.keutrack.core.domain.model.User
 import com.mascill.keutrack.core.domain.repository.FamilyRepository
@@ -19,6 +22,7 @@ import com.mascill.keutrack.core.domain.usecase.GetCategoriesUseCase
 import com.mascill.keutrack.core.domain.usecase.GetTransactionsUseCase
 import com.mascill.keutrack.core.domain.usecase.GetWalletSummaryUseCase
 import com.mascill.keutrack.core.domain.usecase.JoinFamilyGroupUseCase
+import com.mascill.keutrack.core.domain.usecase.ObservePeriodPreferencesUseCase
 import com.mascill.keutrack.core.domain.usecase.SyncFamilyDataUseCase
 import com.mascill.keutrack.core.domain.usecase.UpsertFamilyBudgetUseCase
 import com.mascill.keutrack.core.domain.usecase.WalletSummary
@@ -37,6 +41,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeParseException
 import javax.inject.Inject
@@ -58,10 +63,11 @@ class FamilyViewModel @Inject constructor(
     private val syncFamilyData: SyncFamilyDataUseCase,
     private val upsertFamilyBudget: UpsertFamilyBudgetUseCase,
     private val deleteFamilyBudget: DeleteFamilyBudgetUseCase,
+    private val observePeriodPreferences: ObservePeriodPreferencesUseCase,
     private val dispatcher: CommonDispatcher,
 ) : ViewModel() {
 
-    private val selectedMonth = MutableStateFlow(readSelectedMonth(savedStateHandle))
+    private val selectedAnchor = MutableStateFlow(readSelectedAnchor(savedStateHandle))
 
     private val _membershipLoading = MutableStateFlow(false)
     private val _membershipMessage = MutableStateFlow<String?>(null)
@@ -70,26 +76,44 @@ class FamilyViewModel @Inject constructor(
     @Volatile
     private var latestFamilyBudgets: List<Budget> = emptyList()
 
+    @Volatile
+    private var latestSelection: PeriodSelection =
+        PeriodSelection(
+            startDay = PeriodPreferences.DEFAULT_CYCLE_START_DAY,
+            current = PeriodBounds.containing(LocalDate.now(), PeriodPreferences.DEFAULT_CYCLE_START_DAY),
+            selected = PeriodBounds.containing(LocalDate.now(), PeriodPreferences.DEFAULT_CYCLE_START_DAY),
+        )
+
     private val walletSummaryFlow = getWalletSummary()
     private val userFlow = userRepository.getCurrentUser()
     private val familyGroupFlow = familyRepository.observeCurrentFamily()
 
-    private val selectedMonthTxsFlow =
-        combine(userFlow, selectedMonth) { user, month -> user to month }
-            .flatMapLatest { (user, month) ->
-                observeFamilyTransactions(user?.familyId, month)
+    private val selectionFlow =
+        combine(observePeriodPreferences(), selectedAnchor) { prefs, anchor ->
+            val startDay = prefs.cycleStartDay
+            val today = LocalDate.now()
+            val current = PeriodBounds.containing(today, startDay)
+            val remapped = PeriodBounds.containing(anchor, startDay)
+            val selected = clampPeriod(remapped, current)
+            PeriodSelection(startDay = startDay, current = current, selected = selected)
+        }
+
+    private val selectedPeriodTxsFlow =
+        combine(userFlow, selectionFlow) { user, selection -> user to selection }
+            .flatMapLatest { (user, selection) ->
+                observeFamilyTransactions(user?.familyId, selection.selected)
             }
 
-    private val priorMonthTxsFlow =
-        combine(userFlow, selectedMonth) { user, month ->
-            user to month.minusMonths(1)
+    private val priorPeriodTxsFlow =
+        combine(userFlow, selectionFlow) { user, selection ->
+            user to selection.selected.minusPeriods(1)
         }.flatMapLatest { (user, prior) ->
             observeFamilyTransactions(user?.familyId, prior)
         }
 
     private val budgetsFlow =
-        selectedMonth.flatMapLatest { month ->
-            getBudgetProgress(month.toString())
+        selectionFlow.flatMapLatest { selection ->
+            getBudgetProgress(selection.selected.periodKey)
         }
 
     private val insightsFlow =
@@ -98,8 +122,8 @@ class FamilyViewModel @Inject constructor(
                 userFlow,
                 familyGroupFlow,
                 walletSummaryFlow,
-                selectedMonthTxsFlow,
-                priorMonthTxsFlow,
+                selectedPeriodTxsFlow,
+                priorPeriodTxsFlow,
             ) { user, familyGroup, walletSummary, selectedTxs, priorTxs ->
                 FamilyPartyBundle(
                     user = user,
@@ -109,13 +133,14 @@ class FamilyViewModel @Inject constructor(
                     priorMonthTxs = priorTxs,
                 )
             },
-            combine(budgetsFlow, getCategories(), selectedMonth) { budgets, categories, month ->
-                Triple(budgets, categories, month)
+            combine(budgetsFlow, getCategories(), selectionFlow) { budgets, categories, selection ->
+                Triple(budgets, categories, selection)
             },
         ) { party, extra ->
             val budgets = extra.first
             val categories = extra.second
-            val month = extra.third
+            val selection = extra.third
+            latestSelection = selection
             latestFamilyBudgets =
                 FamilyUiMapper.filterSharedBudgets(
                     budgets = budgets,
@@ -129,19 +154,23 @@ class FamilyViewModel @Inject constructor(
                 priorMonthTxs = party.priorMonthTxs,
                 budgets = budgets,
                 categoriesById = categories.associateBy { it.id },
-                selectedMonth = month,
+                selectedPeriod = selection.selected,
+                cycleStartDay = selection.startDay,
+                today = LocalDate.now(),
             )
         }.catch { e ->
-            val month = selectedMonth.value
-            val now = YearMonth.now()
+            val selection = latestSelection
             emit(
                 FamilyUIState(
                     isLoading = false,
                     errorMessage = e.message ?: ERR_LOAD_FAILED,
-                    selectedMonthLabel = FamilyUiMapper.formatBudgetMonth(month),
-                    canSelectNextMonth = month < now,
+                    selectedMonthLabel =
+                        PeriodLabels.format(selection.selected, selection.startDay),
+                    canSelectNextMonth = selection.selected.start.isBefore(selection.current.start),
                     canSelectPreviousMonth =
-                        month > now.minusMonths(FamilyUiMapper.MONTH_LOOK_BACK_LIMIT),
+                        selection.selected.start.isAfter(
+                            selection.current.minusPeriods(FamilyUiMapper.MONTH_LOOK_BACK_LIMIT).start,
+                        ),
                 ),
             )
         }
@@ -174,11 +203,11 @@ class FamilyViewModel @Inject constructor(
     }
 
     fun onPreviousMonth() {
-        persistSelectedMonth(selectedMonth.value.minusMonths(1))
+        persistSelectedPeriod(latestSelection.selected.minusPeriods(1))
     }
 
     fun onNextMonth() {
-        persistSelectedMonth(selectedMonth.value.plusMonths(1))
+        persistSelectedPeriod(latestSelection.selected.plusPeriods(1))
     }
 
     fun onAdjustTargetsClick() {
@@ -250,7 +279,7 @@ class FamilyViewModel @Inject constructor(
     }
 
     fun onSaveBudget() {
-        if (!isCurrentCalendarMonth()) return
+        if (!isCurrentPeriod()) return
         val sheet = _budgetEditor.value.sheet ?: return
         if (_budgetEditor.value.isSaving) return
         val categoryId = sheet.categoryId
@@ -266,11 +295,15 @@ class FamilyViewModel @Inject constructor(
         viewModelScope.launch(dispatcher.io) {
             _budgetEditor.update { it.copy(isSaving = true, message = null) }
             try {
+                val period = latestSelection.selected
+                val range = period.toInstantRange()
                 upsertFamilyBudget(
                     UpsertFamilyBudgetUseCase.Params(
                         categoryId = categoryId,
                         limit = limit,
-                        month = YearMonth.now().toString(),
+                        month = period.periodKey,
+                        periodStart = range.start,
+                        periodEnd = range.endInclusive,
                     ),
                 ).onSuccess {
                     _budgetEditor.update { BudgetEditorState() }
@@ -288,7 +321,7 @@ class FamilyViewModel @Inject constructor(
     }
 
     fun onDeleteBudget() {
-        if (!isCurrentCalendarMonth()) return
+        if (!isCurrentPeriod()) return
         val budgetId = _budgetEditor.value.sheet?.existingBudgetId ?: return
         if (_budgetEditor.value.isSaving) return
         viewModelScope.launch(dispatcher.io) {
@@ -376,10 +409,10 @@ class FamilyViewModel @Inject constructor(
 
     private fun observeFamilyTransactions(
         familyId: String?,
-        month: YearMonth,
+        period: FinancePeriod,
     ): kotlinx.coroutines.flow.Flow<List<Transaction>> {
         if (familyId.isNullOrBlank()) return flowOf(emptyList())
-        val range = PeriodBounds.ofYearMonth(month)
+        val range = period.toInstantRange()
         return getTransactions(
             GetTransactionsUseCase.Params(
                 familyId = familyId,
@@ -390,29 +423,47 @@ class FamilyViewModel @Inject constructor(
         )
     }
 
-    private fun persistSelectedMonth(month: YearMonth) {
-        val now = YearMonth.now()
-        val min = now.minusMonths(FamilyUiMapper.MONTH_LOOK_BACK_LIMIT)
-        val clamped = month.coerceIn(min, now)
-        if (clamped == selectedMonth.value) return
-        selectedMonth.value = clamped
-        savedStateHandle[KEY_SELECTED_MONTH] = clamped.toString()
-        if (clamped != now) {
+    private fun persistSelectedPeriod(period: FinancePeriod) {
+        val current = latestSelection.current
+        val minStart = current.minusPeriods(FamilyUiMapper.MONTH_LOOK_BACK_LIMIT).start
+        val clamped =
+            when {
+                period.start.isAfter(current.start) -> current
+                period.start.isBefore(minStart) ->
+                    current.minusPeriods(FamilyUiMapper.MONTH_LOOK_BACK_LIMIT)
+                else -> period
+            }
+        if (clamped.start == selectedAnchor.value) return
+        selectedAnchor.value = clamped.start
+        savedStateHandle[KEY_SELECTED_MONTH] = clamped.start.toString()
+        if (clamped.start != current.start) {
             _budgetEditor.update { it.copy(sheet = null) }
         }
     }
 
-    private fun isCurrentCalendarMonth(): Boolean =
-        selectedMonth.value == YearMonth.now()
+    private fun isCurrentPeriod(): Boolean =
+        latestSelection.selected.contains(LocalDate.now())
 
-    private fun readSelectedMonth(handle: SavedStateHandle): YearMonth {
-        val raw = handle.get<String>(KEY_SELECTED_MONTH) ?: return YearMonth.now()
+    private fun clampPeriod(selected: FinancePeriod, current: FinancePeriod): FinancePeriod {
+        val minStart = current.minusPeriods(FamilyUiMapper.MONTH_LOOK_BACK_LIMIT).start
+        return when {
+            selected.start.isAfter(current.start) -> current
+            selected.start.isBefore(minStart) ->
+                current.minusPeriods(FamilyUiMapper.MONTH_LOOK_BACK_LIMIT)
+            else -> selected
+        }
+    }
+
+    private fun readSelectedAnchor(handle: SavedStateHandle): LocalDate {
+        val raw = handle.get<String>(KEY_SELECTED_MONTH) ?: return LocalDate.now()
         return try {
-            val parsed = YearMonth.parse(raw)
-            val now = YearMonth.now()
-            parsed.coerceIn(now.minusMonths(FamilyUiMapper.MONTH_LOOK_BACK_LIMIT), now)
+            LocalDate.parse(raw)
         } catch (_: DateTimeParseException) {
-            YearMonth.now()
+            try {
+                YearMonth.parse(raw).atDay(1)
+            } catch (_: DateTimeParseException) {
+                LocalDate.now()
+            }
         }
     }
 
@@ -454,6 +505,12 @@ class FamilyViewModel @Inject constructor(
             }
         }
     }
+
+    private data class PeriodSelection(
+        val startDay: Int,
+        val current: FinancePeriod,
+        val selected: FinancePeriod,
+    )
 
     private data class FamilyPartyBundle(
         val user: User?,

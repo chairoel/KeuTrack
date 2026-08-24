@@ -9,6 +9,7 @@ import com.mascill.keutrack.core.domain.repository.UserRepository
 import com.mascill.keutrack.core.domain.usecase.GetCategoriesUseCase
 import com.mascill.keutrack.core.domain.usecase.GetTransactionsUseCase
 import com.mascill.keutrack.core.domain.usecase.GetWalletSummaryUseCase
+import com.mascill.keutrack.core.domain.usecase.ObservePeriodPreferencesUseCase
 import com.mascill.keutrack.core.domain.usecase.RetryPendingSyncUseCase
 import com.mascill.keutrack.feature.transaction.presentation.model.HistoryPeriod
 import com.mascill.keutrack.feature.transaction.presentation.model.HistoryPeriodLabels
@@ -25,6 +26,7 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -42,48 +44,64 @@ class TransactionHistoryViewModel @Inject constructor(
     private val getCategories: GetCategoriesUseCase,
     private val getWalletSummary: GetWalletSummaryUseCase,
     private val retryPendingSync: RetryPendingSyncUseCase,
+    observePeriodPreferences: ObservePeriodPreferencesUseCase,
     private val dispatcher: CommonDispatcher,
 ) : ViewModel() {
 
     private val scope = readHistoryScope(savedStateHandle)
     private val period = MutableStateFlow(readPeriod(savedStateHandle))
     private val periodRangeError = MutableStateFlow<String?>(null)
+    private val cycleStartDay = observePeriodPreferences().map { it.cycleStartDay }
+    private val periodContext =
+        combine(period, cycleStartDay) { selection, startDay -> selection to startDay }
 
     private val transactionsFlow =
         when (scope) {
             HistoryScope.Family -> {
-                combine(userRepository.getCurrentUser(), period) { user, selection ->
-                    user to selection
-                }.flatMapLatest { (user, selection) ->
+                combine(userRepository.getCurrentUser(), periodContext) { user, context ->
+                    user to context
+                }.flatMapLatest { (user, context) ->
                     val familyId = user?.familyId
+                    val (selection, startDay) = context
                     if (familyId.isNullOrBlank()) {
                         flowOf(emptyList())
                     } else {
                         getTransactions(
-                            transactionParams(period = selection, familyId = familyId),
+                            transactionParams(
+                                period = selection,
+                                cycleStartDay = startDay,
+                                familyId = familyId,
+                            ),
                         )
                     }
                 }
             }
 
             HistoryScope.Personal -> {
-                combine(getWalletSummary(), period) { summary, selection ->
-                    summary to selection
-                }.flatMapLatest { (summary, selection) ->
+                combine(getWalletSummary(), periodContext) { summary, context ->
+                    summary to context
+                }.flatMapLatest { (summary, context) ->
                     val walletId = summary.personalWallet?.id
+                    val (selection, startDay) = context
                     if (walletId.isNullOrBlank()) {
                         flowOf(emptyList())
                     } else {
                         getTransactions(
-                            transactionParams(period = selection, walletId = walletId),
+                            transactionParams(
+                                period = selection,
+                                cycleStartDay = startDay,
+                                walletId = walletId,
+                            ),
                         )
                     }
                 }
             }
 
             HistoryScope.All -> {
-                period.flatMapLatest { selection ->
-                    getTransactions(transactionParams(period = selection))
+                periodContext.flatMapLatest { (selection, startDay) ->
+                    getTransactions(
+                        transactionParams(period = selection, cycleStartDay = startDay),
+                    )
                 }
             }
         }
@@ -93,9 +111,10 @@ class TransactionHistoryViewModel @Inject constructor(
             transactionsFlow,
             getCategories(),
             getWalletSummary(),
-            period,
+            periodContext,
             periodRangeError,
-        ) { transactions, categories, walletSummary, selection, rangeError ->
+        ) { transactions, categories, walletSummary, context, rangeError ->
+            val (selection, startDay) = context
             val categoriesById = categories.associateBy { it.id }
             val walletsById = TransactionUiMapper.mapWallets(walletSummary)
             HistoryUIState(
@@ -116,6 +135,7 @@ class TransactionHistoryViewModel @Inject constructor(
                         preset = selection.preset,
                         customFrom = selection.customFrom,
                         customTo = selection.customTo,
+                        cycleStartDay = startDay,
                     ),
                 hasActivePeriodFilter = selection.hasActiveFilter,
                 periodRangeError = rangeError,
@@ -186,10 +206,11 @@ class TransactionHistoryViewModel @Inject constructor(
 
     private fun transactionParams(
         period: HistoryPeriod,
+        cycleStartDay: Int,
         walletId: String? = null,
         familyId: String? = null,
     ): GetTransactionsUseCase.Params {
-        val range = instantRange(period)
+        val range = instantRange(period, cycleStartDay)
         return GetTransactionsUseCase.Params(
             walletId = walletId,
             familyId = familyId,
@@ -199,14 +220,18 @@ class TransactionHistoryViewModel @Inject constructor(
         )
     }
 
-    private fun instantRange(period: HistoryPeriod): ClosedRange<Instant>? =
+    private fun instantRange(
+        period: HistoryPeriod,
+        cycleStartDay: Int,
+    ): ClosedRange<Instant>? =
         when (period.preset) {
             HistoryPeriodPreset.All -> null
             HistoryPeriodPreset.Last7Days -> {
                 val today = LocalDate.now()
                 PeriodBounds.ofLocalDates(today.minusDays(LAST_7_INCLUSIVE_OFFSET), today)
             }
-            HistoryPeriodPreset.CurrentMonth -> PeriodBounds.ofYearMonth(YearMonth.now())
+            HistoryPeriodPreset.CurrentMonth ->
+                PeriodBounds.containing(LocalDate.now(), cycleStartDay).toInstantRange()
             HistoryPeriodPreset.Custom -> {
                 val from = period.customFrom ?: return null
                 val to = period.customTo ?: return null
