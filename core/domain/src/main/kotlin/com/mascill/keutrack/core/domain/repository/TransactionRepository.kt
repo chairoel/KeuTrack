@@ -21,8 +21,10 @@ interface TransactionRepository {
     fun observeRecentTransactions(limit: Int = 5): Flow<List<Transaction>>
 
     fun observePeriodTotals(
-        startDate: Instant,
-        endDate: Instant,
+        walletId: String? = null,
+        familyId: String? = null,
+        startDate: Instant? = null,
+        endDate: Instant? = null,
     ): Flow<PeriodTotals>
 
     suspend fun getTransactionById(id: String): Transaction?

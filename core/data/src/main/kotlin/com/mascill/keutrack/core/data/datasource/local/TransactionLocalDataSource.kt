@@ -19,7 +19,12 @@ interface TransactionLocalDataSource {
 
     fun observeRecent(limit: Int): Flow<List<TransactionEntity>>
 
-    fun observeSumsByType(startMs: Long, endMs: Long): Flow<List<AmountByTypeRow>>
+    fun observeSumsByType(
+        walletId: String? = null,
+        familyId: String? = null,
+        startMs: Long? = null,
+        endMs: Long? = null,
+    ): Flow<List<AmountByTypeRow>>
 
     suspend fun getById(id: String): TransactionEntity?
 

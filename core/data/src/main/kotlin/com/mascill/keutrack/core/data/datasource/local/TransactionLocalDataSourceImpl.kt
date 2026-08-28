@@ -43,8 +43,18 @@ class TransactionLocalDataSourceImpl @Inject constructor(
     override fun observeRecent(limit: Int): Flow<List<TransactionEntity>> =
         transactionDao.observeRecent(limit)
 
-    override fun observeSumsByType(startMs: Long, endMs: Long): Flow<List<AmountByTypeRow>> =
-        transactionDao.observeSumsByType(startMs, endMs)
+    override fun observeSumsByType(
+        walletId: String?,
+        familyId: String?,
+        startMs: Long?,
+        endMs: Long?,
+    ): Flow<List<AmountByTypeRow>> =
+        transactionDao.observeSumsByType(
+            walletId = walletId,
+            familyId = familyId,
+            startMs = startMs,
+            endMs = endMs,
+        )
 
     override suspend fun getById(id: String): TransactionEntity? =
         transactionDao.getById(id)

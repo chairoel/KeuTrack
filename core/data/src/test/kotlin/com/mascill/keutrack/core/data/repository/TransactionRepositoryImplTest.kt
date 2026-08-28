@@ -9,6 +9,7 @@ import com.mascill.keutrack.core.data.datasource.local.TransactionLocalDataSourc
 import com.mascill.keutrack.core.data.datasource.local.WalletLocalDataSource
 import com.mascill.keutrack.core.data.db.entity.BudgetEntity
 import com.mascill.keutrack.core.data.db.entity.TransactionEntity
+import com.mascill.keutrack.core.data.db.model.AmountByTypeRow
 import com.mascill.keutrack.core.data.mapper.CategorySummaryMapper
 import com.mascill.keutrack.core.data.mapper.TransactionMapper
 import com.mascill.keutrack.core.data.sync.SyncScheduler
@@ -166,6 +167,135 @@ class TransactionRepositoryImplTest {
 
         repo.observeRecentTransactions(5).test {
             assertThat(awaitItem().map { it.id }).containsExactly("tx-1")
+            awaitComplete()
+        }
+    }
+
+    @Test
+    fun `observePeriodTotals forwards wallet family and range to local`() = runTest {
+        val start = Instant.parse("2026-08-01T00:00:00Z")
+        val end = Instant.parse("2026-08-07T23:59:59.999Z")
+        every {
+            local.observeSumsByType(
+                walletId = "wallet-p",
+                familyId = null,
+                startMs = start.toEpochMilli(),
+                endMs = end.toEpochMilli(),
+            )
+        } returns flowOf(emptyList())
+
+        repo.observePeriodTotals(
+            walletId = "wallet-p",
+            startDate = start,
+            endDate = end,
+        ).test {
+            awaitItem()
+            awaitComplete()
+        }
+
+        verify(exactly = 1) {
+            local.observeSumsByType(
+                walletId = "wallet-p",
+                familyId = null,
+                startMs = start.toEpochMilli(),
+                endMs = end.toEpochMilli(),
+            )
+        }
+    }
+
+    @Test
+    fun `observePeriodTotals forwards familyId without mixing personal filter`() = runTest {
+        every {
+            local.observeSumsByType(
+                walletId = null,
+                familyId = "fam-1",
+                startMs = null,
+                endMs = null,
+            )
+        } returns flowOf(emptyList())
+
+        repo.observePeriodTotals(familyId = "fam-1").test {
+            awaitItem()
+            awaitComplete()
+        }
+
+        verify(exactly = 1) {
+            local.observeSumsByType(
+                walletId = null,
+                familyId = "fam-1",
+                startMs = null,
+                endMs = null,
+            )
+        }
+    }
+
+    @Test
+    fun `observePeriodTotals null range is all-time`() = runTest {
+        every {
+            local.observeSumsByType(
+                walletId = null,
+                familyId = null,
+                startMs = null,
+                endMs = null,
+            )
+        } returns flowOf(emptyList())
+
+        repo.observePeriodTotals().test {
+            awaitItem()
+            awaitComplete()
+        }
+
+        verify(exactly = 1) {
+            local.observeSumsByType(
+                walletId = null,
+                familyId = null,
+                startMs = null,
+                endMs = null,
+            )
+        }
+    }
+
+    @Test
+    fun `observePeriodTotals folds income and expense rows`() = runTest {
+        every {
+            local.observeSumsByType(
+                walletId = null,
+                familyId = null,
+                startMs = null,
+                endMs = null,
+            )
+        } returns flowOf(
+            listOf(
+                AmountByTypeRow(type = TransactionType.INCOME.value, total = 1_200_000L),
+                AmountByTypeRow(type = TransactionType.EXPENSE.value, total = 350_000L),
+            ),
+        )
+
+        repo.observePeriodTotals().test {
+            val totals = awaitItem()
+            assertThat(totals.incomeTotal).isEqualTo(1_200_000L)
+            assertThat(totals.expenseTotal).isEqualTo(350_000L)
+            awaitComplete()
+        }
+    }
+
+    @Test
+    fun `observePeriodTotals income only leaves expense at zero`() = runTest {
+        every {
+            local.observeSumsByType(
+                walletId = null,
+                familyId = null,
+                startMs = null,
+                endMs = null,
+            )
+        } returns flowOf(
+            listOf(AmountByTypeRow(type = TransactionType.INCOME.value, total = 500_000L)),
+        )
+
+        repo.observePeriodTotals().test {
+            val totals = awaitItem()
+            assertThat(totals.incomeTotal).isEqualTo(500_000L)
+            assertThat(totals.expenseTotal).isEqualTo(0L)
             awaitComplete()
         }
     }

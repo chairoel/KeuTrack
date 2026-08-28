@@ -3,6 +3,7 @@ package com.mascill.keutrack.feature.dashboard
 import app.cash.turbine.ReceiveTurbine
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
+import com.mascill.keutrack.core.common.utils.PeriodBounds
 import com.mascill.keutrack.core.domain.model.User
 import com.mascill.keutrack.core.domain.repository.FamilyRepository
 import com.mascill.keutrack.core.domain.repository.UserRepository
@@ -38,6 +39,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
+import java.time.LocalDate
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class DashboardViewModelTest {
@@ -202,6 +204,91 @@ class DashboardViewModelTest {
             coVerify(exactly = 1) { retryPendingSync() }
         }
 
+    @Test
+    fun `monthChangeLabel emits from unscoped current versus prior totals`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            stubHappyPath()
+            every { getPeriodTotals(any()) } returns flowOf(
+                PeriodTotals(incomeTotal = 120L, expenseTotal = 0L),
+            )
+            val vm = createViewModel()
+
+            vm.uiState.test {
+                assertThat(awaitItem().isLoading).isTrue()
+                advanceUntilIdle()
+                val content = awaitItem()
+                assertThat(content.monthChangeLabel).isEqualTo("+0,0% this month")
+                assertThat(content.incomeTotal).isEqualTo(120L)
+                assertThat(content.expenseTotal).isEqualTo(0L)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `period totals use unscoped Params matching current and prior cycle`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            stubHappyPath()
+            val captured = mutableListOf<GetPeriodTotalsUseCase.Params>()
+            every { getPeriodTotals(any()) } answers {
+                captured.add(firstArg())
+                flowOf(PeriodTotals(incomeTotal = 100L, expenseTotal = 0L))
+            }
+            val vm = createViewModel()
+
+            vm.uiState.test {
+                assertThat(awaitItem().isLoading).isTrue()
+                advanceUntilIdle()
+                awaitItem()
+                cancelAndIgnoreRemainingEvents()
+            }
+
+            val current = PeriodBounds.containing(LocalDate.now(), 1)
+            val prior = current.minusPeriods(1)
+            val currentRange = current.toInstantRange()
+            val priorRange = prior.toInstantRange()
+
+            assertThat(captured).hasSize(2)
+            captured.forEach {
+                assertThat(it.walletId).isNull()
+                assertThat(it.familyId).isNull()
+            }
+            assertThat(captured[0].startDate).isEqualTo(currentRange.start)
+            assertThat(captured[0].endDate).isEqualTo(currentRange.endInclusive)
+            assertThat(captured[1].startDate).isEqualTo(priorRange.start)
+            assertThat(captured[1].endDate).isEqualTo(priorRange.endInclusive)
+        }
+
+    @Test
+    fun `period totals window follows cycle start day 25`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            stubHappyPath()
+            every { observePeriodPreferences() } returns flowOf(
+                PeriodPreferences(cycleStartDay = 25),
+            )
+            val captured = mutableListOf<GetPeriodTotalsUseCase.Params>()
+            every { getPeriodTotals(any()) } answers {
+                captured.add(firstArg())
+                flowOf(PeriodTotals(incomeTotal = 80L, expenseTotal = 0L))
+            }
+            val vm = createViewModel()
+
+            vm.uiState.test {
+                assertThat(awaitItem().isLoading).isTrue()
+                advanceUntilIdle()
+                val content = awaitItem()
+                assertThat(content.monthChangeLabel).isEqualTo("+0,0% periode ini")
+                cancelAndIgnoreRemainingEvents()
+            }
+
+            val current = PeriodBounds.containing(LocalDate.now(), 25)
+            val prior = current.minusPeriods(1)
+            assertThat(captured).hasSize(2)
+            assertThat(captured[0].startDate).isEqualTo(current.toInstantRange().start)
+            assertThat(captured[0].endDate).isEqualTo(current.toInstantRange().endInclusive)
+            assertThat(captured[1].startDate).isEqualTo(prior.toInstantRange().start)
+            assertThat(captured[1].endDate).isEqualTo(prior.toInstantRange().endInclusive)
+        }
+
     private fun stubHappyPath() {
         every { userRepo.getCurrentUser() } returns flowOf(
             User("user-1", "Irul Amri", "irul@example.com", null),
@@ -216,7 +303,7 @@ class DashboardViewModelTest {
             ),
         )
         every { getTransactions(any()) } returns flowOf(emptyList())
-        every { getPeriodTotals(any(), any()) } returns flowOf(PeriodTotals())
+        every { getPeriodTotals(any()) } returns flowOf(PeriodTotals())
         every { getCategories() } returns flowOf(emptyList())
         every { observeWalletUiPreferences() } returns flowOf(WalletUiPreferences())
         every { observePeriodPreferences() } returns flowOf(PeriodPreferences())

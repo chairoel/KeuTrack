@@ -38,11 +38,19 @@ interface TransactionDao {
     @Query(
         """
         SELECT type AS type, SUM(amount) AS total FROM transactions
-        WHERE dateEpochMs >= :startMs AND dateEpochMs <= :endMs
+        WHERE (:walletId IS NULL OR walletId = :walletId)
+          AND (:familyId IS NULL OR familyId = :familyId)
+          AND (:startMs IS NULL OR dateEpochMs >= :startMs)
+          AND (:endMs IS NULL OR dateEpochMs <= :endMs)
         GROUP BY type
         """,
     )
-    fun observeSumsByType(startMs: Long, endMs: Long): Flow<List<AmountByTypeRow>>
+    fun observeSumsByType(
+        walletId: String?,
+        familyId: String?,
+        startMs: Long?,
+        endMs: Long?,
+    ): Flow<List<AmountByTypeRow>>
 
     @Query("SELECT * FROM transactions ORDER BY dateEpochMs DESC LIMIT :limit")
     fun observeRecent(limit: Int): Flow<List<TransactionEntity>>
