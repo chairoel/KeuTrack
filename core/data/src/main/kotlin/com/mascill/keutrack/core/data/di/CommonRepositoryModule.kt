@@ -3,6 +3,7 @@ package com.mascill.keutrack.core.data.di
 import com.mascill.keutrack.core.data.repository.BudgetRepositoryImpl
 import com.mascill.keutrack.core.data.repository.CategoryRepositoryImpl
 import com.mascill.keutrack.core.data.repository.FamilyRepositoryImpl
+import com.mascill.keutrack.core.data.repository.PeriodPreferencesRepositoryImpl
 import com.mascill.keutrack.core.data.repository.SyncRepositoryImpl
 import com.mascill.keutrack.core.data.repository.TransactionRepositoryImpl
 import com.mascill.keutrack.core.data.repository.UserRepositoryImpl
@@ -11,6 +12,7 @@ import com.mascill.keutrack.core.data.repository.WalletUiPreferencesRepositoryIm
 import com.mascill.keutrack.core.domain.repository.BudgetRepository
 import com.mascill.keutrack.core.domain.repository.CategoryRepository
 import com.mascill.keutrack.core.domain.repository.FamilyRepository
+import com.mascill.keutrack.core.domain.repository.PeriodPreferencesRepository
 import com.mascill.keutrack.core.domain.repository.SyncRepository
 import com.mascill.keutrack.core.domain.repository.TransactionRepository
 import com.mascill.keutrack.core.domain.repository.UserRepository
@@ -64,4 +66,9 @@ interface CommonRepositoryModule {
     fun bindWalletUiPreferencesRepository(
         impl: WalletUiPreferencesRepositoryImpl,
     ): WalletUiPreferencesRepository
+
+    @Binds
+    fun bindPeriodPreferencesRepository(
+        impl: PeriodPreferencesRepositoryImpl,
+    ): PeriodPreferencesRepository
 }

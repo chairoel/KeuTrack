@@ -9,6 +9,9 @@ import com.mascill.keutrack.core.domain.usecase.CreateFamilyGroupUseCase
 import com.mascill.keutrack.core.domain.usecase.GetWalletSummaryUseCase
 import com.mascill.keutrack.core.domain.usecase.JoinFamilyGroupUseCase
 import com.mascill.keutrack.core.domain.usecase.LeaveFamilyGroupUseCase
+import com.mascill.keutrack.core.domain.model.PeriodPreferences
+import com.mascill.keutrack.core.domain.usecase.ObservePeriodPreferencesUseCase
+import com.mascill.keutrack.core.domain.usecase.SetCycleStartDayUseCase
 import com.mascill.keutrack.core.domain.usecase.WalletSummary
 import com.mascill.keutrack.core.testing.MainDispatcherRule
 import com.mascill.keutrack.core.testing.testCommonDispatcher
@@ -39,6 +42,8 @@ class SettingsViewModelTest {
     private val createFamilyGroup = mockk<CreateFamilyGroupUseCase>()
     private val joinFamilyGroup = mockk<JoinFamilyGroupUseCase>()
     private val leaveFamilyGroup = mockk<LeaveFamilyGroupUseCase>()
+    private val observePeriodPreferences = mockk<ObservePeriodPreferencesUseCase>()
+    private val setCycleStartDay = mockk<SetCycleStartDayUseCase>()
 
     @Test
     fun `combine emits profile from user`() = runTest(mainDispatcherRule.testDispatcher) {
@@ -108,6 +113,17 @@ class SettingsViewModelTest {
         }
     }
 
+    @Test
+    fun `onSaveCycleStartDay persists selected day`() = runTest(mainDispatcherRule.testDispatcher) {
+        stubContent()
+        val vm = createViewModel()
+
+        vm.onSaveCycleStartDay(25)
+        advanceUntilIdle()
+
+        coVerify { setCycleStartDay(25) }
+    }
+
     private fun stubContent() {
         every { userRepo.getCurrentUser() } returns flowOf(
             User("user-1", "Irul", "irul@example.com", null),
@@ -116,6 +132,8 @@ class SettingsViewModelTest {
         every { getWalletSummary() } returns flowOf(
             WalletSummary(null, emptyList(), 0L, 0L),
         )
+        every { observePeriodPreferences() } returns flowOf(PeriodPreferences())
+        coEvery { setCycleStartDay(any()) } returns Result.success(Unit)
         coEvery { userRepo.syncUserProfile() } just runs
     }
 
@@ -126,6 +144,8 @@ class SettingsViewModelTest {
         createFamilyGroup = createFamilyGroup,
         joinFamilyGroup = joinFamilyGroup,
         leaveFamilyGroup = leaveFamilyGroup,
+        observePeriodPreferences = observePeriodPreferences,
+        setCycleStartDay = setCycleStartDay,
         dispatcher = testCommonDispatcher(mainDispatcherRule.testDispatcher),
     )
 }

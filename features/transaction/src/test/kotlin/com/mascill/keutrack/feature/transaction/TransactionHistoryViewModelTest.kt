@@ -12,6 +12,8 @@ import com.mascill.keutrack.core.domain.repository.UserRepository
 import com.mascill.keutrack.core.domain.usecase.GetCategoriesUseCase
 import com.mascill.keutrack.core.domain.usecase.GetTransactionsUseCase
 import com.mascill.keutrack.core.domain.usecase.GetWalletSummaryUseCase
+import com.mascill.keutrack.core.domain.model.PeriodPreferences
+import com.mascill.keutrack.core.domain.usecase.ObservePeriodPreferencesUseCase
 import com.mascill.keutrack.core.domain.usecase.RetryPendingSyncUseCase
 import com.mascill.keutrack.core.domain.usecase.WalletSummary
 import com.mascill.keutrack.core.testing.MainDispatcherRule
@@ -44,6 +46,7 @@ class TransactionHistoryViewModelTest {
     private val getCategories = mockk<GetCategoriesUseCase>()
     private val getWalletSummary = mockk<GetWalletSummaryUseCase>()
     private val retryPendingSync = mockk<RetryPendingSyncUseCase>(relaxed = true)
+    private val observePeriodPreferences = mockk<ObservePeriodPreferencesUseCase>()
 
     @Test
     fun `initial state is loading`() = runTest(mainDispatcherRule.testDispatcher) {
@@ -436,6 +439,7 @@ class TransactionHistoryViewModelTest {
                 totalFamilyBalance = 0L,
             ),
         )
+        every { observePeriodPreferences() } returns flowOf(PeriodPreferences())
     }
 
     private fun createViewModel(
@@ -454,6 +458,7 @@ class TransactionHistoryViewModelTest {
         getCategories = getCategories,
         getWalletSummary = getWalletSummary,
         retryPendingSync = retryPendingSync,
+        observePeriodPreferences = observePeriodPreferences,
         dispatcher = testCommonDispatcher(mainDispatcherRule.testDispatcher),
     )
 

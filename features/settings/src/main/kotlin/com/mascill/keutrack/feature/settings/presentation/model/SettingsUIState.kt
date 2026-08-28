@@ -24,6 +24,7 @@ data class SettingsUIState(
     val familyRoleLabel: String? = null,
     val connectedWallets: List<ConnectedWalletUi> = emptyList(),
     val sheetsSyncEnabled: Boolean = false,
+    val cycleStartDay: Int = 1,
     val signOutState: SignOutState = SignOutState.Idle,
     val membershipLoading: Boolean = false,
     val membershipMessage: String? = null,

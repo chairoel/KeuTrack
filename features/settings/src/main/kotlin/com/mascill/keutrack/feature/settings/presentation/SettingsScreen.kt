@@ -50,6 +50,8 @@ import com.mascill.keutrack.feature.settings.presentation.components.SettingsCon
 import com.mascill.keutrack.feature.settings.presentation.components.SettingsFamilyActionTile
 import com.mascill.keutrack.feature.settings.presentation.components.SettingsFamilyIdHeroCard
 import com.mascill.keutrack.feature.settings.presentation.components.SettingsGoogleSheetsCard
+import com.mascill.keutrack.feature.settings.presentation.components.SettingsPeriodCycleCard
+import com.mascill.keutrack.feature.settings.presentation.components.SettingsPeriodCycleSheet
 import com.mascill.keutrack.feature.settings.presentation.components.SettingsProfileCard
 import com.mascill.keutrack.feature.settings.presentation.components.SettingsSectionHeader
 import com.mascill.keutrack.feature.settings.presentation.components.SettingsStatusChip
@@ -89,11 +91,13 @@ fun SettingsRouting(
     val context = LocalContext.current
     var dialogMode by rememberSaveable { mutableStateOf<SettingsFamilyMembershipMode?>(null) }
     var showLeaveDialog by rememberSaveable { mutableStateOf(false) }
+    var showPeriodSheet by rememberSaveable { mutableStateOf(false) }
 
-    BackHandler(enabled = dialogMode != null || showLeaveDialog) {
+    BackHandler(enabled = dialogMode != null || showLeaveDialog || showPeriodSheet) {
         if (!uiState.membershipLoading) {
             dialogMode = null
             showLeaveDialog = false
+            showPeriodSheet = false
         }
     }
 
@@ -152,6 +156,7 @@ fun SettingsRouting(
             },
             onSheetsSyncChange = { viewModel.onSheetsComingSoon() },
             onExportSheets = viewModel::onSheetsComingSoon,
+            onPeriodCycleClick = { showPeriodSheet = true },
         )
     }
 
@@ -179,6 +184,17 @@ fun SettingsRouting(
                 if (!uiState.membershipLoading) showLeaveDialog = false
             },
             onConfirm = viewModel::leaveFamily,
+        )
+    }
+
+    if (showPeriodSheet) {
+        SettingsPeriodCycleSheet(
+            cycleStartDay = uiState.cycleStartDay,
+            onDismiss = { showPeriodSheet = false },
+            onSave = { day ->
+                viewModel.onSaveCycleStartDay(day)
+                showPeriodSheet = false
+            },
         )
     }
 }
@@ -215,6 +231,7 @@ fun SettingsScreen(
     onManageCircle: () -> Unit = {},
     onSheetsSyncChange: (Boolean) -> Unit = {},
     onExportSheets: () -> Unit = {},
+    onPeriodCycleClick: () -> Unit = {},
 ) {
     val isLoading = uiState.signOutState is SignOutState.Loading
     val errorMessage =
@@ -336,6 +353,17 @@ fun SettingsScreen(
                 ) { wallet ->
                     SettingsConnectedWalletCard(wallet = wallet)
                 }
+            }
+
+            item {
+                SettingsSectionHeader(title = "Periode keuangan")
+            }
+
+            item {
+                SettingsPeriodCycleCard(
+                    cycleStartDay = uiState.cycleStartDay,
+                    onClick = onPeriodCycleClick,
+                )
             }
 
             item {

@@ -2,6 +2,7 @@ package com.mascill.keutrack.core.data.datasource.local
 
 import com.mascill.keutrack.core.data.db.entity.CategorySummaryEntity
 import com.mascill.keutrack.core.data.db.entity.TransactionEntity
+import com.mascill.keutrack.core.data.db.model.AmountByTypeRow
 import com.mascill.keutrack.core.domain.model.SyncStatus
 import kotlinx.coroutines.flow.Flow
 
@@ -17,6 +18,8 @@ interface TransactionLocalDataSource {
     ): Flow<List<TransactionEntity>>
 
     fun observeRecent(limit: Int): Flow<List<TransactionEntity>>
+
+    fun observeSumsByType(startMs: Long, endMs: Long): Flow<List<AmountByTypeRow>>
 
     suspend fun getById(id: String): TransactionEntity?
 

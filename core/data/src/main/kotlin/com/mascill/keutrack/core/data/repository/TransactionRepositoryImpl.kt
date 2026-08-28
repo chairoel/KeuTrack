@@ -1,5 +1,6 @@
 package com.mascill.keutrack.core.data.repository
 
+import com.mascill.keutrack.core.common.utils.PeriodBounds
 import com.mascill.keutrack.core.data.datasource.local.BudgetLocalDataSource
 import com.mascill.keutrack.core.data.datasource.local.CategoryLocalDataSource
 import com.mascill.keutrack.core.data.datasource.local.CategorySummaryLocalDataSource
@@ -11,14 +12,16 @@ import com.mascill.keutrack.core.data.mapper.TransactionMapper
 import com.mascill.keutrack.core.data.sync.SyncScheduler
 import com.mascill.keutrack.core.domain.model.CategoryBreakdown
 import com.mascill.keutrack.core.domain.model.CategorySummary
+import com.mascill.keutrack.core.domain.model.PeriodTotals
 import com.mascill.keutrack.core.domain.model.SyncStatus
 import com.mascill.keutrack.core.domain.model.Transaction
 import com.mascill.keutrack.core.domain.model.TransactionType
+import com.mascill.keutrack.core.domain.repository.PeriodPreferencesRepository
 import com.mascill.keutrack.core.domain.repository.TransactionRepository
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.cancellation.CancellationException
@@ -33,6 +36,7 @@ class TransactionRepositoryImpl @Inject constructor(
     private val mapper: TransactionMapper,
     private val summaryMapper: CategorySummaryMapper,
     private val syncScheduler: SyncScheduler,
+    private val periodPreferences: PeriodPreferencesRepository,
 ) : TransactionRepository {
 
     override fun observeTransactions(
@@ -56,6 +60,25 @@ class TransactionRepositoryImpl @Inject constructor(
 
     override fun observeRecentTransactions(limit: Int): Flow<List<Transaction>> =
         local.observeRecent(limit).map { entities -> entities.map(mapper::toDomain) }
+
+    override fun observePeriodTotals(
+        startDate: java.time.Instant,
+        endDate: java.time.Instant,
+    ): Flow<PeriodTotals> =
+        local.observeSumsByType(
+            startMs = startDate.toEpochMilli(),
+            endMs = endDate.toEpochMilli(),
+        ).map { rows ->
+            var income = 0L
+            var expense = 0L
+            rows.forEach { row ->
+                when (row.type) {
+                    TransactionType.INCOME.value -> income = row.total
+                    TransactionType.EXPENSE.value -> expense = row.total
+                }
+            }
+            PeriodTotals(incomeTotal = income, expenseTotal = expense)
+        }
 
     override suspend fun getTransactionById(id: String): Transaction? =
         local.getById(id)?.let(mapper::toDomain)
@@ -180,10 +203,9 @@ class TransactionRepositoryImpl @Inject constructor(
             TransactionType.EXPENSE -> -transaction.amount
         }
 
-    private fun monthKey(transaction: Transaction): String =
-        MONTH_FORMATTER.format(transaction.date.atZone(ZoneId.systemDefault()))
-
-    private companion object {
-        val MONTH_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM")
+    private suspend fun monthKey(transaction: Transaction): String {
+        val startDay = periodPreferences.observe().first().cycleStartDay
+        val date = transaction.date.atZone(ZoneId.systemDefault()).toLocalDate()
+        return PeriodBounds.periodKey(date, startDay)
     }
 }

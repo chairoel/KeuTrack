@@ -17,6 +17,7 @@ internal object SettingsUiMapper {
         user: User?,
         family: FamilyGroup?,
         walletSummary: WalletSummary,
+        cycleStartDay: Int = 1,
     ): SettingsUIState {
         val inFamily = !user?.familyId.isNullOrBlank()
         val familyCode =
@@ -41,6 +42,7 @@ internal object SettingsUiMapper {
             familyRoleLabel = familyRoleLabel(user, inFamily),
             connectedWallets = mapConnectedWallets(walletSummary),
             sheetsSyncEnabled = false,
+            cycleStartDay = cycleStartDay,
         )
     }
 

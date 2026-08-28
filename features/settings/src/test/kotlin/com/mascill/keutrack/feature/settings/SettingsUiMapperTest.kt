@@ -48,7 +48,7 @@ class SettingsUiMapperTest {
         val mapped = SettingsUiMapper.mapConnectedWallets(
             WalletSummary(null, listOf(family), 0L, 5_000L),
         )
-        assertThat(mapped.first().subtitle).isEqualTo("Family Vault")
+        assertThat(mapped.first().subtitle).isEqualTo("Family")
         assertThat(mapped.first().leadingAccent).isTrue()
         assertThat(mapped.first().statusLabel).isEqualTo("Shared")
     }

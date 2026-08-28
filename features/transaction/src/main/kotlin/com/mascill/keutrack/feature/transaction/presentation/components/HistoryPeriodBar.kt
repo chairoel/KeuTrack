@@ -28,7 +28,7 @@ private const val BAR_CHIP_PV = 8
 private const val BAR_CAPTION_PT = 8
 private const val CHIP_ALL = "Semua"
 private const val CHIP_LAST_7 = "7 hari"
-private const val CHIP_MONTH = "Bulan ini"
+private const val CHIP_MONTH = "Periode ini"
 private const val CHIP_CUSTOM = "Custom"
 
 @Composable

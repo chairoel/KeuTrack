@@ -12,9 +12,11 @@ import com.mascill.keutrack.core.data.db.entity.TransactionEntity
 import com.mascill.keutrack.core.data.mapper.CategorySummaryMapper
 import com.mascill.keutrack.core.data.mapper.TransactionMapper
 import com.mascill.keutrack.core.data.sync.SyncScheduler
+import com.mascill.keutrack.core.domain.model.PeriodPreferences
 import com.mascill.keutrack.core.domain.model.SyncStatus
 import com.mascill.keutrack.core.domain.model.Transaction
 import com.mascill.keutrack.core.domain.model.TransactionType
+import com.mascill.keutrack.core.domain.repository.PeriodPreferencesRepository
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -26,6 +28,8 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 
 class TransactionRepositoryImplTest {
 
@@ -37,6 +41,7 @@ class TransactionRepositoryImplTest {
     private val mapper = TransactionMapper()
     private val summaryMapper = CategorySummaryMapper()
     private val syncScheduler = mockk<SyncScheduler>(relaxed = true)
+    private val periodPreferences = mockk<PeriodPreferencesRepository>()
     private val repo = TransactionRepositoryImpl(
         local = local,
         walletLocal = walletLocal,
@@ -46,6 +51,7 @@ class TransactionRepositoryImplTest {
         mapper = mapper,
         summaryMapper = summaryMapper,
         syncScheduler = syncScheduler,
+        periodPreferences = periodPreferences,
     )
 
     @Test
@@ -55,6 +61,7 @@ class TransactionRepositoryImplTest {
         coEvery { summaryLocal.getByPeriod(any(), any()) } returns null
         coEvery { categoryLocal.getById(any()) } returns null
         coEvery { local.applyNewTransactionAtomically(any(), any(), any(), any()) } just runs
+        stubCycleStartDay(1)
 
         repo.addTransaction(transaction)
 
@@ -82,6 +89,7 @@ class TransactionRepositoryImplTest {
         coEvery { summaryLocal.getByPeriod(any(), any()) } returns null
         coEvery { categoryLocal.getById(any()) } returns null
         coEvery { local.applyNewTransactionAtomically(any(), any(), any(), any()) } just runs
+        stubCycleStartDay(1)
 
         repo.addTransaction(domainTransaction(familyId = "fam-1"))
 
@@ -112,6 +120,7 @@ class TransactionRepositoryImplTest {
         coEvery { summaryLocal.getByPeriod(any(), any()) } returns null
         coEvery { categoryLocal.getById(any()) } returns null
         coEvery { local.applyNewTransactionAtomically(any(), any(), any(), any()) } just runs
+        stubCycleStartDay(1)
 
         repo.addTransaction(domainTransaction(familyId = null))
 
@@ -161,7 +170,44 @@ class TransactionRepositoryImplTest {
         }
     }
 
-    private fun domainTransaction(familyId: String? = null) = Transaction(
+    @Test
+    fun `addTransaction 26 Jul with startDay 25 uses August month key`() = runTest {
+        stubCycleStartDay(25)
+        stubBudgetLookups()
+        val date = LocalDate.of(2026, 7, 26).atStartOfDay(ZoneId.systemDefault()).toInstant()
+
+        repo.addTransaction(domainTransaction(date = date))
+
+        coVerify { budgetLocal.getByMonthCategoryPersonal("2026-08", "cat-food") }
+    }
+
+    @Test
+    fun `addTransaction 26 Jul with startDay 1 uses July month key`() = runTest {
+        stubCycleStartDay(1)
+        stubBudgetLookups()
+        val date = LocalDate.of(2026, 7, 26).atStartOfDay(ZoneId.systemDefault()).toInstant()
+
+        repo.addTransaction(domainTransaction(date = date))
+
+        coVerify { budgetLocal.getByMonthCategoryPersonal("2026-07", "cat-food") }
+    }
+
+    private fun stubCycleStartDay(day: Int) {
+        every { periodPreferences.observe() } returns flowOf(PeriodPreferences(cycleStartDay = day))
+    }
+
+    private fun stubBudgetLookups() {
+        coEvery { budgetLocal.getByMonthCategoryPersonal(any(), any()) } returns null
+        coEvery { budgetLocal.getByMonthCategoryAndFamily(any(), any(), any()) } returns null
+        coEvery { summaryLocal.getByPeriod(any(), any()) } returns null
+        coEvery { categoryLocal.getById(any()) } returns null
+        coEvery { local.applyNewTransactionAtomically(any(), any(), any(), any()) } just runs
+    }
+
+    private fun domainTransaction(
+        familyId: String? = null,
+        date: Instant = Instant.parse("2026-08-01T00:00:00Z"),
+    ) = Transaction(
         id = "tx-1",
         walletId = "wallet-1",
         userId = "user-1",
@@ -169,7 +215,7 @@ class TransactionRepositoryImplTest {
         type = TransactionType.EXPENSE,
         amount = 15_000L,
         categoryId = "cat-food",
-        date = Instant.parse("2026-08-01T00:00:00Z"),
+        date = date,
         addedByName = "Irul",
         createdAt = Instant.parse("2026-08-01T00:00:00Z"),
     )

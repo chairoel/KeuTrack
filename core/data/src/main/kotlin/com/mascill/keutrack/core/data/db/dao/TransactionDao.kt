@@ -6,6 +6,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import com.mascill.keutrack.core.data.db.entity.TransactionEntity
+import com.mascill.keutrack.core.data.db.model.AmountByTypeRow
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -33,6 +34,15 @@ interface TransactionDao {
         endMs: Long?,
         limit: Int,
     ): Flow<List<TransactionEntity>>
+
+    @Query(
+        """
+        SELECT type AS type, SUM(amount) AS total FROM transactions
+        WHERE dateEpochMs >= :startMs AND dateEpochMs <= :endMs
+        GROUP BY type
+        """,
+    )
+    fun observeSumsByType(startMs: Long, endMs: Long): Flow<List<AmountByTypeRow>>
 
     @Query("SELECT * FROM transactions ORDER BY dateEpochMs DESC LIMIT :limit")
     fun observeRecent(limit: Int): Flow<List<TransactionEntity>>

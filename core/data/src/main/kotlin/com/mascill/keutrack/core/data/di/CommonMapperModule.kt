@@ -1,6 +1,7 @@
 package com.mascill.keutrack.core.data.di
 
 import com.mascill.keutrack.core.data.mapper.AuthUserMapper
+import com.mascill.keutrack.core.data.mapper.PeriodPreferencesProtoMapper
 import com.mascill.keutrack.core.data.mapper.SignedInUserProtoMapper
 import com.mascill.keutrack.core.data.mapper.WalletUiPreferencesProtoMapper
 import dagger.Module
@@ -32,4 +33,8 @@ class CommonMapperModule {
     @Provides
     fun provideWalletUiPreferencesProtoMapper(): WalletUiPreferencesProtoMapper =
         WalletUiPreferencesProtoMapper()
+
+    @Provides
+    fun providePeriodPreferencesProtoMapper(): PeriodPreferencesProtoMapper =
+        PeriodPreferencesProtoMapper()
 }

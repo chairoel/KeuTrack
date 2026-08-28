@@ -1,5 +1,6 @@
 package com.mascill.keutrack.feature.dashboard.presentation.model
 
+import com.mascill.keutrack.core.common.utils.PeriodBounds
 import com.mascill.keutrack.core.designsystem.format.CurrencyFormat
 import com.mascill.keutrack.core.domain.model.Category
 import com.mascill.keutrack.core.domain.model.CategorySummary
@@ -74,12 +75,29 @@ internal object DashboardUiMapper {
         prior: CategorySummary?,
     ): String? {
         if (current == null || prior == null) return null
-        val priorNet = prior.netBalance
+        return monthChangeLabel(
+            currentNet = current.netBalance,
+            priorNet = prior.netBalance,
+            cycleStartDay = PeriodBounds.MIN_CYCLE_START_DAY,
+        )
+    }
+
+    fun monthChangeLabel(
+        currentNet: Long,
+        priorNet: Long,
+        cycleStartDay: Int,
+    ): String? {
         if (priorNet == 0L) return null
-        val delta = current.netBalance - priorNet
+        val delta = currentNet - priorNet
         val pct = (delta.toDouble() / abs(priorNet).toDouble()) * 100.0
         val sign = if (pct >= 0) "+" else ""
-        return String.format(Locale.forLanguageTag("id-ID"), "%s%.1f%% this month", sign, pct)
+        val suffix =
+            if (cycleStartDay == PeriodBounds.MIN_CYCLE_START_DAY) {
+                "this month"
+            } else {
+                "periode ini"
+            }
+        return String.format(Locale.forLanguageTag("id-ID"), "%s%.1f%% %s", sign, pct, suffix)
     }
 
     fun priorFromTrend(

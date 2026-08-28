@@ -2,6 +2,8 @@ package com.mascill.keutrack.core.data.di
 
 import com.mascill.keutrack.core.data.datasource.AuthNetworkDataSource
 import com.mascill.keutrack.core.data.datasource.AuthNetworkDataSourceImpl
+import com.mascill.keutrack.core.data.datasource.PeriodPreferencesLocalDataSource
+import com.mascill.keutrack.core.data.datasource.PeriodPreferencesLocalDataSourceImpl
 import com.mascill.keutrack.core.data.datasource.UserProfileLocalDataSource
 import com.mascill.keutrack.core.data.datasource.UserProfileLocalDataSourceImpl
 import com.mascill.keutrack.core.data.datasource.WalletUiPreferencesLocalDataSource
@@ -36,4 +38,9 @@ interface CommonDataSourceModule {
     fun bindWalletUiPreferencesLocalDataSource(
         impl: WalletUiPreferencesLocalDataSourceImpl,
     ): WalletUiPreferencesLocalDataSource
+
+    @Binds
+    fun bindPeriodPreferencesLocalDataSource(
+        impl: PeriodPreferencesLocalDataSourceImpl,
+    ): PeriodPreferencesLocalDataSource
 }

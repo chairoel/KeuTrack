@@ -1,6 +1,8 @@
 package com.mascill.keutrack.feature.family
 
 import com.google.common.truth.Truth.assertThat
+import com.mascill.keutrack.core.common.utils.PeriodBounds
+import com.mascill.keutrack.core.common.utils.PeriodLabels
 import com.mascill.keutrack.core.domain.model.Budget
 import com.mascill.keutrack.core.domain.model.Category
 import com.mascill.keutrack.core.domain.model.CategoryType
@@ -18,6 +20,7 @@ import com.mascill.keutrack.feature.family.presentation.model.FamilyUiMapper
 import com.mascill.keutrack.feature.family.presentation.model.toProgressTone
 import org.junit.Test
 import java.time.Instant
+import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
 
@@ -322,8 +325,9 @@ class FamilyUiMapperTest {
                 priorMonthTxs = emptyList(),
                 budgets = emptyList(),
                 categoriesById = emptyMap(),
-                selectedMonth = YearMonth.of(2026, 8),
-                calendarMonthNow = YearMonth.of(2026, 8),
+                selectedPeriod = PeriodBounds.containing(LocalDate.of(2026, 8, 15), 1),
+                cycleStartDay = 1,
+                today = LocalDate.of(2026, 8, 15),
             )
 
         assertThat(state.canEditBudgets).isTrue()
@@ -333,6 +337,29 @@ class FamilyUiMapperTest {
         assertThat(state.selectedMonthLabel).isEqualTo("Agustus 2026")
         assertThat(state.canSelectNextMonth).isFalse()
         assertThat(state.canSelectPreviousMonth).isTrue()
+    }
+
+    @Test
+    fun `toUiState uses payday range label when cycle start day is 25`() {
+        val today = LocalDate.of(2026, 8, 23)
+        val period = PeriodBounds.containing(today, 25)
+        val state =
+            FamilyUiMapper.toUiState(
+                user = user(familyId = "fam-1", familyRole = FamilyRole.OWNER.value),
+                familyGroup = familyGroup(),
+                walletSummary = WalletSummary(null, listOf(familyWallet()), 0L, 0L),
+                selectedMonthTxs = emptyList(),
+                priorMonthTxs = emptyList(),
+                budgets = emptyList(),
+                categoriesById = emptyMap(),
+                selectedPeriod = period,
+                cycleStartDay = 25,
+                today = today,
+            )
+
+        assertThat(state.selectedMonthLabel).isEqualTo(PeriodLabels.format(period, 25))
+        assertThat(state.canSelectNextMonth).isFalse()
+        assertThat(state.canEditBudgets).isTrue()
     }
 
     @Test
@@ -351,8 +378,9 @@ class FamilyUiMapperTest {
                         "cat_pay" to
                             category("cat_pay", "Gaji").copy(type = CategoryType.INCOME),
                     ),
-                selectedMonth = YearMonth.of(2026, 8),
-                calendarMonthNow = YearMonth.of(2026, 8),
+                selectedPeriod = PeriodBounds.containing(LocalDate.of(2026, 8, 15), 1),
+                cycleStartDay = 1,
+                today = LocalDate.of(2026, 8, 15),
             )
 
         assertThat(state.expenseCategories.map { it.id }).containsExactly("cat_food")
@@ -370,8 +398,9 @@ class FamilyUiMapperTest {
                 priorMonthTxs = emptyList(),
                 budgets = emptyList(),
                 categoriesById = emptyMap(),
-                selectedMonth = YearMonth.of(2026, 8),
-                calendarMonthNow = YearMonth.of(2026, 8),
+                selectedPeriod = PeriodBounds.containing(LocalDate.of(2026, 8, 15), 1),
+                cycleStartDay = 1,
+                today = LocalDate.of(2026, 8, 15),
             )
 
         assertThat(state.canEditBudgets).isFalse()
@@ -412,8 +441,9 @@ class FamilyUiMapperTest {
                 priorMonthTxs = listOf(juneTx),
                 budgets = emptyList(),
                 categoriesById = mapOf("cat_food" to category("cat_food", "Makanan")),
-                selectedMonth = july,
-                calendarMonthNow = august,
+                selectedPeriod = PeriodBounds.containing(LocalDate.of(2026, 7, 15), 1),
+                cycleStartDay = 1,
+                today = LocalDate.of(2026, 8, 15),
             )
 
         assertThat(state.monthlyTotalExpense).isEqualTo(200_000L)

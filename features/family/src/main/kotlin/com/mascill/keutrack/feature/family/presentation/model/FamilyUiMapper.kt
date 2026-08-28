@@ -1,5 +1,8 @@
 package com.mascill.keutrack.feature.family.presentation.model
 
+import com.mascill.keutrack.core.common.utils.FinancePeriod
+import com.mascill.keutrack.core.common.utils.PeriodBounds
+import com.mascill.keutrack.core.common.utils.PeriodLabels
 import com.mascill.keutrack.core.designsystem.format.CurrencyFormat
 import com.mascill.keutrack.core.domain.model.Budget
 import com.mascill.keutrack.core.domain.model.Category
@@ -11,6 +14,7 @@ import com.mascill.keutrack.core.domain.model.TransactionType
 import com.mascill.keutrack.core.domain.model.User
 import com.mascill.keutrack.core.domain.model.Wallet
 import com.mascill.keutrack.core.domain.usecase.WalletSummary
+import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -40,19 +44,26 @@ internal object FamilyUiMapper {
         priorMonthTxs: List<Transaction>,
         budgets: List<Budget>,
         categoriesById: Map<String, Category>,
-        selectedMonth: YearMonth,
-        calendarMonthNow: YearMonth = YearMonth.now(),
+        selectedPeriod: FinancePeriod,
+        cycleStartDay: Int,
+        today: LocalDate = LocalDate.now(),
     ): FamilyUIState {
         val familyWallet = resolveFamilyWallet(user, walletSummary)
         val currentMonthTxs =
-            selectedMonthTxs.filter { it.date.toYearMonth() == selectedMonth }
+            selectedMonthTxs.filter {
+                selectedPeriod.contains(it.date.atZone(ZoneId.systemDefault()).toLocalDate())
+            }
+        val priorPeriod = selectedPeriod.minusPeriods(1)
         val priorTxs =
-            priorMonthTxs.filter { it.date.toYearMonth() == selectedMonth.minusMonths(1) }
+            priorMonthTxs.filter {
+                priorPeriod.contains(it.date.atZone(ZoneId.systemDefault()).toLocalDate())
+            }
         val currentExpense = currentMonthTxs.expenseTotal()
         val priorExpense = priorTxs.expenseTotal()
         val insight = savingTogetherInsight(currentExpense, priorExpense)
-        val monthLabel = formatBudgetMonth(selectedMonth)
-        val isCurrentCalendarMonth = selectedMonth == calendarMonthNow
+        val monthLabel = PeriodLabels.format(selectedPeriod, cycleStartDay)
+        val currentPeriod = PeriodBounds.containing(today, cycleStartDay)
+        val isCurrentPeriod = selectedPeriod.contains(today)
 
         return FamilyUIState(
             isLoading = false,
@@ -91,13 +102,15 @@ internal object FamilyUiMapper {
                 canEditBudgets(
                     user = user,
                     hasFamilyWallet = familyWallet != null,
-                    isCurrentCalendarMonth = isCurrentCalendarMonth,
+                    isCurrentCalendarMonth = isCurrentPeriod,
                 ),
             budgetMonthLabel = monthLabel,
             selectedMonthLabel = monthLabel,
-            canSelectNextMonth = selectedMonth < calendarMonthNow,
+            canSelectNextMonth = selectedPeriod.start.isBefore(currentPeriod.start),
             canSelectPreviousMonth =
-                selectedMonth > calendarMonthNow.minusMonths(MONTH_LOOK_BACK_LIMIT),
+                selectedPeriod.start.isAfter(
+                    currentPeriod.minusPeriods(MONTH_LOOK_BACK_LIMIT).start,
+                ),
             expenseCategories = toExpenseCategoryOptions(categoriesById),
         )
     }
