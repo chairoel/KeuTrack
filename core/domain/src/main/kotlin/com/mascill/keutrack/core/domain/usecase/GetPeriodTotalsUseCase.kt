@@ -9,12 +9,18 @@ import javax.inject.Inject
 class GetPeriodTotalsUseCase @Inject constructor(
     private val transactionRepository: TransactionRepository,
 ) {
-    operator fun invoke(
-        startDate: Instant,
-        endDate: Instant,
-    ): Flow<PeriodTotals> =
+    data class Params(
+        val walletId: String? = null,
+        val familyId: String? = null,
+        val startDate: Instant? = null,
+        val endDate: Instant? = null,
+    )
+
+    operator fun invoke(params: Params = Params()): Flow<PeriodTotals> =
         transactionRepository.observePeriodTotals(
-            startDate = startDate,
-            endDate = endDate,
+            walletId = params.walletId,
+            familyId = params.familyId,
+            startDate = params.startDate,
+            endDate = params.endDate,
         )
 }

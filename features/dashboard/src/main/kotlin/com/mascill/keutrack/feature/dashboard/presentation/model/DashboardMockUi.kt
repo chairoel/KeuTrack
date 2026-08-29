@@ -52,10 +52,6 @@ data class DashboardMockContent(
     val familyBalanceLabel: String,
     val familyBalanceAmount: String,
     val familySharedSummary: String,
-    val incomeLabel: String,
-    val incomeAmount: String,
-    val expenseLabel: String,
-    val expenseAmount: String,
     val transactions: List<TransactionRowUi>,
 )
 
@@ -84,10 +80,6 @@ val DefaultDashboardMockContent =
         familyBalanceLabel = "Available Shared",
         familyBalanceAmount = "IDR 45.820.500",
         familySharedSummary = "Shared with 4 people",
-        incomeLabel = "INCOME",
-        incomeAmount = "IDR 8.2M",
-        expenseLabel = "EXPENSE",
-        expenseAmount = "IDR 3.5M",
         transactions =
             listOf(
                 TransactionRowUi(
@@ -143,7 +135,5 @@ fun DashboardMockContent.toPreviewUiState(): DashboardUIState =
         familyMemberInitials = listOf("A", "B", "C", "D"),
         familySharedSummary = familySharedSummary,
         monthChangeLabel = personalMonthChangeLabel,
-        incomeTotal = 8_200_000L,
-        expenseTotal = 3_500_000L,
         recentTransactions = transactions,
     )

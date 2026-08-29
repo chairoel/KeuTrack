@@ -21,6 +21,7 @@ import com.mascill.keutrack.core.domain.repository.TransactionRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import java.time.Instant
 import java.time.ZoneId
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -44,8 +45,8 @@ class TransactionRepositoryImpl @Inject constructor(
         familyId: String?,
         type: TransactionType?,
         categoryId: String?,
-        startDate: java.time.Instant?,
-        endDate: java.time.Instant?,
+        startDate: Instant?,
+        endDate: Instant?,
         limit: Int,
     ): Flow<List<Transaction>> =
         local.observeFiltered(
@@ -62,12 +63,16 @@ class TransactionRepositoryImpl @Inject constructor(
         local.observeRecent(limit).map { entities -> entities.map(mapper::toDomain) }
 
     override fun observePeriodTotals(
-        startDate: java.time.Instant,
-        endDate: java.time.Instant,
+        walletId: String?,
+        familyId: String?,
+        startDate: Instant?,
+        endDate: Instant?,
     ): Flow<PeriodTotals> =
         local.observeSumsByType(
-            startMs = startDate.toEpochMilli(),
-            endMs = endDate.toEpochMilli(),
+            walletId = walletId,
+            familyId = familyId,
+            startMs = startDate?.toEpochMilli(),
+            endMs = endDate?.toEpochMilli(),
         ).map { rows ->
             var income = 0L
             var expense = 0L

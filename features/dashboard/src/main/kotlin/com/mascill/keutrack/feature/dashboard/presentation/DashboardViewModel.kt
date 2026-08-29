@@ -68,8 +68,18 @@ class DashboardViewModel @Inject constructor(
             val currentRange = current.toInstantRange()
             val priorRange = prior.toInstantRange()
             combine(
-                getPeriodTotals(currentRange.start, currentRange.endInclusive),
-                getPeriodTotals(priorRange.start, priorRange.endInclusive),
+                getPeriodTotals(
+                    GetPeriodTotalsUseCase.Params(
+                        startDate = currentRange.start,
+                        endDate = currentRange.endInclusive,
+                    ),
+                ),
+                getPeriodTotals(
+                    GetPeriodTotalsUseCase.Params(
+                        startDate = priorRange.start,
+                        endDate = priorRange.endInclusive,
+                    ),
+                ),
             ) { currentTotals, priorTotals ->
                 PeriodDashboardBundle(
                     cycleStartDay = prefs.cycleStartDay,
@@ -127,8 +137,6 @@ class DashboardViewModel @Inject constructor(
                         priorNet = periodTotals.prior.netBalance,
                         cycleStartDay = periodTotals.cycleStartDay,
                     ),
-                incomeTotal = periodTotals.current.incomeTotal,
-                expenseTotal = periodTotals.current.expenseTotal,
                 recentTransactions =
                     DashboardUiMapper.toTransactionRows(
                         transactions = transactions,
