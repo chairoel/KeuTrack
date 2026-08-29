@@ -9,6 +9,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.SideEffect
 import androidx.core.animation.doOnEnd
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.splashscreen.SplashScreenViewProvider
@@ -22,12 +23,17 @@ import dagger.hilt.android.AndroidEntryPoint
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        var keepSplashOnScreen = true
         installSplashScreen().apply {
+            setKeepOnScreenCondition { keepSplashOnScreen }
             setOnExitAnimationListener { screen -> splashZoomAnimation(screen = screen) }
         }
         super.onCreate(savedInstanceState)
         applyEdgeToEdge()
-        setContent { KeuTrackAppScreen() }
+        setContent {
+            SideEffect { keepSplashOnScreen = false }
+            KeuTrackAppScreen()
+        }
     }
 
     private fun applyEdgeToEdge() {
@@ -44,11 +50,18 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun splashZoomAnimation(screen: SplashScreenViewProvider) {
+        val iconView = runCatching { screen.iconView }.getOrNull()
+        if (iconView == null || !iconView.isAttachedToWindow) {
+            screen.remove()
+            applyEdgeToEdge()
+            return
+        }
+
         val animDuration = 700L
         val startScale = 1.0f
         val endScale = 1.5f
         val fadeOut = ObjectAnimator.ofFloat(
-            screen.iconView,
+            iconView,
             View.ALPHA,
             1.0f,
             0f
@@ -56,7 +69,7 @@ class MainActivity : ComponentActivity() {
         fadeOut.duration = animDuration
 
         val zoomX = ObjectAnimator.ofFloat(
-            screen.iconView,
+            iconView,
             View.SCALE_X,
             startScale,
             endScale
@@ -65,7 +78,7 @@ class MainActivity : ComponentActivity() {
         zoomX.duration = animDuration
 
         val zoomY = ObjectAnimator.ofFloat(
-            screen.iconView,
+            iconView,
             View.SCALE_Y,
             startScale,
             endScale
@@ -73,7 +86,7 @@ class MainActivity : ComponentActivity() {
         zoomY.interpolator = OvershootInterpolator()
         zoomY.duration = animDuration
 
-        zoomX.doOnEnd { fadeOut.start() } // start fade out after scaling
+        zoomX.doOnEnd { fadeOut.start() }
         fadeOut.doOnEnd {
             screen.remove()
             applyEdgeToEdge()
