@@ -5,6 +5,10 @@
         <item name="windowSplashScreenAnimatedIcon">@drawable/animated_splash</item>
         <item name="windowSplashScreenBackground">@color/splash_screen_background</item>
         <item name="postSplashScreenTheme">@style/Theme.KeuTrack</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
     </style>
 
     <style name="Theme.KeuTrack" parent="android:Theme.Material.NoActionBar">
@@ -13,7 +17,9 @@
         <item name="android:colorAccent">@color/midnight_primary_tint</item>
         <item name="android:windowBackground">@color/midnight_background</item>
         <item name="android:textColorPrimary">@color/midnight_on_surface</item>
-        <item name="android:statusBarColor">@color/midnight_surface_lowest</item>
-        <item name="android:navigationBarColor">@color/midnight_surface_low</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
     </style>
 </resources>

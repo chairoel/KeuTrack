@@ -4,6 +4,10 @@
         <item name="windowSplashScreenAnimatedIcon">@drawable/animated_splash</item>
         <item name="windowSplashScreenBackground">@color/splash_screen_background</item>
         <item name="postSplashScreenTheme">@style/Theme.KeuTrack</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
     </style>
 
     <!-- Financial light — aligned with KeuTrackTheme lightColorScheme -->
@@ -13,7 +17,9 @@
         <item name="android:colorAccent">@color/financial_secondary</item>
         <item name="android:windowBackground">@color/financial_background</item>
         <item name="android:textColorPrimary">@color/financial_on_surface</item>
-        <item name="android:statusBarColor">@color/financial_primary</item>
-        <item name="android:navigationBarColor">@color/financial_surface_lowest</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
     </style>
 </resources>
