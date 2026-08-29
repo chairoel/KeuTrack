@@ -42,29 +42,15 @@ fun SplashRouting(
         }
     }
 
-    HandleStartingScreen(
-        navigationState = splashUIState.navigationState,
-        navToHome = navToHome,
-        navToAuth = navToAuth
-    )
+    LaunchedEffect(splashUIState.navigationState) {
+        when (splashUIState.navigationState) {
+            NavigationState.NavigateToHome -> navToHome()
+            NavigationState.NavigateToAuth -> navToAuth()
+            NavigationState.Idle -> Unit
+        }
+    }
 
     SplashScreen()
-}
-
-/**
- * Consumes a [NavigationState] and invokes the appropriate navigation callback.
- */
-@Composable
-private fun HandleStartingScreen(
-    navigationState: NavigationState,
-    navToHome: () -> Unit,
-    navToAuth: () -> Unit,
-) {
-    when (navigationState) {
-        is NavigationState.NavigateToHome -> navToHome()
-        is NavigationState.NavigateToAuth -> navToAuth()
-        is NavigationState.Idle -> { /* Do nothing, wait for user observation */ }
-    }
 }
 
 @Composable
