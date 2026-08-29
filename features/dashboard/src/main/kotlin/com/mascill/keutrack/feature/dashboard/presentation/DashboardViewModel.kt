@@ -137,8 +137,6 @@ class DashboardViewModel @Inject constructor(
                         priorNet = periodTotals.prior.netBalance,
                         cycleStartDay = periodTotals.cycleStartDay,
                     ),
-                incomeTotal = periodTotals.current.incomeTotal,
-                expenseTotal = periodTotals.current.expenseTotal,
                 recentTransactions =
                     DashboardUiMapper.toTransactionRows(
                         transactions = transactions,

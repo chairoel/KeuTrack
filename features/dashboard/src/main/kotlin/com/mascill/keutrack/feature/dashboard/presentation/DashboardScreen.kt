@@ -28,7 +28,6 @@ import com.mascill.keutrack.core.designsystem.component.KeuTrackFab
 import com.mascill.keutrack.core.designsystem.component.snackbar.KeuTrackInlineSnackbar
 import com.mascill.keutrack.core.designsystem.format.CurrencyFormat
 import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
-import com.mascill.keutrack.feature.dashboard.presentation.components.DashboardStatCardsRow
 import com.mascill.keutrack.feature.dashboard.presentation.components.DashboardTopBar
 import com.mascill.keutrack.feature.dashboard.presentation.components.RecentTransactionsSection
 import com.mascill.keutrack.feature.dashboard.presentation.components.WalletSummaryCard
@@ -50,8 +49,6 @@ private const val DASH_LIST_SECTION_SPACING = 16
 private const val DASH_GREETING_TITLE_PT = 4
 private const val DASH_BALANCE_LABEL_PERSONAL = "Current Balance"
 private const val DASH_BALANCE_LABEL_FAMILY = "Available Shared"
-private const val DASH_INCOME_LABEL = "INCOME"
-private const val DASH_EXPENSE_LABEL = "EXPENSE"
 private const val DASH_ERROR_DISMISS = "Dismiss"
 
 /**
@@ -86,7 +83,7 @@ fun DashboardRouting(
 }
 
 /**
- * Dashboard screen — wallet summary, income/expense overview, and recent transactions.
+ * Dashboard screen — wallet summary and recent transactions.
  */
 @Composable
 fun DashboardScreen(
@@ -213,15 +210,6 @@ fun DashboardScreen(
                                     memberInitials = uiState.familyMemberInitials,
                                 )
                             }
-                        }
-
-                        item {
-                            DashboardStatCardsRow(
-                                incomeLabel = DASH_INCOME_LABEL,
-                                incomeAmount = CurrencyFormat.formatIdr(uiState.incomeTotal),
-                                expenseLabel = DASH_EXPENSE_LABEL,
-                                expenseAmount = CurrencyFormat.formatIdr(uiState.expenseTotal),
-                            )
                         }
 
                         item {

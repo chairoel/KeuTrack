@@ -15,8 +15,6 @@ data class DashboardUIState(
     val familyMemberInitials: List<String> = emptyList(),
     val familySharedSummary: String = "",
     val monthChangeLabel: String? = null,
-    val incomeTotal: Long = 0L,
-    val expenseTotal: Long = 0L,
     val recentTransactions: List<TransactionRowUi> = emptyList(),
     val isPersonalBalanceVisible: Boolean = true,
     val isFamilyBalanceVisible: Boolean = true,

@@ -79,6 +79,7 @@ class DashboardViewModelTest {
             assertThat(content.isLoading).isFalse()
             assertThat(content.userFirstName).isEqualTo("Irul")
             assertThat(content.personalBalance).isEqualTo(50_000L)
+            assertThat(content.familyBalance).isEqualTo(0L)
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -218,8 +219,7 @@ class DashboardViewModelTest {
                 advanceUntilIdle()
                 val content = awaitItem()
                 assertThat(content.monthChangeLabel).isEqualTo("+0,0% this month")
-                assertThat(content.incomeTotal).isEqualTo(120L)
-                assertThat(content.expenseTotal).isEqualTo(0L)
+                assertThat(content.personalBalance).isEqualTo(50_000L)
                 cancelAndIgnoreRemainingEvents()
             }
         }
