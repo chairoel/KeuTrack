@@ -1,10 +1,12 @@
 package com.mascill.keutrack
 
 import android.animation.ObjectAnimator
+import android.graphics.Color
 import android.os.Bundle
 import android.view.View
 import android.view.animation.OvershootInterpolator
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.core.animation.doOnEnd
@@ -24,8 +26,21 @@ class MainActivity : ComponentActivity() {
             setOnExitAnimationListener { screen -> splashZoomAnimation(screen = screen) }
         }
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        applyEdgeToEdge()
         setContent { KeuTrackAppScreen() }
+    }
+
+    private fun applyEdgeToEdge() {
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.auto(
+                lightScrim = Color.TRANSPARENT,
+                darkScrim = Color.TRANSPARENT,
+            ),
+            navigationBarStyle = SystemBarStyle.auto(
+                lightScrim = Color.TRANSPARENT,
+                darkScrim = Color.TRANSPARENT,
+            ),
+        )
     }
 
     private fun splashZoomAnimation(screen: SplashScreenViewProvider) {
@@ -59,7 +74,10 @@ class MainActivity : ComponentActivity() {
         zoomY.duration = animDuration
 
         zoomX.doOnEnd { fadeOut.start() } // start fade out after scaling
-        fadeOut.doOnEnd { screen.remove() } // remove screen after fade out animation end
+        fadeOut.doOnEnd {
+            screen.remove()
+            applyEdgeToEdge()
+        }
 
         zoomX.start()
         zoomY.start()
