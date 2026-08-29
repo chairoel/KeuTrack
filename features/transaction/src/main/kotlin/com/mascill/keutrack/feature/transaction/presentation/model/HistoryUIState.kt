@@ -19,4 +19,6 @@ data class HistoryUIState(
     val periodSummaryLabel: String = HistoryPeriodLabels.summary(HistoryPeriodPreset.All),
     val hasActivePeriodFilter: Boolean = false,
     val periodRangeError: String? = null,
+    val incomeTotal: Long = 0L,
+    val expenseTotal: Long = 0L,
 )

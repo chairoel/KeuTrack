@@ -13,6 +13,8 @@ import com.mascill.keutrack.core.domain.usecase.GetCategoriesUseCase
 import com.mascill.keutrack.core.domain.usecase.GetTransactionsUseCase
 import com.mascill.keutrack.core.domain.usecase.GetWalletSummaryUseCase
 import com.mascill.keutrack.core.domain.model.PeriodPreferences
+import com.mascill.keutrack.core.domain.model.PeriodTotals
+import com.mascill.keutrack.core.domain.usecase.GetPeriodTotalsUseCase
 import com.mascill.keutrack.core.domain.usecase.ObservePeriodPreferencesUseCase
 import com.mascill.keutrack.core.domain.usecase.RetryPendingSyncUseCase
 import com.mascill.keutrack.core.domain.usecase.WalletSummary
@@ -43,6 +45,7 @@ class TransactionHistoryViewModelTest {
 
     private val userRepository = mockk<UserRepository>()
     private val getTransactions = mockk<GetTransactionsUseCase>()
+    private val getPeriodTotals = mockk<GetPeriodTotalsUseCase>()
     private val getCategories = mockk<GetCategoriesUseCase>()
     private val getWalletSummary = mockk<GetWalletSummaryUseCase>()
     private val retryPendingSync = mockk<RetryPendingSyncUseCase>(relaxed = true)
@@ -163,6 +166,7 @@ class TransactionHistoryViewModelTest {
             }
 
             verify(exactly = 0) { getTransactions(any()) }
+            verify(exactly = 0) { getPeriodTotals(any()) }
         }
 
     @Test
@@ -226,6 +230,7 @@ class TransactionHistoryViewModelTest {
             }
 
             verify(exactly = 0) { getTransactions(any()) }
+            verify(exactly = 0) { getPeriodTotals(any()) }
         }
 
     @Test
@@ -312,6 +317,9 @@ class TransactionHistoryViewModelTest {
 
             verify(exactly = 0) {
                 getTransactions(match { it.startDate != null })
+            }
+            verify(exactly = 0) {
+                getPeriodTotals(match { it.startDate != null })
             }
         }
 
@@ -411,12 +419,130 @@ class TransactionHistoryViewModelTest {
             }
         }
 
+    @Test
+    fun `all scope semua uses unscoped all-time totals`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            stub(emptyList())
+            val vm = createViewModel()
+
+            vm.uiState.test {
+                skipItems(1)
+                advanceUntilIdle()
+                val state = awaitItem()
+                assertThat(state.incomeTotal).isEqualTo(0L)
+                assertThat(state.expenseTotal).isEqualTo(0L)
+                cancelAndIgnoreRemainingEvents()
+            }
+
+            verify {
+                getPeriodTotals(
+                    match { params ->
+                        params.walletId == null &&
+                            params.familyId == null &&
+                            params.startDate == null &&
+                            params.endDate == null
+                    },
+                )
+            }
+        }
+
+    @Test
+    fun `personal last 7 days totals use wallet and date range`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            stub(emptyList(), personalOnly = true, personalWalletId = "w-p")
+            val vm = createViewModel(personalOnly = true)
+            val range =
+                PeriodBounds.ofLocalDates(
+                    LocalDate.now().minusDays(6),
+                    LocalDate.now(),
+                )
+
+            vm.uiState.test {
+                skipItems(1)
+                advanceUntilIdle()
+                awaitItem()
+                vm.onPeriodPresetSelected(HistoryPeriodPreset.Last7Days)
+                advanceUntilIdle()
+                cancelAndIgnoreRemainingEvents()
+            }
+
+            verify {
+                getPeriodTotals(
+                    match { params ->
+                        params.walletId == "w-p" &&
+                            params.familyId == null &&
+                            params.startDate == range.start &&
+                            params.endDate == range.endInclusive
+                    },
+                )
+            }
+        }
+
+    @Test
+    fun `family scope totals use familyId`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            stub(emptyList(), familyId = "fam-1", familyOnly = true)
+            val vm = createViewModel(familyOnly = true)
+
+            vm.uiState.test {
+                skipItems(1)
+                advanceUntilIdle()
+                awaitItem()
+                cancelAndIgnoreRemainingEvents()
+            }
+
+            verify {
+                getPeriodTotals(
+                    match { params ->
+                        params.familyId == "fam-1" &&
+                            params.walletId == null &&
+                            params.startDate == null &&
+                            params.endDate == null
+                    },
+                )
+            }
+        }
+
+    @Test
+    fun `totals come from period use case not list sum`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            stub(
+                transactions =
+                    listOf(
+                        Transaction(
+                            id = "tx-1",
+                            walletId = "w-1",
+                            userId = "u",
+                            type = TransactionType.INCOME,
+                            amount = 8_000L,
+                            categoryId = "c",
+                            note = "Kopi",
+                            date = Instant.parse("2026-08-01T00:00:00Z"),
+                            addedByName = "Irul",
+                        ),
+                    ),
+                periodTotals = PeriodTotals(incomeTotal = 1_000_000L, expenseTotal = 250_000L),
+            )
+            val vm = createViewModel()
+
+            vm.uiState.test {
+                skipItems(1)
+                advanceUntilIdle()
+                val state = awaitItem()
+                assertThat(state.items).hasSize(1)
+                assertThat(state.incomeTotal).isEqualTo(1_000_000L)
+                assertThat(state.expenseTotal).isEqualTo(250_000L)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
     private fun stub(
         transactions: List<Transaction>,
         familyId: String? = null,
         familyOnly: Boolean = false,
         personalOnly: Boolean = false,
         personalWalletId: String? = null,
+        periodTotals: PeriodTotals = PeriodTotals(),
     ) {
         every { userRepository.getCurrentUser() } returns flowOf(
             User("u", "Irul", "a@b.c", null, familyId = familyId),
@@ -429,6 +555,7 @@ class TransactionHistoryViewModelTest {
             }
         if (shouldLoadTransactions) {
             every { getTransactions(any()) } returns flowOf(transactions)
+            every { getPeriodTotals(any()) } returns flowOf(periodTotals)
         }
         every { getCategories() } returns flowOf(emptyList())
         every { getWalletSummary() } returns flowOf(
@@ -455,6 +582,7 @@ class TransactionHistoryViewModelTest {
         ),
         userRepository = userRepository,
         getTransactions = getTransactions,
+        getPeriodTotals = getPeriodTotals,
         getCategories = getCategories,
         getWalletSummary = getWalletSummary,
         retryPendingSync = retryPendingSync,

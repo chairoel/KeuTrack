@@ -5,8 +5,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mascill.keutrack.core.common.utils.CommonDispatcher
 import com.mascill.keutrack.core.common.utils.PeriodBounds
+import com.mascill.keutrack.core.domain.model.PeriodTotals
 import com.mascill.keutrack.core.domain.repository.UserRepository
 import com.mascill.keutrack.core.domain.usecase.GetCategoriesUseCase
+import com.mascill.keutrack.core.domain.usecase.GetPeriodTotalsUseCase
 import com.mascill.keutrack.core.domain.usecase.GetTransactionsUseCase
 import com.mascill.keutrack.core.domain.usecase.GetWalletSummaryUseCase
 import com.mascill.keutrack.core.domain.usecase.ObservePeriodPreferencesUseCase
@@ -31,7 +33,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
-import java.time.YearMonth
 import javax.inject.Inject
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -41,6 +42,7 @@ class TransactionHistoryViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
     userRepository: UserRepository,
     private val getTransactions: GetTransactionsUseCase,
+    private val getPeriodTotals: GetPeriodTotalsUseCase,
     private val getCategories: GetCategoriesUseCase,
     private val getWalletSummary: GetWalletSummaryUseCase,
     private val retryPendingSync: RetryPendingSyncUseCase,
@@ -55,65 +57,88 @@ class TransactionHistoryViewModel @Inject constructor(
     private val periodContext =
         combine(period, cycleStartDay) { selection, startDay -> selection to startDay }
 
-    private val transactionsFlow =
+    private val queryContext =
         when (scope) {
             HistoryScope.Family -> {
                 combine(userRepository.getCurrentUser(), periodContext) { user, context ->
-                    user to context
-                }.flatMapLatest { (user, context) ->
                     val familyId = user?.familyId
                     val (selection, startDay) = context
-                    if (familyId.isNullOrBlank()) {
-                        flowOf(emptyList())
-                    } else {
-                        getTransactions(
-                            transactionParams(
-                                period = selection,
-                                cycleStartDay = startDay,
-                                familyId = familyId,
-                            ),
-                        )
-                    }
+                    HistoryQuery(
+                        familyId = familyId,
+                        period = selection,
+                        cycleStartDay = startDay,
+                        canQuery = !familyId.isNullOrBlank(),
+                    )
                 }
             }
 
             HistoryScope.Personal -> {
                 combine(getWalletSummary(), periodContext) { summary, context ->
-                    summary to context
-                }.flatMapLatest { (summary, context) ->
                     val walletId = summary.personalWallet?.id
                     val (selection, startDay) = context
-                    if (walletId.isNullOrBlank()) {
-                        flowOf(emptyList())
-                    } else {
-                        getTransactions(
-                            transactionParams(
-                                period = selection,
-                                cycleStartDay = startDay,
-                                walletId = walletId,
-                            ),
-                        )
-                    }
+                    HistoryQuery(
+                        walletId = walletId,
+                        period = selection,
+                        cycleStartDay = startDay,
+                        canQuery = !walletId.isNullOrBlank(),
+                    )
                 }
             }
 
             HistoryScope.All -> {
-                periodContext.flatMapLatest { (selection, startDay) ->
-                    getTransactions(
-                        transactionParams(period = selection, cycleStartDay = startDay),
+                periodContext.map { (selection, startDay) ->
+                    HistoryQuery(
+                        period = selection,
+                        cycleStartDay = startDay,
+                        canQuery = true,
                     )
                 }
             }
         }
 
+    private val transactionsFlow =
+        queryContext.flatMapLatest { query ->
+            if (!query.canQuery) {
+                flowOf(emptyList())
+            } else {
+                getTransactions(
+                    transactionParams(
+                        period = query.period,
+                        cycleStartDay = query.cycleStartDay,
+                        walletId = query.walletId,
+                        familyId = query.familyId,
+                    ),
+                )
+            }
+        }
+
+    private val totalsFlow =
+        queryContext.flatMapLatest { query ->
+            if (!query.canQuery) {
+                flowOf(PeriodTotals())
+            } else {
+                getPeriodTotals(
+                    periodTotalsParams(
+                        period = query.period,
+                        cycleStartDay = query.cycleStartDay,
+                        walletId = query.walletId,
+                        familyId = query.familyId,
+                    ),
+                )
+            }
+        }
+
     val uiState: StateFlow<HistoryUIState> =
         combine(
-            transactionsFlow,
+            combine(transactionsFlow, totalsFlow) { transactions, totals ->
+                transactions to totals
+            },
             getCategories(),
             getWalletSummary(),
             periodContext,
             periodRangeError,
-        ) { transactions, categories, walletSummary, context, rangeError ->
+        ) { listAndTotals, categories, walletSummary, context, rangeError ->
+            val (transactions, totals) = listAndTotals
             val (selection, startDay) = context
             val categoriesById = categories.associateBy { it.id }
             val walletsById = TransactionUiMapper.mapWallets(walletSummary)
@@ -139,6 +164,8 @@ class TransactionHistoryViewModel @Inject constructor(
                     ),
                 hasActivePeriodFilter = selection.hasActiveFilter,
                 periodRangeError = rangeError,
+                incomeTotal = totals.incomeTotal,
+                expenseTotal = totals.expenseTotal,
             )
         }.catch { e ->
             emit(
@@ -220,6 +247,21 @@ class TransactionHistoryViewModel @Inject constructor(
         )
     }
 
+    private fun periodTotalsParams(
+        period: HistoryPeriod,
+        cycleStartDay: Int,
+        walletId: String? = null,
+        familyId: String? = null,
+    ): GetPeriodTotalsUseCase.Params {
+        val range = instantRange(period, cycleStartDay)
+        return GetPeriodTotalsUseCase.Params(
+            walletId = walletId,
+            familyId = familyId,
+            startDate = range?.start,
+            endDate = range?.endInclusive,
+        )
+    }
+
     private fun instantRange(
         period: HistoryPeriod,
         cycleStartDay: Int,
@@ -238,6 +280,14 @@ class TransactionHistoryViewModel @Inject constructor(
                 PeriodBounds.ofLocalDates(from, to)
             }
         }
+
+    private data class HistoryQuery(
+        val walletId: String? = null,
+        val familyId: String? = null,
+        val period: HistoryPeriod,
+        val cycleStartDay: Int,
+        val canQuery: Boolean,
+    )
 
     private companion object {
         const val ARG_FAMILY_ONLY = "familyOnly"

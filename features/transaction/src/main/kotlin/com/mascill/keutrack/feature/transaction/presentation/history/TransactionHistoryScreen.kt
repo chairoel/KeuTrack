@@ -37,6 +37,7 @@ import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
 import com.mascill.keutrack.core.domain.model.SyncStatus
 import com.mascill.keutrack.feature.transaction.presentation.components.DateRangePickerDialogHost
 import com.mascill.keutrack.feature.transaction.presentation.components.HistoryPeriodBar
+import com.mascill.keutrack.feature.transaction.presentation.components.HistoryPeriodTotalsRow
 import com.mascill.keutrack.feature.transaction.presentation.components.TransactionHistoryRow
 import com.mascill.keutrack.feature.transaction.presentation.model.HistoryPeriodPreset
 import com.mascill.keutrack.feature.transaction.presentation.model.HistoryScope
@@ -147,6 +148,22 @@ fun TransactionHistoryScreen(
                             top = HISTORY_CONTENT_PT.dp,
                         ),
                 )
+                if (!uiState.isLoading) {
+                    HistoryPeriodTotalsRow(
+                        incomeTotal = uiState.incomeTotal,
+                        expenseTotal = uiState.expenseTotal,
+                        caption =
+                            uiState.periodSummaryLabel.takeIf {
+                                uiState.periodPreset != HistoryPeriodPreset.Custom
+                            },
+                        modifier =
+                            Modifier.padding(
+                                start = HISTORY_CONTENT_PH.dp,
+                                end = HISTORY_CONTENT_PH.dp,
+                                top = HISTORY_CONTENT_PT.dp,
+                            ),
+                    )
+                }
                 when {
                     uiState.isLoading -> {
                         Box(
@@ -277,6 +294,8 @@ private fun TransactionHistoryScreenPreview() {
                 HistoryUIState(
                     isLoading = false,
                     items = previewHistoryItems(),
+                    incomeTotal = 5_500_000L,
+                    expenseTotal = 125_000L,
                 ),
             onBack = {},
             onAddTransaction = {},
@@ -297,6 +316,8 @@ private fun TransactionHistoryScreenDarkPreview() {
                 HistoryUIState(
                     isLoading = false,
                     items = previewHistoryItems(),
+                    incomeTotal = 5_500_000L,
+                    expenseTotal = 125_000L,
                 ),
             onBack = {},
             onAddTransaction = {},
