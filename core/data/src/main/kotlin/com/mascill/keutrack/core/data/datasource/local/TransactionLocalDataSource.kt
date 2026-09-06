@@ -46,4 +46,32 @@ interface TransactionLocalDataSource {
         budgetIdToIncrement: String?,
         summaryUpsert: CategorySummaryEntity,
     )
+
+    /**
+     * Atomic local write for an edit: upsert the row (same id), reverse old wallet/budget
+     * effects, apply new ones, and upsert one or two category summaries (period may change).
+     */
+    suspend fun applyUpdatedTransactionAtomically(
+        updated: TransactionEntity,
+        oldWalletId: String,
+        oldWalletDelta: Long,
+        newWalletDelta: Long,
+        oldBudgetId: String?,
+        oldBudgetDelta: Long,
+        newBudgetId: String?,
+        newBudgetDelta: Long,
+        summaryUpserts: List<CategorySummaryEntity>,
+    )
+
+    /**
+     * Atomic local write for a delete: reverse wallet/budget/summary, then remove the row.
+     */
+    suspend fun applyDeletedTransactionAtomically(
+        id: String,
+        walletId: String,
+        walletDelta: Long,
+        budgetId: String?,
+        budgetDelta: Long,
+        summaryUpsert: CategorySummaryEntity?,
+    )
 }

@@ -97,4 +97,97 @@ class TransactionLocalDataSourceImpl @Inject constructor(
             categorySummaryDao.upsert(summaryUpsert)
         }
     }
+
+    override suspend fun applyUpdatedTransactionAtomically(
+        updated: TransactionEntity,
+        oldWalletId: String,
+        oldWalletDelta: Long,
+        newWalletDelta: Long,
+        oldBudgetId: String?,
+        oldBudgetDelta: Long,
+        newBudgetId: String?,
+        newBudgetDelta: Long,
+        summaryUpserts: List<CategorySummaryEntity>,
+    ) {
+        db.withTransaction {
+            transactionDao.upsert(updated)
+            applyWalletDeltas(
+                oldWalletId = oldWalletId,
+                newWalletId = updated.walletId,
+                oldWalletDelta = oldWalletDelta,
+                newWalletDelta = newWalletDelta,
+            )
+            applyBudgetDeltas(
+                oldBudgetId = oldBudgetId,
+                oldBudgetDelta = oldBudgetDelta,
+                newBudgetId = newBudgetId,
+                newBudgetDelta = newBudgetDelta,
+            )
+            summaryUpserts.forEach { categorySummaryDao.upsert(it) }
+        }
+    }
+
+    override suspend fun applyDeletedTransactionAtomically(
+        id: String,
+        walletId: String,
+        walletDelta: Long,
+        budgetId: String?,
+        budgetDelta: Long,
+        summaryUpsert: CategorySummaryEntity?,
+    ) {
+        db.withTransaction {
+            applyWalletDelta(walletId, walletDelta)
+            applyBudgetDelta(budgetId, budgetDelta)
+            if (summaryUpsert != null) {
+                categorySummaryDao.upsert(summaryUpsert)
+            }
+            transactionDao.deleteById(id)
+        }
+    }
+
+    private suspend fun applyWalletDeltas(
+        oldWalletId: String,
+        newWalletId: String,
+        oldWalletDelta: Long,
+        newWalletDelta: Long,
+    ) {
+        if (oldWalletId == newWalletId) {
+            applyWalletDelta(newWalletId, oldWalletDelta + newWalletDelta)
+        } else {
+            applyWalletDelta(oldWalletId, oldWalletDelta)
+            applyWalletDelta(newWalletId, newWalletDelta)
+        }
+    }
+
+    private suspend fun applyBudgetDeltas(
+        oldBudgetId: String?,
+        oldBudgetDelta: Long,
+        newBudgetId: String?,
+        newBudgetDelta: Long,
+    ) {
+        if (oldBudgetId != null && oldBudgetId == newBudgetId) {
+            applyBudgetDelta(oldBudgetId, oldBudgetDelta + newBudgetDelta)
+        } else {
+            applyBudgetDelta(oldBudgetId, oldBudgetDelta)
+            applyBudgetDelta(newBudgetId, newBudgetDelta)
+        }
+    }
+
+    private suspend fun applyWalletDelta(walletId: String, delta: Long) {
+        if (delta == 0L) return
+        walletDao.applyBalanceDelta(
+            walletId = walletId,
+            delta = delta,
+            syncStatus = SyncStatus.PENDING.name,
+        )
+    }
+
+    private suspend fun applyBudgetDelta(budgetId: String?, delta: Long) {
+        if (budgetId == null || delta == 0L) return
+        budgetDao.applySpentDelta(
+            budgetId = budgetId,
+            delta = delta,
+            syncStatus = SyncStatus.PENDING.name,
+        )
+    }
 }

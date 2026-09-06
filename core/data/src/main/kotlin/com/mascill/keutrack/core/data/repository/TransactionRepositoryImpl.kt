@@ -5,8 +5,9 @@ import com.mascill.keutrack.core.data.datasource.local.BudgetLocalDataSource
 import com.mascill.keutrack.core.data.datasource.local.CategoryLocalDataSource
 import com.mascill.keutrack.core.data.datasource.local.CategorySummaryLocalDataSource
 import com.mascill.keutrack.core.data.datasource.local.TransactionLocalDataSource
-import com.mascill.keutrack.core.data.datasource.local.WalletLocalDataSource
 import com.mascill.keutrack.core.data.datasource.local.findBudgetForExpense
+import com.mascill.keutrack.core.data.db.entity.BudgetEntity
+import com.mascill.keutrack.core.data.db.entity.CategorySummaryEntity
 import com.mascill.keutrack.core.data.mapper.CategorySummaryMapper
 import com.mascill.keutrack.core.data.mapper.TransactionMapper
 import com.mascill.keutrack.core.data.sync.SyncScheduler
@@ -30,7 +31,6 @@ import kotlin.coroutines.cancellation.CancellationException
 @Singleton
 class TransactionRepositoryImpl @Inject constructor(
     private val local: TransactionLocalDataSource,
-    private val walletLocal: WalletLocalDataSource,
     private val budgetLocal: BudgetLocalDataSource,
     private val summaryLocal: CategorySummaryLocalDataSource,
     private val categoryLocal: CategoryLocalDataSource,
@@ -91,26 +91,18 @@ class TransactionRepositoryImpl @Inject constructor(
     override suspend fun addTransaction(transaction: Transaction) {
         try {
             val pending = transaction.copy(syncStatus = SyncStatus.PENDING)
-            val walletDelta = walletDeltaFor(pending)
             val month = monthKey(pending)
-            val budget =
-                if (pending.type == TransactionType.EXPENSE) {
-                    budgetLocal.findBudgetForExpense(
-                        month = month,
-                        categoryId = pending.categoryId,
-                        familyId = pending.familyId,
-                    )
-                } else {
-                    null
-                }
-            val budgetId = budget?.id
-            val summaryEntity = buildUpdatedSummary(pending, month)
+            val summary = summaryAfterDelta(
+                base = summaryOrEmpty(month, pending),
+                transaction = pending,
+                sign = +1,
+            )
 
             local.applyNewTransactionAtomically(
                 transaction = mapper.toEntity(pending),
-                walletDelta = walletDelta,
-                budgetIdToIncrement = budgetId,
-                summaryUpsert = summaryMapper.toEntity(summaryEntity),
+                walletDelta = walletDeltaFor(pending),
+                budgetIdToIncrement = budgetMatch(pending, month)?.id,
+                summaryUpsert = summaryMapper.toEntity(summary),
             )
             syncScheduler.enqueueSync()
         } catch (e: CancellationException) {
@@ -118,45 +110,100 @@ class TransactionRepositoryImpl @Inject constructor(
         }
     }
 
-    /**
-     * MVP: replace entity + mark PENDING. Does not reverse/reapply side-effects for amount/category
-     * changes — callers should prefer delete+add for material edits until Phase 5 hardens this.
-     */
     override suspend fun updateTransaction(transaction: Transaction) {
         try {
+            val existing = local.getById(transaction.id) ?: return
+            val old = mapper.toDomain(existing)
             val pending = transaction.copy(syncStatus = SyncStatus.PENDING)
-            local.upsert(mapper.toEntity(pending))
+            val oldMonth = monthKey(old)
+            val newMonth = monthKey(pending)
+            val oldBudget = budgetMatch(old, oldMonth)
+            val newBudget = budgetMatch(pending, newMonth)
+
+            local.applyUpdatedTransactionAtomically(
+                updated = mapper.toEntity(pending),
+                oldWalletId = old.walletId,
+                oldWalletDelta = -walletDeltaFor(old),
+                newWalletDelta = walletDeltaFor(pending),
+                oldBudgetId = oldBudget?.id,
+                oldBudgetDelta = budgetDeltaFor(old, oldBudget, sign = -1),
+                newBudgetId = newBudget?.id,
+                newBudgetDelta = budgetDeltaFor(pending, newBudget, sign = +1),
+                summaryUpserts = buildSummaryUpserts(old, pending, oldMonth, newMonth),
+            )
             syncScheduler.enqueueSync()
         } catch (e: CancellationException) {
             throw e
         }
     }
 
-    /**
-     * MVP: delete local row and reverse wallet balance; summary/budget not fully recomputed.
-     */
     override suspend fun deleteTransaction(id: String) {
         try {
             val existing = local.getById(id) ?: return
-            val domain = mapper.toDomain(existing)
-            val reverseDelta = -walletDeltaFor(domain)
-            walletLocal.applyBalanceDelta(
-                walletId = domain.walletId,
-                delta = reverseDelta,
-                syncStatus = SyncStatus.PENDING,
+            val old = mapper.toDomain(existing)
+            val month = monthKey(old)
+            val budget = budgetMatch(old, month)
+            val summary = summaryAfterDelta(
+                base = summaryOrEmpty(month, old),
+                transaction = old,
+                sign = -1,
             )
-            local.delete(id)
+
+            local.applyDeletedTransactionAtomically(
+                id = id,
+                walletId = old.walletId,
+                walletDelta = -walletDeltaFor(old),
+                budgetId = budget?.id,
+                budgetDelta = budgetDeltaFor(old, budget, sign = -1),
+                summaryUpsert = summaryMapper.toEntity(summary),
+            )
             syncScheduler.enqueueSync()
         } catch (e: CancellationException) {
             throw e
         }
     }
 
-    private suspend fun buildUpdatedSummary(
-        transaction: Transaction,
-        month: String,
-    ): CategorySummary {
-        val current = summaryLocal.getByPeriod(month, transaction.userId)
+    private suspend fun buildSummaryUpserts(
+        old: Transaction,
+        pending: Transaction,
+        oldMonth: String,
+        newMonth: String,
+    ): List<CategorySummaryEntity> {
+        val sameSummaryRow = oldMonth == newMonth && old.userId == pending.userId
+        return if (sameSummaryRow) {
+            val afterReverse = summaryAfterDelta(
+                base = summaryOrEmpty(oldMonth, pending),
+                transaction = old,
+                sign = -1,
+            )
+            val afterApply = summaryAfterDelta(
+                base = afterReverse,
+                transaction = pending,
+                sign = +1,
+            )
+            listOf(summaryMapper.toEntity(afterApply))
+        } else {
+            listOf(
+                summaryMapper.toEntity(
+                    summaryAfterDelta(
+                        base = summaryOrEmpty(oldMonth, old),
+                        transaction = old,
+                        sign = -1,
+                    ),
+                ),
+                summaryMapper.toEntity(
+                    summaryAfterDelta(
+                        base = summaryOrEmpty(newMonth, pending),
+                        transaction = pending,
+                        sign = +1,
+                    ),
+                ),
+            )
+        }
+    }
+
+    private suspend fun summaryOrEmpty(month: String, transaction: Transaction): CategorySummary =
+        summaryLocal.getByPeriod(month, transaction.userId)
             ?.let(summaryMapper::toDomain)
             ?: CategorySummary(
                 period = month,
@@ -167,12 +214,19 @@ class TransactionRepositoryImpl @Inject constructor(
                 byCategory = emptyMap(),
             )
 
-        val incomeDelta = if (transaction.type == TransactionType.INCOME) transaction.amount else 0L
-        val expenseDelta = if (transaction.type == TransactionType.EXPENSE) transaction.amount else 0L
+    private suspend fun summaryAfterDelta(
+        base: CategorySummary,
+        transaction: Transaction,
+        sign: Int,
+    ): CategorySummary {
+        val incomeDelta =
+            if (transaction.type == TransactionType.INCOME) transaction.amount * sign else 0L
+        val expenseDelta =
+            if (transaction.type == TransactionType.EXPENSE) transaction.amount * sign else 0L
         val categoryName = categoryLocal.getById(transaction.categoryId)?.name
             ?: transaction.categoryId
 
-        val existingBreakdown = current.byCategory[transaction.categoryId]
+        val existingBreakdown = base.byCategory[transaction.categoryId]
             ?: CategoryBreakdown(
                 name = categoryName,
                 totalExpense = 0L,
@@ -184,23 +238,45 @@ class TransactionRepositoryImpl @Inject constructor(
             name = categoryName,
             totalExpense = existingBreakdown.totalExpense + expenseDelta,
             totalIncome = existingBreakdown.totalIncome + incomeDelta,
-            transactionCount = existingBreakdown.transactionCount + 1,
+            transactionCount = (existingBreakdown.transactionCount + sign).coerceAtLeast(0),
         )
 
-        val byCategory = current.byCategory + (transaction.categoryId to updatedBreakdown)
-        val totalExpense = current.totalExpense + expenseDelta
+        val byCategory = base.byCategory + (transaction.categoryId to updatedBreakdown)
+        val totalExpense = base.totalExpense + expenseDelta
         val topExpenseCategoryId = byCategory
             .maxByOrNull { it.value.totalExpense }
             ?.takeIf { it.value.totalExpense > 0 }
             ?.key
 
-        return current.copy(
-            totalIncome = current.totalIncome + incomeDelta,
+        return base.copy(
+            totalIncome = base.totalIncome + incomeDelta,
             totalExpense = totalExpense,
             byCategory = byCategory,
             topExpenseCategoryId = topExpenseCategoryId,
         )
     }
+
+    private suspend fun budgetMatch(transaction: Transaction, month: String): BudgetEntity? =
+        if (transaction.type == TransactionType.EXPENSE) {
+            budgetLocal.findBudgetForExpense(
+                month = month,
+                categoryId = transaction.categoryId,
+                familyId = transaction.familyId,
+            )
+        } else {
+            null
+        }
+
+    private fun budgetDeltaFor(
+        transaction: Transaction,
+        budget: BudgetEntity?,
+        sign: Int,
+    ): Long =
+        if (transaction.type == TransactionType.EXPENSE && budget != null) {
+            transaction.amount * sign
+        } else {
+            0L
+        }
 
     private fun walletDeltaFor(transaction: Transaction): Long =
         when (transaction.type) {
