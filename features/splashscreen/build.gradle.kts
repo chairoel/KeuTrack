@@ -6,4 +6,6 @@ android {
     namespace = "com.mascill.keutrack.feature.splashscreen"
 }
 
-dependencies { }
+dependencies {
+    implementation(libs.androidx.core.ktx)
+}
