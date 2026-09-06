@@ -72,8 +72,11 @@ class NewEntryViewModel @Inject constructor(
         combine(data, formState) { snapshot, draft ->
             val wallets = TransactionUiMapper.toWalletOptions(snapshot.walletSummary)
             val selectedWalletId =
-                draft.selectedWalletId
-                    ?: TransactionUiMapper.defaultWalletId(snapshot.walletSummary)
+                TransactionUiMapper.resolveSelectedWalletId(
+                    summary = snapshot.walletSummary,
+                    selectedWalletId = draft.selectedWalletId,
+                    selectedFamilyId = draft.preservedFamilyId,
+                )
             val categoriesForKind =
                 TransactionUiMapper.filterCategoriesForKind(snapshot.categories, draft.kind)
             val categoryUi = TransactionUiMapper.toNewEntryCategories(categoriesForKind)
@@ -320,6 +323,7 @@ class NewEntryViewModel @Inject constructor(
                     preservedCreatedAt = existing.createdAt,
                     preservedUserId = existing.userId,
                     preservedAddedByName = existing.addedByName,
+                    preservedFamilyId = existing.familyId,
                     errorMessage = null,
                 )
             }
@@ -392,6 +396,7 @@ class NewEntryViewModel @Inject constructor(
         val preservedCreatedAt: Instant? = null,
         val preservedUserId: String? = null,
         val preservedAddedByName: String? = null,
+        val preservedFamilyId: String? = null,
         val isLoadingEdit: Boolean = false,
         val isSaving: Boolean = false,
         val errorMessage: String? = null,

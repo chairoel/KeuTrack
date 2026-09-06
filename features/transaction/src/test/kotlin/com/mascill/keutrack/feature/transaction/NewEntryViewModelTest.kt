@@ -146,6 +146,7 @@ class NewEntryViewModelTest {
                 assertThat(prefilled.kind).isEqualTo(EntryTransactionKind.Expense)
                 assertThat(prefilled.selectedCategoryId).isEqualTo("cat_makanan")
                 assertThat(prefilled.selectedWalletId).isEqualTo("w-p")
+                assertThat(prefilled.selectedWallet?.name).isEqualTo("Dompet Utama")
                 assertThat(prefilled.note).isEqualTo("Lunch")
 
                 vm.onSave()
@@ -209,6 +210,55 @@ class NewEntryViewModelTest {
         coVerify(exactly = 0) { transactionRepo.updateTransaction(any()) }
         coVerify(exactly = 0) { transactionRepo.deleteTransaction(any()) }
     }
+
+    @Test
+    fun `edit prefills second personal wallet from summary`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val extraPersonal = personalWallet().copy(id = "w-p2", name = "Dompet Cadangan")
+            every { userRepo.getCurrentUser() } returns flowOf(user())
+            every { getWalletSummary() } returns flowOf(
+                WalletSummary(
+                    personalWallet = personalWallet(),
+                    familyWallets = emptyList(),
+                    totalPersonalBalance = 10_000L,
+                    totalFamilyBalance = 0L,
+                    personalWallets = listOf(personalWallet(), extraPersonal),
+                ),
+            )
+            every { getCategories() } returns flowOf(listOf(foodCategory()))
+            coEvery { transactionRepo.getTransactionById("tx-1") } returns
+                existingTransaction().copy(walletId = "w-p2")
+            val vm = createViewModel(SavedStateHandle(mapOf("transactionId" to "tx-1")))
+
+            vm.uiState.test {
+                skipItems(1)
+                advanceUntilIdle()
+                val state = expectMostRecentItem()
+                assertThat(state.selectedWalletId).isEqualTo("w-p2")
+                assertThat(state.selectedWallet?.name).isEqualTo("Dompet Cadangan")
+                assertThat(state.wallets.map { it.id }).containsAtLeast("w-p", "w-p2")
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `edit remaps missing wallet id to current personal wallet`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            stubFormData()
+            coEvery { transactionRepo.getTransactionById("tx-1") } returns
+                existingTransaction().copy(walletId = "wallet-gone")
+            val vm = createViewModel(SavedStateHandle(mapOf("transactionId" to "tx-1")))
+
+            vm.uiState.test {
+                skipItems(1)
+                advanceUntilIdle()
+                val state = expectMostRecentItem()
+                assertThat(state.selectedWalletId).isEqualTo("w-p")
+                assertThat(state.selectedWallet?.name).isEqualTo("Dompet Utama")
+                assertThat(state.wallets).hasSize(1)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
 
     @Test
     fun `delete without edit id is ignored`() = runTest(mainDispatcherRule.testDispatcher) {

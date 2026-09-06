@@ -74,7 +74,11 @@ internal object TransactionUiMapper {
 
     fun toWalletOptions(summary: WalletSummary): List<WalletOptionUi> {
         val options = mutableListOf<WalletOptionUi>()
-        summary.personalWallet?.let { wallet ->
+        val personal =
+            summary.personalWallets.ifEmpty {
+                listOfNotNull(summary.personalWallet)
+            }
+        personal.forEach { wallet ->
             options += wallet.toOption(typeLabel = LABEL_PERSONAL)
         }
         summary.familyWallets.forEach { wallet ->
@@ -85,6 +89,30 @@ internal object TransactionUiMapper {
 
     fun defaultWalletId(summary: WalletSummary): String? =
         summary.personalWallet?.id ?: summary.familyWallets.firstOrNull()?.id
+
+    /**
+     * Prefers [selectedWalletId] when it is still a live wallet. Stale IDs (sync
+     * remapped / deleted) resolve to the current wallet of the same scope so the
+     * picker never invents a duplicate row.
+     */
+    fun resolveSelectedWalletId(
+        summary: WalletSummary,
+        selectedWalletId: String?,
+        selectedFamilyId: String? = null,
+    ): String? {
+        val knownIds = toWalletOptions(summary).map { it.id }
+        if (selectedWalletId != null && selectedWalletId in knownIds) {
+            return selectedWalletId
+        }
+
+        val familyWallets = summary.familyWallets
+        if (!selectedFamilyId.isNullOrBlank() && familyWallets.isNotEmpty()) {
+            val matchingFamily = familyWallets.firstOrNull { it.familyId == selectedFamilyId }
+            return matchingFamily?.id ?: familyWallets.first().id
+        }
+
+        return defaultWalletId(summary)
+    }
 
     fun toTransactionRows(
         transactions: List<Transaction>,
