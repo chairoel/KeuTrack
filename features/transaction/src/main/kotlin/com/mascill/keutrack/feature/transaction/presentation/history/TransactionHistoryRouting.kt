@@ -10,6 +10,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 fun TransactionHistoryRouting(
     onBack: () -> Unit,
     onAddTransaction: () -> Unit,
+    onTransactionClick: (String) -> Unit,
     viewModel: TransactionHistoryViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -22,6 +23,7 @@ fun TransactionHistoryRouting(
         uiState = uiState,
         onBack = onBack,
         onAddTransaction = onAddTransaction,
+        onTransactionClick = onTransactionClick,
         onPeriodPresetSelected = viewModel::onPeriodPresetSelected,
         onCustomRangeConfirmed = viewModel::onCustomRangeConfirmed,
         onClearPeriodFilter = viewModel::onClearPeriodFilter,

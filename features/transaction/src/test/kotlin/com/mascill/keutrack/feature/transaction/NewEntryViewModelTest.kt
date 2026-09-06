@@ -1,20 +1,27 @@
 package com.mascill.keutrack.feature.transaction
 
+import androidx.lifecycle.SavedStateHandle
 import com.google.common.truth.Truth.assertThat
 import com.mascill.keutrack.core.domain.model.Category
 import com.mascill.keutrack.core.domain.model.CategoryType
+import com.mascill.keutrack.core.domain.model.Transaction
+import com.mascill.keutrack.core.domain.model.TransactionType
 import com.mascill.keutrack.core.domain.model.User
 import com.mascill.keutrack.core.domain.model.Wallet
 import com.mascill.keutrack.core.domain.model.WalletType
 import com.mascill.keutrack.core.domain.repository.TransactionRepository
 import com.mascill.keutrack.core.domain.repository.UserRepository
 import com.mascill.keutrack.core.domain.usecase.AddTransactionUseCase
+import com.mascill.keutrack.core.domain.usecase.DeleteTransactionUseCase
 import com.mascill.keutrack.core.domain.usecase.GetCategoriesUseCase
+import com.mascill.keutrack.core.domain.usecase.GetTransactionByIdUseCase
 import com.mascill.keutrack.core.domain.usecase.GetWalletSummaryUseCase
+import com.mascill.keutrack.core.domain.usecase.UpdateTransactionUseCase
 import com.mascill.keutrack.core.domain.usecase.WalletSummary
 import com.mascill.keutrack.core.testing.MainDispatcherRule
 import com.mascill.keutrack.core.testing.testCommonDispatcher
 import com.mascill.keutrack.feature.transaction.presentation.NewEntryViewModel
+import com.mascill.keutrack.feature.transaction.presentation.model.EntryTransactionKind
 import app.cash.turbine.test
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -41,6 +48,9 @@ class NewEntryViewModelTest {
     private val getCategories = mockk<GetCategoriesUseCase>()
     private val transactionRepo = mockk<TransactionRepository>(relaxed = true)
     private val addTransaction = AddTransactionUseCase(transactionRepo)
+    private val getTransactionById = GetTransactionByIdUseCase(transactionRepo)
+    private val updateTransaction = UpdateTransactionUseCase(transactionRepo)
+    private val deleteTransaction = DeleteTransactionUseCase(transactionRepo)
 
     @Test
     fun `initial state is loading`() = runTest(mainDispatcherRule.testDispatcher) {
@@ -93,6 +103,7 @@ class NewEntryViewModelTest {
         coVerify {
             transactionRepo.addTransaction(match { it.amount == 15_000L && it.categoryId == "cat_makanan" })
         }
+        coVerify(exactly = 0) { transactionRepo.updateTransaction(any()) }
     }
 
     @Test
@@ -115,6 +126,104 @@ class NewEntryViewModelTest {
         }
     }
 
+    @Test
+    fun `edit id prefills form and uses update on save`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            stubFormData()
+            val existing = existingTransaction()
+            coEvery { transactionRepo.getTransactionById("tx-1") } returns existing
+            coEvery { transactionRepo.updateTransaction(any()) } just runs
+            val vm = createViewModel(SavedStateHandle(mapOf("transactionId" to "tx-1")))
+
+            vm.uiState.test {
+                skipItems(1)
+                advanceUntilIdle()
+                val prefilled = expectMostRecentItem()
+                assertThat(prefilled.isLoading).isFalse()
+                assertThat(prefilled.isEditMode).isTrue()
+                assertThat(prefilled.editingTransactionId).isEqualTo("tx-1")
+                assertThat(prefilled.amount).isEqualTo(25_000L)
+                assertThat(prefilled.kind).isEqualTo(EntryTransactionKind.Expense)
+                assertThat(prefilled.selectedCategoryId).isEqualTo("cat_makanan")
+                assertThat(prefilled.selectedWalletId).isEqualTo("w-p")
+                assertThat(prefilled.note).isEqualTo("Lunch")
+
+                vm.onSave()
+                advanceUntilIdle()
+                val saved = expectMostRecentItem()
+                assertThat(saved.navigateBack).isTrue()
+                assertThat(saved.isSaving).isFalse()
+                cancelAndIgnoreRemainingEvents()
+            }
+            coVerify {
+                transactionRepo.updateTransaction(
+                    match {
+                        it.id == "tx-1" &&
+                            it.amount == 25_000L &&
+                            it.createdAt == existing.createdAt &&
+                            it.userId == existing.userId &&
+                            it.addedByName == existing.addedByName
+                    },
+                )
+            }
+            coVerify(exactly = 0) { transactionRepo.addTransaction(any()) }
+        }
+
+    @Test
+    fun `delete in edit mode navigates back`() = runTest(mainDispatcherRule.testDispatcher) {
+        stubFormData()
+        coEvery { transactionRepo.getTransactionById("tx-1") } returns existingTransaction()
+        coEvery { transactionRepo.deleteTransaction("tx-1") } just runs
+        val vm = createViewModel(SavedStateHandle(mapOf("transactionId" to "tx-1")))
+
+        vm.uiState.test {
+            skipItems(1)
+            advanceUntilIdle()
+            awaitItem()
+            vm.onDelete()
+            advanceUntilIdle()
+            val state = expectMostRecentItem()
+            assertThat(state.navigateBack).isTrue()
+            assertThat(state.isSaving).isFalse()
+            cancelAndIgnoreRemainingEvents()
+        }
+        coVerify { transactionRepo.deleteTransaction("tx-1") }
+        coVerify(exactly = 0) { transactionRepo.addTransaction(any()) }
+    }
+
+    @Test
+    fun `missing edit id navigates back`() = runTest(mainDispatcherRule.testDispatcher) {
+        stubFormData()
+        coEvery { transactionRepo.getTransactionById("gone") } returns null
+        val vm = createViewModel(SavedStateHandle(mapOf("transactionId" to "gone")))
+
+        vm.uiState.test {
+            skipItems(1)
+            advanceUntilIdle()
+            val state = expectMostRecentItem()
+            assertThat(state.navigateBack).isTrue()
+            assertThat(state.errorMessage).isEqualTo("Transaksi tidak ditemukan")
+            assertThat(state.isLoading).isFalse()
+            cancelAndIgnoreRemainingEvents()
+        }
+        coVerify(exactly = 0) { transactionRepo.updateTransaction(any()) }
+        coVerify(exactly = 0) { transactionRepo.deleteTransaction(any()) }
+    }
+
+    @Test
+    fun `delete without edit id is ignored`() = runTest(mainDispatcherRule.testDispatcher) {
+        stubFormData()
+        val vm = createViewModel()
+        advanceUntilIdle()
+
+        vm.onDelete()
+        advanceUntilIdle()
+
+        assertThat(vm.uiState.value.navigateBack).isFalse()
+        assertThat(vm.uiState.value.isEditMode).isFalse()
+        coVerify(exactly = 0) { transactionRepo.deleteTransaction(any()) }
+    }
+
     private fun stubFormData() {
         every { userRepo.getCurrentUser() } returns flowOf(user())
         every { getWalletSummary() } returns flowOf(
@@ -123,11 +232,17 @@ class NewEntryViewModelTest {
         every { getCategories() } returns flowOf(listOf(foodCategory()))
     }
 
-    private fun createViewModel() = NewEntryViewModel(
+    private fun createViewModel(
+        savedStateHandle: SavedStateHandle = SavedStateHandle(),
+    ) = NewEntryViewModel(
+        savedStateHandle = savedStateHandle,
         userRepository = userRepo,
         getWalletSummary = getWalletSummary,
         getCategories = getCategories,
+        getTransactionById = getTransactionById,
         addTransaction = addTransaction,
+        updateTransaction = updateTransaction,
+        deleteTransaction = deleteTransaction,
         dispatcher = testCommonDispatcher(mainDispatcherRule.testDispatcher),
     )
 
@@ -149,5 +264,19 @@ class NewEntryViewModelTest {
         color = "#FF7043",
         type = CategoryType.EXPENSE,
         isDefault = true,
+    )
+
+    private fun existingTransaction() = Transaction(
+        id = "tx-1",
+        walletId = "w-p",
+        userId = "owner-1",
+        familyId = null,
+        type = TransactionType.EXPENSE,
+        amount = 25_000L,
+        categoryId = "cat_makanan",
+        note = "Lunch",
+        date = Instant.parse("2026-08-15T04:00:00Z"),
+        addedByName = "Original Name",
+        createdAt = Instant.parse("2026-08-10T00:00:00Z"),
     )
 }

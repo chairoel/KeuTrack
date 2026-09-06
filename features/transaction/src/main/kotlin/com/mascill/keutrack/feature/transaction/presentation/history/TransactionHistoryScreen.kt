@@ -76,6 +76,7 @@ fun TransactionHistoryScreen(
     uiState: HistoryUIState,
     onBack: () -> Unit,
     onAddTransaction: () -> Unit,
+    onTransactionClick: (String) -> Unit = {},
     onDismissError: () -> Unit = {},
     onPeriodPresetSelected: (HistoryPeriodPreset) -> Unit = {},
     onCustomRangeConfirmed: (LocalDate, LocalDate) -> Unit = { _, _ -> },
@@ -196,7 +197,10 @@ fun TransactionHistoryScreen(
                             verticalArrangement = Arrangement.spacedBy(HISTORY_ROW_SPACING.dp),
                         ) {
                             items(uiState.items, key = { it.id }) { row ->
-                                TransactionHistoryRow(row = row)
+                                TransactionHistoryRow(
+                                    row = row,
+                                    onClick = { onTransactionClick(row.id) },
+                                )
                             }
                         }
                     }

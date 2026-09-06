@@ -53,6 +53,7 @@ private const val TXN_SYNC_FAILED_CD = "Gagal sinkron ke cloud"
 @Composable
 fun TransactionHistoryRow(
     row: TransactionRowUi,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val semantic = KeuTrackTheme.semanticColors
@@ -78,6 +79,7 @@ fun TransactionHistoryRow(
                 horizontal = TXN_ROW_PH.dp,
                 vertical = TXN_ROW_PV.dp,
             ),
+        onClick = onClick,
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -214,6 +216,7 @@ private fun TransactionSyncBadge(
 private fun TransactionHistoryRowPreview() {
     KeuTrackTheme(darkTheme = false) {
         TransactionHistoryRow(
+            onClick = {},
             row =
                 TransactionRowUi(
                     id = "1",

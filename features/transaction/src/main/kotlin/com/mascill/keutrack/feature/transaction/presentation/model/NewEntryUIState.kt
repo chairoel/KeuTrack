@@ -7,6 +7,7 @@ data class NewEntryUIState(
     val isSaving: Boolean = false,
     val errorMessage: String? = null,
     val navigateBack: Boolean = false,
+    val editingTransactionId: String? = null,
     val kind: EntryTransactionKind = EntryTransactionKind.Expense,
     val amount: Long = 0L,
     val categories: List<NewEntryCategoryUI> = emptyList(),
@@ -18,6 +19,9 @@ data class NewEntryUIState(
     val userId: String? = null,
     val addedByName: String = "",
 ) {
+    val isEditMode: Boolean
+        get() = !editingTransactionId.isNullOrBlank()
+
     val selectedWallet: WalletOptionUi?
         get() = wallets.firstOrNull { it.id == selectedWalletId }
 

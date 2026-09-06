@@ -5,7 +5,6 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavOptions
 import androidx.navigation.compose.composable
 import androidx.navigation.navDeepLink
-import androidx.navigation.toRoute
 import com.mascill.keutrack.feature.transaction.presentation.NewEntryRouting
 import com.mascill.keutrack.feature.transaction.presentation.history.TransactionHistoryRouting
 import kotlinx.serialization.Serializable
@@ -46,18 +45,15 @@ fun NavController.navigateToTransactionHistory(
 fun NavGraphBuilder.transactionGraph(
     onBack: () -> Unit,
     onAddTransaction: () -> Unit = {},
+    onEditTransaction: (String) -> Unit = {},
 ) {
     composable<TransactionRoute>(
         deepLinks = listOf(
             navDeepLink { uriPattern = TransactionDeepLinks.TRANSACTION },
             navDeepLink { uriPattern = TransactionDeepLinks.TRANSACTION_NEW },
         ),
-    ) { backStackEntry ->
-        val route = backStackEntry.toRoute<TransactionRoute>()
-        NewEntryRouting(
-            onBack = onBack,
-            transactionId = route.transactionId,
-        )
+    ) {
+        NewEntryRouting(onBack = onBack)
     }
     composable<TransactionHistoryRoute>(
         deepLinks = listOf(
@@ -67,6 +63,7 @@ fun NavGraphBuilder.transactionGraph(
         TransactionHistoryRouting(
             onBack = onBack,
             onAddTransaction = onAddTransaction,
+            onTransactionClick = onEditTransaction,
         )
     }
 }
