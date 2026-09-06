@@ -16,17 +16,25 @@ import org.junit.Test
 import java.time.Instant
 import kotlin.coroutines.cancellation.CancellationException
 
-class AddTransactionUseCaseTest {
+class UpdateTransactionUseCaseTest {
 
     private val repo = mockk<TransactionRepository>()
-    private val useCase = AddTransactionUseCase(repo)
+    private val useCase = UpdateTransactionUseCase(repo)
+
+    @Test
+    fun `blank id returns MissingId`() = runTest {
+        val result = useCase(validTransaction().copy(id = "  "))
+
+        assertThat(result).isEqualTo(TransactionWriteResult.Error.MissingId)
+        coVerify(exactly = 0) { repo.updateTransaction(any()) }
+    }
 
     @Test
     fun `amount zero returns InvalidAmount`() = runTest {
         val result = useCase(validTransaction().copy(amount = 0L))
 
         assertThat(result).isEqualTo(TransactionWriteResult.Error.InvalidAmount)
-        coVerify(exactly = 0) { repo.addTransaction(any()) }
+        coVerify(exactly = 0) { repo.updateTransaction(any()) }
     }
 
     @Test
@@ -34,7 +42,7 @@ class AddTransactionUseCaseTest {
         val result = useCase(validTransaction().copy(amount = -1L))
 
         assertThat(result).isEqualTo(TransactionWriteResult.Error.InvalidAmount)
-        coVerify(exactly = 0) { repo.addTransaction(any()) }
+        coVerify(exactly = 0) { repo.updateTransaction(any()) }
     }
 
     @Test
@@ -42,7 +50,7 @@ class AddTransactionUseCaseTest {
         val result = useCase(validTransaction().copy(walletId = "  "))
 
         assertThat(result).isEqualTo(TransactionWriteResult.Error.MissingWallet)
-        coVerify(exactly = 0) { repo.addTransaction(any()) }
+        coVerify(exactly = 0) { repo.updateTransaction(any()) }
     }
 
     @Test
@@ -50,25 +58,38 @@ class AddTransactionUseCaseTest {
         val result = useCase(validTransaction().copy(categoryId = ""))
 
         assertThat(result).isEqualTo(TransactionWriteResult.Error.MissingCategory)
-        coVerify(exactly = 0) { repo.addTransaction(any()) }
+        coVerify(exactly = 0) { repo.updateTransaction(any()) }
+    }
+
+    @Test
+    fun `missing transaction returns NotFound`() = runTest {
+        coEvery { repo.getTransactionById("tx-1") } returns null
+
+        val result = useCase(validTransaction())
+
+        assertThat(result).isEqualTo(TransactionWriteResult.Error.NotFound)
+        coVerify(exactly = 0) { repo.updateTransaction(any()) }
     }
 
     @Test
     fun `valid transaction delegates to repository`() = runTest {
         val transaction = validTransaction()
-        coEvery { repo.addTransaction(transaction) } just runs
+        coEvery { repo.getTransactionById(transaction.id) } returns transaction
+        coEvery { repo.updateTransaction(transaction) } just runs
 
         val result = useCase(transaction)
 
         assertThat(result).isEqualTo(TransactionWriteResult.Success)
-        coVerify(exactly = 1) { repo.addTransaction(transaction) }
+        coVerify(exactly = 1) { repo.updateTransaction(transaction) }
     }
 
     @Test
     fun `repository exception returns Unknown`() = runTest {
-        coEvery { repo.addTransaction(any()) } throws IllegalStateException("db down")
+        val transaction = validTransaction()
+        coEvery { repo.getTransactionById(transaction.id) } returns transaction
+        coEvery { repo.updateTransaction(any()) } throws IllegalStateException("db down")
 
-        val result = useCase(validTransaction())
+        val result = useCase(transaction)
 
         assertThat(result).isInstanceOf(TransactionWriteResult.Error.Unknown::class.java)
         assertThat((result as TransactionWriteResult.Error.Unknown).cause.message)
@@ -77,10 +98,12 @@ class AddTransactionUseCaseTest {
 
     @Test
     fun `CancellationException is rethrown`() = runTest {
-        coEvery { repo.addTransaction(any()) } throws CancellationException("cancelled")
+        val transaction = validTransaction()
+        coEvery { repo.getTransactionById(transaction.id) } returns transaction
+        coEvery { repo.updateTransaction(any()) } throws CancellationException("cancelled")
 
         try {
-            useCase(validTransaction())
+            useCase(transaction)
             fail("Expected CancellationException")
         } catch (e: CancellationException) {
             assertThat(e.message).isEqualTo("cancelled")

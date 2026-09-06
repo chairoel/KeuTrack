@@ -8,6 +8,7 @@ import com.mascill.keutrack.core.domain.model.Category
 import com.mascill.keutrack.core.domain.model.SyncStatus
 import com.mascill.keutrack.core.domain.model.Transaction
 import com.mascill.keutrack.core.domain.model.TransactionType
+import com.mascill.keutrack.core.domain.model.TransactionWriteResult
 import com.mascill.keutrack.core.domain.model.User
 import com.mascill.keutrack.core.domain.repository.UserRepository
 import com.mascill.keutrack.core.domain.usecase.AddTransactionUseCase
@@ -220,22 +221,7 @@ class NewEntryViewModel @Inject constructor(
                 )
 
             try {
-                val result = addTransaction(transaction)
-                result.fold(
-                    onSuccess = {
-                        formState.update {
-                            it.copy(isSaving = false, navigateBack = true)
-                        }
-                    },
-                    onFailure = { error ->
-                        formState.update {
-                            it.copy(
-                                isSaving = false,
-                                errorMessage = error.message ?: ERR_SAVE_FAILED,
-                            )
-                        }
-                    },
-                )
+                applyWriteResult(addTransaction(transaction))
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -246,6 +232,34 @@ class NewEntryViewModel @Inject constructor(
                     )
                 }
             }
+        }
+    }
+
+    private fun applyWriteResult(result: TransactionWriteResult) {
+        when (result) {
+            TransactionWriteResult.Success ->
+                formState.update { it.copy(isSaving = false, navigateBack = true) }
+
+            TransactionWriteResult.Error.InvalidAmount ->
+                formState.update { it.copy(isSaving = false, errorMessage = ERR_AMOUNT) }
+
+            TransactionWriteResult.Error.MissingWallet ->
+                formState.update { it.copy(isSaving = false, errorMessage = ERR_NO_WALLET) }
+
+            TransactionWriteResult.Error.MissingCategory ->
+                formState.update { it.copy(isSaving = false, errorMessage = ERR_CATEGORY) }
+
+            TransactionWriteResult.Error.MissingId,
+            TransactionWriteResult.Error.NotFound ->
+                formState.update { it.copy(isSaving = false, errorMessage = ERR_SAVE_FAILED) }
+
+            is TransactionWriteResult.Error.Unknown ->
+                formState.update {
+                    it.copy(
+                        isSaving = false,
+                        errorMessage = result.cause.message ?: ERR_SAVE_FAILED,
+                    )
+                }
         }
     }
 

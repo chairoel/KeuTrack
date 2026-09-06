@@ -6,10 +6,13 @@ import com.mascill.keutrack.core.domain.repository.TransactionRepository
 import javax.inject.Inject
 import kotlin.coroutines.cancellation.CancellationException
 
-class AddTransactionUseCase @Inject constructor(
+class UpdateTransactionUseCase @Inject constructor(
     private val transactionRepository: TransactionRepository,
 ) {
     suspend operator fun invoke(transaction: Transaction): TransactionWriteResult {
+        if (transaction.id.isBlank()) {
+            return TransactionWriteResult.Error.MissingId
+        }
         if (transaction.amount <= 0) {
             return TransactionWriteResult.Error.InvalidAmount
         }
@@ -20,7 +23,9 @@ class AddTransactionUseCase @Inject constructor(
             return TransactionWriteResult.Error.MissingCategory
         }
         return try {
-            transactionRepository.addTransaction(transaction)
+            transactionRepository.getTransactionById(transaction.id)
+                ?: return TransactionWriteResult.Error.NotFound
+            transactionRepository.updateTransaction(transaction)
             TransactionWriteResult.Success
         } catch (e: CancellationException) {
             throw e
