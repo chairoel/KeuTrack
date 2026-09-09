@@ -3,8 +3,12 @@
 > **Modul target:** `:core:data` (atomic update/delete) → `:core:domain` (use case additive) → `:features:transaction` (form edit + tap History) → `:app` (nav callback)  
 > **Estimasi:** ~2–2.5 hari · **16a** ~0.8–1 hari (Room side-effects) · **16b** ~0.3 hari (use case) · **16c** ~0.7–1 hari (UI)  
 > **Prasyarat:** Phase 5 ✅ (create + history read-only) · Phase 11 ✅ (`findBudgetForExpense` + increment budget) · Phase 12 ✅ (New Entry keypad) · Phase 15 ✅ (History totals Flow)  
-> **Status:** **16a + 16b + 16c done**  
+> **Status:** **16a + 16b + 16c implemented** (atomic Room write + use case + History tap / form edit-delete). Dashboard recent tap (P16) **tidak** dikerjakan. Firestore update/delete = **Phase 17** (ex-16d) — lihat [`PHASE_17_TRANSACTION_FIRESTORE_UPDATE_AND_DELETE.md`](./PHASE_17_TRANSACTION_FIRESTORE_UPDATE_AND_DELETE.md).  
 > **Hasil akhir:** User bisa **mengubah** dan **menghapus** item di Riwayat. Tap row membuka form yang sama (`NewEntryScreen`) dalam mode edit. Save mempertahankan `id`. Hapus lewat tombol di form + dialog konfirmasi. Saldo wallet, budget `spent`, category summary, dan totals History **ikut terkoreksi di Room**.  
+> **16a as-shipped:** `applyUpdatedTransactionAtomically` / `applyDeletedTransactionAtomically` + helper signed-delta di `TransactionRepositoryImpl`; tes repo cover amount / tipe / kategori / wallet / period / delete / missing id.  
+> **16b as-shipped:** `TransactionWriteResult`; `GetTransactionByIdUseCase` / `UpdateTransactionUseCase` / `DeleteTransactionUseCase`; `AddTransactionUseCase` return sealed yang sama.  
+> **16c as-shipped:** `SavedStateHandle["transactionId"]` → prefill; judul `Edit Transaksi`; CTA `Simpan perubahan`; `AlertDialog` hapus; History `onClick` → `onEditTransaction` → `navigateToTransaction(id)`. `NewEntryRouting` **tidak** lagi terima `transactionId` (VM yang baca nav arg).  
+> **Follow-up UI (shipped dengan 16c):** `WalletSummary.personalWallets` + `TransactionUiMapper.resolveSelectedWalletId` — ID wallet usang (sync remapped) dipetakan ke wallet hidup yang sama scope; picker create/edit **satu daftar**, tanpa baris palsu `Personal`.  
 > **Gate Phase 5 Task 7:** UI edit/delete **dilarang** hidup sebelum 16a hijau. Ini dokumen pengganti “tunda E ke Phase 5.1”.
 
 ---
@@ -19,7 +23,7 @@
 6. [Prasyarat (Definition of Ready)](#6-prasyarat-definition-of-ready)
 7. [File Referensi (Read-Only)](#7-file-referensi-read-only)
 8. [File yang TIDAK BOLEH Diubah](#8-file-yang-tidak-boleh-diubah)
-9. [File yang BOLEH Diubah / Dibuat](#9-file-yang-boleh-diubah--dibuat)
+9. [File yang Diubah / Dibuat](#9-file-yang-diubah--dibuat)
 10. [Struktur File Target](#10-struktur-file-target)
 11. [Desain Mutasi Lokal (16a)](#11-desain-mutasi-lokal-16a)
 12. [Desain UX](#12-desain-ux)
@@ -40,19 +44,29 @@
 
 Phase 5 menutup create + history **read-only**. Section E / Task 7 (use case + UI edit/delete) ditunda karena `TransactionRepositoryImpl.update/delete` **belum** mengoreksi side-effect.
 
-Hari ini:
+**Sebelum Phase 16:**
 
-| Permukaan | Perilaku |
-|-----------|----------|
+| Permukaan | Perilaku lama |
+|-----------|---------------|
 | History row | Tampil saja; **tidak** clickable |
-| `TransactionRoute(transactionId)` | Route + deep link sudah ada |
 | `NewEntryRouting` | `transactionId` di-suppress; form **create-only** |
 | `NewEntryViewModel.onSave` | Selalu `UUID` baru + `AddTransactionUseCase` |
 | `updateTransaction` | `upsert` + `PENDING` — **tanpa** reverse/apply wallet/budget/summary |
 | `deleteTransaction` | Reverse **wallet saja**; budget + summary stale |
-| Firestore sync | Strategy A: skip increment jika dokumen sudah ada — edit yang `SYNCED` tidak ter-push dengan benar |
+| Firestore sync | Strategy A: skip increment jika dokumen sudah ada |
 
-History list dan `HistoryPeriodTotalsRow` (Phase 15) membaca Room langsung, jadi jumlah baris/total **kelihatan** benar setelah delete. Yang rusak: saldo Dashboard, budget Family, category summary.
+**Sesudah (codebase sekarang):**
+
+| Permukaan | Perilaku |
+|-----------|----------|
+| History row | Tap seluruh kartu → `navigateToTransaction(id)` |
+| `NewEntryViewModel` | Baca `SavedStateHandle["transactionId"]`; load `GetTransactionById`; save `Add` atau `Update`; `onDelete` |
+| Form edit | Judul `Edit Transaksi`; CTA `Simpan perubahan`; `TextButton` Hapus + `AlertDialog` |
+| Prefill wallet | `resolveSelectedWalletId`: ID hidup dipakai; ID usang → wallet personal/family yang sama scope |
+| `updateTransaction` / `deleteTransaction` | Atomic Room: reverse + apply wallet / budget `spent` / category summary |
+| Firestore sync | **Belum** berubah (P15 / Phase 17): skip-if-exists; delete lokal tidak enqueue outbox |
+
+History list dan `HistoryPeriodTotalsRow` (Phase 15) tetap Flow Room. Setelah 16a, saldo Dashboard, budget Family, dan category summary **ikut** terkoreksi di lokal. Cloud tetap boleh stale sampai Phase 17.
 
 **Tujuan 16a — Write lokal benar (wajib dulu):**
 
@@ -78,7 +92,7 @@ History list dan `HistoryPeriodTotalsRow` (Phase 15) membaca Room langsung, jadi
 - Swipe-to-delete / long-press menu di list
 - Screen detail terpisah
 - ACL “hanya penulis yang boleh edit”
-- Firestore update/delete yang benar (tombstone, reverse remote increment) — **16d / follow-up**
+- Firestore update/delete yang benar (tombstone, reverse remote increment) — **Phase 17** (ex-16d)
 - Pagination History, filter tipe/kategori
 - Edit dari Dashboard recent (opsional tipis; jangan blokir)
 
@@ -90,47 +104,48 @@ History list dan `HistoryPeriodTotalsRow` (Phase 15) membaca Room langsung, jadi
 
 | Item | Lokasi | Status vs Phase 16 |
 |------|--------|-------------------|
-| `TransactionRepository.getTransactionById` | domain + impl | Siap; 16b bungkus use case |
-| `updateTransaction` | impl | **Tidak aman** — upsert only. Komentar impl: prefer delete+add sampai di-harden |
-| `deleteTransaction` | impl | Wallet reverse saja; **bukan** atomic dengan delete row |
-| `addTransaction` | impl | Pola yang **ditiru**: `applyNewTransactionAtomically` + `findBudgetForExpense` + `buildUpdatedSummary` |
-| `applyNewTransactionAtomically` | `TransactionLocalDataSource` | Hanya path create |
-| `WalletLocalDataSource.applyBalanceDelta` | data | Delta bertanda; dipakai reverse |
-| `BudgetLocalDataSource.applySpentDelta` | data | Delta bertanda; 16a wajib pakai angka negatif |
+| `TransactionRepository.getTransactionById` | domain + impl | Ada; 16b bungkus `GetTransactionByIdUseCase` |
+| `updateTransaction` | impl | **Harden** — `applyUpdatedTransactionAtomically` (reverse + apply) |
+| `deleteTransaction` | impl | **Harden** — `applyDeletedTransactionAtomically` lalu hapus row |
+| `addTransaction` | impl | Tetap `applyNewTransactionAtomically`; signed-delta dishare |
+| `applyUpdated` / `applyDeleted` | `TransactionLocalDataSource` | Satu `db.withTransaction` per operasi |
+| `WalletLocalDataSource.applyBalanceDelta` | data | Delta bertanda; dipakai reverse + apply |
+| `BudgetLocalDataSource.applySpentDelta` | data | Delta bertanda (termasuk negatif) |
 | `findBudgetForExpense` | `BudgetExpenseLookup.kt` | Family vs personal |
 | `monthKey` / `PeriodBounds.periodKey` | `TransactionRepositoryImpl` | Siklus payday; edit tanggal bisa pindah period |
-| `CategorySummary` keyed `(period, userId)` | existing | Bukan per-wallet; 16a jangan ubah model |
-| Use case `Add` / `GetTransactions` | domain | Ada; Add return `TransactionWriteResult` |
-| `TransactionWriteResult` | domain model | Ada — sealed Success / Error |
-| `Get*` / `Update*` / `Delete*` transaction use case | domain | Ada (16b) |
-| Tes `TransactionRepositoryImpl` | `core/data/src/test` | Cover `add` + observe; **tidak** ada update/delete |
-| `TransactionFirestoreDataSource.upsertTransactionWithSideEffects` | data | Skip jika doc exists |
-| `deleteTransaction` Firestore | data | Hapus dokumen saja; sync **tidak** dipanggil dari delete lokal (row sudah hilang → `getPending()` kosong) |
+| `WalletSummary.personalWallets` | `GetWalletSummaryUseCase` | Semua personal (bukan hanya `firstOrNull`) untuk picker |
+| `TransactionWriteResult` | domain model | Sealed Success / Error; Add / Update / Delete |
+| `Get*` / `Update*` / `Delete*` transaction use case | domain | Ada + tes unit |
+| Tes `TransactionRepositoryImpl` | `core/data/src/test` | Cover add + update/delete side-effects |
+| `TransactionFirestoreDataSource.upsertTransactionWithSideEffects` | data | **Belum** diubah — skip jika doc exists (Phase 17) |
+| `deleteTransaction` Firestore | data | Hapus dokumen saja; delete lokal **tidak** enqueue outbox (Phase 17) |
 
 ### Feature transaction
 
 | Item | Lokasi | Status vs Phase 16 |
 |------|--------|-------------------|
-| `TransactionRoute(transactionId)` | `TransactionNavigation.kt` | Siap |
-| `navigateToTransaction(id)` | sama | Siap; History **belum** memanggil |
-| Deep link `keutrack://transaction/{transactionId}` | sama | Hidup setelah 16c baca id |
-| `NewEntryRouting` | presentation | `@Suppress UNUSED_PARAMETER` |
-| `NewEntryViewModel` | presentation | Create-only; tidak baca `SavedStateHandle` |
-| `NewEntryUIState` | model | Tidak ada `isEditMode` |
-| `NewEntryScreen` judul | `"Transaksi Baru"` | Hardcoded |
-| Save CTA | `"Add transaction"` | Hardcoded di form |
-| `TransactionHistoryRow` | components | Tidak ada `onClick` |
-| `TransactionHistoryScreen` / Routing | history | Tidak ada `onTransactionClick` |
+| `TransactionRoute(transactionId)` | `TransactionNavigation.kt` | Siap; VM baca arg lewat `SavedStateHandle` |
+| `navigateToTransaction(id)` | sama | History tap memanggil |
+| Deep link `keutrack://transaction/{transactionId}` | sama | Hidup; id kosong / null → create |
+| `NewEntryRouting` | presentation | Hanya `onBack`; `onDelete` → VM |
+| `NewEntryViewModel` | presentation | Create + edit + delete; `isLoading` sampai prefill |
+| `NewEntryUIState` | model | `editingTransactionId` + `isEditMode` |
+| `NewEntryScreen` judul | create / edit | `Transaksi Baru` / `Edit Transaksi` |
+| Save CTA | form | `Add transaction` / `Simpan perubahan` |
+| `TransactionHistoryRow` | components | `onClick` → `KeuTrackCard` |
+| `TransactionHistoryScreen` / Routing | history | `onTransactionClick` |
+| `resolveSelectedWalletId` | `TransactionUiMapper` | Remap ID usang; jangan tambah opsi sintetis |
 | `KeuTrackCard.onClick` | design system | Sudah ada (Phase 12) |
-| Family budget delete CTA | `FamilyBudgetTargetSheet` | Pola `TextButton` error — **adaptasi** |
+| Family budget delete CTA | `FamilyBudgetTargetSheet` | Pola `TextButton` error — diadaptasi di form |
 | History totals Flow | Phase 15 | Otomatis update setelah Room write |
+| Dashboard recent tap | `RecentTransactionsSection` | **Tidak** di-wire (P16 opsional) |
 
 ### App nav
 
 | Item | Status |
 |------|--------|
-| `KeuTrackNavHost.transactionGraph(onBack, onAddTransaction)` | Perlu callback `onEditTransaction` |
-| HomeShell → History / FAB | Tidak perlu ubah kecuali recent-tap (opsional) |
+| `KeuTrackNavHost.transactionGraph` | `onEditTransaction = { id -> navigateToTransaction(id) }` |
+| HomeShell → History / FAB | FAB tetap create (tanpa id); recent tap **tidak** diubah |
 
 ---
 
@@ -150,27 +165,28 @@ History list dan `HistoryPeriodTotalsRow` (Phase 15) membaca Room langsung, jadi
 | P10 | Copy UI | Campuran ID/EN seperti form sekarang; judul edit **ID** (`Edit Transaksi`) | Konsisten History; jangan i18n resources |
 | P11 | ACL family | Siapa pun yang melihat row boleh edit/hapus | Phase 6C menunda ACL; 16 jangan tambah |
 | P12 | Strategi update | **Reverse + apply**, bukan delete+add | Pertahankan `id` (P5); hapus+buat UUID baru merusak deep link |
-| P13 | Atomicity | Satu `db.withTransaction` untuk update dan untuk delete | Delete hari ini pecah 2 call |
+| P13 | Atomicity | Satu `db.withTransaction` untuk update dan untuk delete | Delete lama pecah 2 call |
 | P14 | Ship slice | **16a → 16b → 16c**. 16c dilarang tanpa 16a hijau | Gate Phase 5 |
-| P15 | Firestore | **Di luar 16.** Lokal benar; cloud boleh stale sampai 16d | `getPending` tidak melihat row yang sudah dihapus; upsert skip-if-exists |
-| P16 | Dashboard recent tap | **Opsional** 16c; jangan blokir | History adalah AC utama |
+| P15 | Firestore | **Di luar 16.** Lokal benar; cloud boleh stale sampai Phase 17 | `getPending` tidak melihat row yang sudah dihapus; upsert skip-if-exists |
+| P16 | Dashboard recent tap | **Opsional** 16c; **tidak** dikerjakan | History adalah AC utama |
 | P17 | Summary helper | Ekstrak delta bertanda dari `buildUpdatedSummary` | Add/update/delete share satu rumus |
 | P18 | Period pindah | Jika `monthKey(old) != monthKey(new)`: reverse summary/budget periode lama, apply periode baru | Payday cycle (Phase 14) |
 | P19 | Wallet pindah | Reverse saldo wallet lama, apply wallet baru | Dua `applyBalanceDelta` |
 | P20 | Merge PR | Satu PR 16a+16b+16c **atau** 16a dulu (boleh merge sendiri), 16b+16c menyusul | Jangan merge 16c tanpa 16a |
+| P21 | Wallet ID usang saat edit | **Remap** ke wallet hidup (personal / family scope); **jangan** sisip baris palsu di picker | Sync Phase 10 bisa ganti ID kanonik; chip kosong atau duplikat `Personal` membingungkan |
 
 ---
 
 ## 4. Scope — Apa yang Dikerjakan
 
-### 16a — Atomic local write
+### 16a — Atomic local write ✅
 
 1. Helper signed-delta: wallet, budget, summary (support `+1` / `-1`).
 2. `applyUpdatedTransactionAtomically` + `applyDeletedTransactionAtomically` di local data source (Room `withTransaction`).
 3. `TransactionRepositoryImpl.updateTransaction` / `deleteTransaction` memakai helper itu; `addTransaction` boleh refaktor ke helper yang sama **tanpa** ubah perilaku add.
 4. Tes repo: amount, tipe, kategori, wallet, period, delete, missing id.
 
-### 16b — Domain
+### 16b — Domain ✅
 
 5. `GetTransactionByIdUseCase` — `suspend operator fun invoke(id: String): Transaction?`
 6. `UpdateTransactionUseCase` — validasi = Add; `getById` null → `Error.NotFound`; panggil `updateTransaction`; return `TransactionWriteResult`
@@ -178,7 +194,7 @@ History list dan `HistoryPeriodTotalsRow` (Phase 15) membaca Room langsung, jadi
 8. `AddTransactionUseCase` ikut return `TransactionWriteResult` (satu kontrak write)
 9. Tes unit assert sealed variant (bukan `IllegalArgumentException` / `message`)
 
-### 16c — UI + nav
+### 16c — UI + nav ✅
 
 10. `NewEntryViewModel` baca `transactionId` dari `SavedStateHandle`; load; prefill; save/update/delete.
 11. `NewEntryUIState` + copy judul/CTA/delete.
@@ -195,9 +211,10 @@ History list dan `HistoryPeriodTotalsRow` (Phase 15) membaca Room langsung, jadi
 | Item | Alasan |
 |------|--------|
 | Swipe-to-delete / contextual menu list | P4 |
+| Tap recent di Dashboard | P16 — opsional, tidak dikerjakan |
 | `TransactionDetailRoute` / screen baru | P1 |
-| Schema Room baru / kolom tombstone | 16d |
-| Ubah Strategy A Firestore / `SyncRepositoryImpl.syncPendingTransactions` | 16d |
+| Schema Room baru / kolom tombstone | Phase 17 |
+| Ubah Strategy A Firestore / `SyncRepositoryImpl.syncPendingTransactions` | Phase 17 |
 | ACL penulis vs member | P11 |
 | Edit recurring / split / transfer antar-wallet sebagai tipe baru | Tidak ada di domain |
 | i18n `strings.xml` | Pola existing: const di file |
@@ -251,29 +268,29 @@ Boleh sentuh Dashboard **hanya** jika mengerjakan P16 (recent tap): callback `on
 
 ---
 
-## 9. File yang BOLEH Diubah / Dibuat
+## 9. File yang Diubah / Dibuat
 
 ### 16a — core:data
 
 | Path | Aksi |
 |------|------|
-| `core/data/.../datasource/local/TransactionLocalDataSource.kt` + Impl | Method atomic update + delete |
-| `core/data/.../repository/TransactionRepositoryImpl.kt` | Harden `update` / `delete`; ekstrak helper delta |
+| `core/data/.../datasource/local/TransactionLocalDataSource.kt` + Impl | `applyUpdated` / `applyDeleted` |
+| `core/data/.../repository/TransactionRepositoryImpl.kt` | Harden `update` / `delete`; helper delta |
 | `core/data/src/test/.../TransactionRepositoryImplTest.kt` | Tes reverse/apply |
 
-Interface `TransactionRepository` **tidak** wajib berubah (signature sudah ada).
+Interface `TransactionRepository` **tidak** berubah (signature sudah ada).
 
 ### 16b — core:domain
 
 | Path | Aksi |
 |------|------|
-| `core/domain/.../model/TransactionWriteResult.kt` | **Baru** — sealed Success / Error (pola `AuthResult`) |
+| `core/domain/.../model/TransactionWriteResult.kt` | Sealed Success / Error (pola `AuthResult`) |
 | `core/domain/.../usecase/AddTransactionUseCase.kt` | Return `TransactionWriteResult` |
-| `core/domain/.../usecase/GetTransactionByIdUseCase.kt` | **Baru** |
-| `core/domain/.../usecase/UpdateTransactionUseCase.kt` | **Baru** |
-| `core/domain/.../usecase/DeleteTransactionUseCase.kt` | **Baru** |
-| `core/domain/src/test/.../usecase/*UseCaseTest.kt` | **Baru** + update tes Add |
-| `NewEntryViewModel.kt` (create path) | `fold` → `when (TransactionWriteResult)` |
+| `core/domain/.../usecase/GetTransactionByIdUseCase.kt` | `invoke(id): Transaction?` |
+| `core/domain/.../usecase/UpdateTransactionUseCase.kt` | Validasi + `NotFound` |
+| `core/domain/.../usecase/DeleteTransactionUseCase.kt` | `MissingId` jika blank |
+| `core/domain/src/test/.../usecase/*UseCaseTest.kt` | Assert sealed variant |
+| `NewEntryViewModel.kt` (create path) | `when (TransactionWriteResult)` |
 
 Tidak perlu Hilt `@Binds` baru — `@Inject constructor` seperti Add.
 
@@ -282,15 +299,22 @@ Tidak perlu Hilt `@Binds` baru — `@Inject constructor` seperti Add.
 | Path | Aksi |
 |------|------|
 | `NewEntryViewModel.kt` | `SavedStateHandle`, load, update, delete |
-| `NewEntryUIState.kt` | `isEditMode` / `editingTransactionId` |
-| `NewEntryRouting.kt` | Pakai id via VM; wiring `onDelete` |
+| `NewEntryUIState.kt` | `editingTransactionId` / `isEditMode` |
+| `NewEntryRouting.kt` | Tanpa param id; wiring `onDelete` |
 | `NewEntryScreen.kt` / `NewEntryFormContent.kt` | Judul, CTA, tombol hapus, dialog |
 | `TransactionHistoryRow.kt` | `onClick` |
 | `TransactionHistoryScreen.kt` / Routing | `onTransactionClick` |
 | `TransactionNavigation.kt` | Graph terima `onEditTransaction` |
 | `app/.../KeuTrackNavHost.kt` | `navigateToTransaction(id)` |
-| Tes `NewEntryViewModelTest` | Prefill / update / delete / missing |
-| Tes History (jika ada) | Row click **tidak** wajib di VM (nav saja) |
+| Tes `NewEntryViewModelTest` | Prefill / update / delete / missing / remap wallet |
+
+### Follow-up wallet picker (setelah 16c)
+
+| Path | Aksi |
+|------|------|
+| `GetWalletSummaryUseCase` / `WalletSummary` | Field `personalWallets` |
+| `TransactionUiMapper.resolveSelectedWalletId` | Remap ID usang ke wallet hidup |
+| Tes VM + `GetWalletSummaryUseCaseTest` | Wallet kedua + ID hilang → personal default |
 
 ---
 
@@ -298,25 +322,27 @@ Tidak perlu Hilt `@Binds` baru — `@Inject constructor` seperti Add.
 
 ```
 core/domain/.../model/
-└── TransactionWriteResult.kt             ← BARU (Add / Update / Delete)
+└── TransactionWriteResult.kt
 
 core/domain/.../usecase/
-├── AddTransactionUseCase.kt              ← return TransactionWriteResult
-├── GetTransactionByIdUseCase.kt          ← BARU
-├── UpdateTransactionUseCase.kt           ← BARU
-└── DeleteTransactionUseCase.kt           ← BARU
+├── AddTransactionUseCase.kt              ← TransactionWriteResult
+├── GetTransactionByIdUseCase.kt
+├── UpdateTransactionUseCase.kt
+├── DeleteTransactionUseCase.kt
+└── GetWalletSummaryUseCase.kt            ← + personalWallets
 
 core/data/.../datasource/local/
-├── TransactionLocalDataSource.kt         ← + applyUpdated / applyDeleted
+├── TransactionLocalDataSource.kt         ← applyUpdated / applyDeleted
 └── TransactionLocalDataSourceImpl.kt
 
 core/data/.../repository/
-└── TransactionRepositoryImpl.kt          ← harden update/delete
+└── TransactionRepositoryImpl.kt          ← update/delete atomic
 
 features/transaction/.../presentation/
-├── NewEntryViewModel.kt                  ← create + edit
+├── NewEntryViewModel.kt                  ← create + edit + delete
 ├── NewEntryScreen.kt                     ← judul + dialog hapus
-├── NewEntryRouting.kt                    ← onDelete
+├── NewEntryRouting.kt                    ← onDelete (id dari SavedStateHandle)
+├── model/TransactionUiMapper.kt          ← resolveSelectedWalletId
 ├── components/
 │   ├── NewEntryFormContent.kt            ← CTA + tombol hapus
 │   └── TransactionHistoryRow.kt          ← onClick
@@ -328,7 +354,7 @@ features/transaction/.../presentation/
 app/.../navigation/KeuTrackNavHost.kt     ← wire id
 ```
 
-Tidak perlu route baru.
+Tidak ada route baru. Dashboard recent **tidak** disentuh.
 
 ---
 
@@ -416,7 +442,7 @@ Tetap `syncScheduler.enqueueSync()` seperti add. **Ingat P15:** enqueue tidak me
 
 ### 11.6 Yang dilarang di 16a
 
-- Menambah kolom `isDeleted` / tabel outbox (itu 16d)
+- Menambah kolom `isDeleted` / tabel outbox (itu Phase 17)
 - Memanggil Firestore dari repository
 - Mengubah signature `TransactionRepository`
 
@@ -482,33 +508,41 @@ Dashboard FAB → Create tetap `navigateToTransaction()` tanpa id.
 
 | Field | Sumber |
 |-------|--------|
-| `isEditMode` | `editingTransactionId != null` |
+| `isEditMode` | `editingTransactionId != null` (computed) |
 | `editingTransactionId` | `SavedStateHandle["transactionId"]` |
 | field form yang sudah ada | prefill dari `GetTransactionByIdUseCase` |
-| `isSaving` | save **atau** delete in-flight (satu flag cukup) |
+| `selectedWalletId` | `resolveSelectedWalletId(summary, draft.walletId, preservedFamilyId)` |
+| `isSaving` | save **atau** delete in-flight (satu flag) |
+| `isLoading` | `true` sampai prefill edit selesai (`isLoadingEdit`) |
 
 Jangan expose `Transaction` domain ke Screen.
 
 ### `NewEntryViewModel`
 
 ```
-init / first combine:
-  id = savedStateHandle["transactionId"]
-  if (!id.isNullOrBlank()) load GetTransactionById
+init:
+  id = savedStateHandle["transactionId"]  // blank → create
+  if (id != null) load GetTransactionById
     success → FormDraft(kind, amount, category, wallet, date, note)
-              + preserved id, createdAt, userId, addedByName
+              + preserved id, createdAt, userId, addedByName, familyId
     null    → error + navigateBack
 
+combine:
+  wallets = toWalletOptions(summary)           // semua personal + family
+  selectedWalletId = resolveSelectedWalletId   // ID hidup, else remap scope
+
 onSave:
-  result = if (isEditMode) UpdateTransactionUseCase(tx dengan id lama)
-           else            AddTransactionUseCase(UUID baru)
-  when (result) { Success → pop; Error.* → snackbar; NotFound/MissingId → snackbar + pop (edit) }
+  result = if (editingId != null) UpdateTransactionUseCase(tx dengan id lama)
+           else                   AddTransactionUseCase(UUID baru)
+  when (result) { Success → pop; Error.* → inline error; NotFound/MissingId → error + pop (edit) }
 
 onDelete:
-  only if isEditMode → when (DeleteTransactionUseCase(id)) { … }
+  only if editingId set → when (DeleteTransactionUseCase(id)) { … }
 ```
 
 `familyId` pada save: dari **wallet terpilih** (`WalletOptionUi.familyId`), sama create — bukan dari transaksi lama jika wallet diganti.
+
+`resolveSelectedWalletId` (P21): jika `walletId` masih ada di opsi, pakai itu. Jika tidak dan ada `familyId`, pakai wallet family yang `familyId`-nya cocok (atau family pertama). Selain itu default personal. **Jangan** menambah `WalletOptionUi` sintetis — itu membuat picker edit punya baris ekstra (`Personal`) yang tidak ada di create.
 
 ### History
 
@@ -573,9 +607,9 @@ Verify: `./gradlew :core:data:testDevDebugUnitTest --tests "*TransactionReposito
 - Graph + `KeuTrackNavHost`.
 - Verify: `./gradlew :features:transaction:testDevDebugUnitTest assembleDevDebug`
 
-### 16c — Task 7 (opsional): Dashboard recent
+### 16c — Task 7 (opsional): Dashboard recent — **tidak dikerjakan**
 
-- `onTransactionClick: (String) -> Unit` dari HomeShell. Jangan import `TransactionRoute` di dashboard.
+- `onTransactionClick: (String) -> Unit` dari HomeShell. Jangan import `TransactionRoute` di dashboard. Masih follow-up jika diperlukan.
 
 ---
 
@@ -583,22 +617,24 @@ Verify: `./gradlew :core:data:testDevDebugUnitTest --tests "*TransactionReposito
 
 ### Harus terpenuhi
 
-- [ ] `updateTransaction` mengoreksi wallet + budget + summary untuk kasus §11.2 #1–#6
-- [ ] `deleteTransaction` atomic dan mengoreksi wallet + budget + summary
-- [ ] Tes 16a Task 2 hijau
+- [x] `updateTransaction` mengoreksi wallet + budget + summary untuk kasus §11.2 #1–#6 (tes repo)
+- [x] `deleteTransaction` atomic dan mengoreksi wallet + budget + summary
+- [x] Tes 16a Task 2 hijau
 - [x] Use case 16b ada (`TransactionWriteResult`); feature **tidak** panggil `TransactionRepository` langsung untuk tulis
-- [ ] Tap item History membuka form ter-prefill (amount, tipe, kategori, wallet, tanggal, note)
-- [ ] Save edit **tidak** membuat row baru (jumlah list sama; `id` sama)
-- [ ] Hapus + konfirmasi: row hilang; totals History berubah; saldo wallet berubah
-- [ ] Create path (FAB) **tidak** regresi
-- [ ] Preview edit light + dark
-- [ ] Auth / splash / Settings / Family invite tidak disentuh
+- [x] Tap item History membuka form ter-prefill (amount, tipe, kategori, wallet, tanggal, note)
+- [x] Save edit **tidak** membuat row baru (jumlah list sama; `id` sama)
+- [x] Hapus + konfirmasi: row hilang; totals History berubah; saldo wallet berubah (Flow Room)
+- [x] Create path (FAB) **tidak** regresi
+- [x] Preview edit light + dark
+- [x] Auth / splash / Settings / Family invite tidak disentuh
+- [x] Prefill wallet: ID usang di-remap ke wallet hidup; picker create/edit daftar sama (P21)
 
 ### Sengaja belum
 
-- [ ] Transaksi yang sudah `SYNCED` lalu diedit: **lokal** benar; Firestore dokumen boleh stale (P15)
-- [ ] Hapus tx yang sudah `SYNCED`: **lokal** hilang; dokumen Firestore boleh masih ada sampai 16d
+- [ ] Transaksi yang sudah `SYNCED` lalu diedit: **lokal** benar; Firestore dokumen boleh stale (P15 / Phase 17)
+- [ ] Hapus tx yang sudah `SYNCED`: **lokal** hilang; dokumen Firestore boleh masih ada sampai Phase 17
 - [ ] Swipe-to-delete
+- [ ] Tap recent transaksi di Dashboard (P16)
 
 ---
 
@@ -627,7 +663,7 @@ History tap
           └─ DeleteTransactionUseCase  → deleteTransaction
                 → TransactionRepositoryImpl
                     → applyUpdated / applyDeleted (Room withTransaction)
-                    → SyncScheduler.enqueueSync()   // best-effort; cloud 16d
+                    → SyncScheduler.enqueueSync()   // best-effort; cloud Phase 17
 ```
 
 History list/totals **tidak** di-refresh manual — `observeFiltered` / `observePeriodTotals` emit ulang.
@@ -644,11 +680,12 @@ History list/totals **tidak** di-refresh manual — `observeFiltered` / `observe
 | Wallet pindah tanpa reverse lama | Saldo dobel di satu wallet | P19 + tes #3 |
 | `buildUpdatedSummary` hanya `+` | Reverse merusak count | P17 signed delta |
 | Update pecah di luar `withTransaction` | Crash mid-write | P13 |
-| User kira hapus sudah di cloud | Family member lain masih lihat tx | Dokumentasikan P15; 16d; badge sync tidak cukup untuk delete |
+| User kira hapus sudah di cloud | Family member lain masih lihat tx | Dokumentasikan P15; Phase 17; badge sync tidak cukup untuk delete |
 | `SavedStateHandle` key ≠ nav arg | Prefill tidak jalan | Task 4: pakai nama `transactionId` |
 | Combine Flow + load edit race | Form kedip default lalu prefill | Load id **sebelum** user edit; `isLoading` sampai prefill **atau** draft terisi |
 | Family member edit tx orang lain | Diterima 16 (P11) | Jangan tambah ACL diam-diam |
 | Tes add pecah karena refaktor helper | Regresi create | Task 2 #7 wajib |
+| ID wallet usang + opsi sintetis | Picker edit 2 baris, create 1 | P21: remap, jangan invent row |
 
 ---
 
@@ -658,8 +695,9 @@ History list/totals **tidak** di-refresh manual — `observeFiltered` / `observe
 2. Task 3 (16b) use case.
 3. Task 4–5 form edit/delete (belum tap History juga boleh diuji lewat deep link / `navigateToTransaction(id)`).
 4. Task 6 tap History + nav.
-5. Task 7 opsional Dashboard.
+5. Task 7 opsional Dashboard — **dilewati**.
 6. `assembleDevDebug` + QA §22.
+7. Remap wallet ID usang (P21) setelah 16c jika chip kosong / picker dobel.
 
 Jangan merge 16c ke `main` tanpa 16a. 16b boleh satu commit dengan 16c.
 
@@ -675,26 +713,23 @@ Jangan merge 16c ke `main` tanpa 16a. 16b boleh satu commit dengan 16c.
 | **13 / 15** | History filter + totals; 16 konsumen Flow yang sama |
 | **14** | `monthKey` siklus; 16a kasus tanggal |
 | **6C** | Shared family data; 16 **tidak** menambah ACL / sync pull conflict |
-| **10** | Personal restore; 16d nanti harus kompatibel pull vs delete lokal |
-| **Future 16d** | Firestore update (bukan skip-if-exists) + tombstone/outbox delete + reverse remote increment |
+| **10** | Personal restore; Phase 17 harus kompatibel pull vs delete lokal |
+| **17** | Firestore update (bukan skip-if-exists) + outbox delete + reverse remote increment + pull reconcile |
 | **9** | Tes UI lebih luas; 16 wajib tes repo + VM saja |
 
 ---
 
 ## 21. Rencana Commit
 
-Ikuti tag repo (`[FEAT]` / `[TEST]` / `[DOCS]`). Satu PR boleh beberapa commit:
+Ikuti tag repo (`[FEAT]` / `[TEST]` / `[FIX]` / `[DOCS]`). Commit di branch `feat/edit-delete-transaction`:
 
 ```
 [FEAT] Harden transaction update and delete side effects
-[TEST] Cover wallet budget summary deltas on update delete
 [FEAT] Add get update and delete transaction use cases
 [FEAT] Enable edit and delete from transaction history
-[TEST] Cover new entry edit and delete view model
+[FIX] Remap stale wallet id on transaction edit form
 [DOCS] Add Phase 16 transaction edit and delete plan
 ```
-
-Commit `[DOCS]` untuk file plan ini boleh **sekarang** (sebelum implementasi). Commit FEAT hanya saat kode menyusul.
 
 ---
 
@@ -713,7 +748,8 @@ Pakai dua wallet (personal + family) jika memungkinkan. Catat saldo + budget `sp
 
 | # | Langkah | Expected |
 |---|---------|----------|
-| 3 | Tap row | Form judul `Edit Transaksi`; field terisi |
+| 3 | Tap row | Form judul `Edit Transaksi`; field terisi; chip WALLET nama hidup (mis. `Dompet Utama`), **bukan** placeholder / baris palsu `Personal` |
+| 3b | Pilih Dompet di edit vs create | Daftar **sama** (hanya wallet Room); tidak ada opsi ekstra |
 | 4 | Ubah note saja → simpan | `id` sama; saldo/budget **tidak** berubah |
 | 5 | Ubah amount expense 100rb → 150rb | Saldo −50rb lagi; totals +50rb; budget `spent` +50rb jika match |
 | 6 | Ubah expense → income (amount sama) | Saldo +2× amount; totals pindah kolom; budget `spent` turun |
@@ -751,8 +787,10 @@ Pakai dua wallet (personal + family) jika memungkinkan. Catat saldo + budget `sp
 
 | # | Langkah | Catatan |
 |---|---------|---------|
-| 21 | Edit tx yang sudah SYNCED, buka device/akun lain | **Boleh** masih angka lama sampai 16d |
-| 22 | Delete tx SYNCED, pull device lain | **Boleh** muncul lagi sampai 16d |
+| 21 | Edit tx yang sudah SYNCED, buka device/akun lain | **Boleh** masih angka lama sampai Phase 17 |
+| 22 | Delete tx SYNCED, pull device lain | **Boleh** muncul lagi sampai Phase 17 |
+
+Rencana lengkap: [`PHASE_17_TRANSACTION_FIRESTORE_UPDATE_AND_DELETE.md`](./PHASE_17_TRANSACTION_FIRESTORE_UPDATE_AND_DELETE.md).
 
 ---
 
@@ -799,13 +837,15 @@ class UpdateTransactionUseCase @Inject constructor(
 
 ---
 
-## Appendix — Follow-up 16d (jangan kerjakan di 16)
+## Appendix — Follow-up 16d dipindah ke Phase 17
 
-Agar tidak dilupakan saat sync dijamah:
+Jangan kerjakan di 16. Spesifikasi lengkap (keputusan outbox vs tombstone, snapshot-diff, pull sweep, rules): [`PHASE_17_TRANSACTION_FIRESTORE_UPDATE_AND_DELETE.md`](./PHASE_17_TRANSACTION_FIRESTORE_UPDATE_AND_DELETE.md).
 
-1. Update remote: jangan `return` saat dokumen exists — tulis field baru + increment **selisih** (atau set absolute wallet dari Room, lebih aman long-term).
-2. Delete remote: outbox / tombstone **sebelum** hapus row, atau `pending_deletes` table; `getPending()` hari ini tidak melihat id yang sudah dihapus.
+Ringkas agar tidak dilupakan saat sync dijamah:
+
+1. Update remote: jangan `return` saat dokumen exists — tulis field baru + increment **selisih**.
+2. Delete remote: tabel outbox `pending_transaction_deletes` **sebelum** hapus row; `getPending()` hari ini tidak melihat id yang sudah dihapus.
 3. Reverse `FieldValue.increment` untuk wallet/budget saat delete/update.
-4. Konflik pull Phase 6C/10 vs tombstone.
+4. Konflik pull Phase 6C/10 vs outbox (skip id + orphan sweep).
 
 16a **sengaja** tidak menambah schema supaya slice pertama tetap kecil dan testable.
