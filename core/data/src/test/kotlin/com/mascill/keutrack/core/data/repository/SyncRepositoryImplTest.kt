@@ -543,6 +543,124 @@ class SyncRepositoryImplTest {
     }
 
     @Test
+    fun `syncFamilyData skips upsert when remote tx id is in outbox`() = runTest {
+        stubFamilyPull()
+        coEvery { transactionRemote.getByFamilyId("fam-1", limit = 200) } returns
+            listOf(familyIncome(amount = 11_000_000L))
+        coEvery { transactionLocal.getPendingDeletes() } returns
+            listOf(pendingDelete(id = "tx-fam"))
+
+        repo.syncFamilyData("fam-1")
+
+        coVerify(exactly = 0) { transactionLocal.upsert(any()) }
+        coVerify(exactly = 0) {
+            transactionLocal.applyDeletedTransactionAtomically(
+                id = any(),
+                walletId = any(),
+                walletDelta = any(),
+                budgetId = any(),
+                budgetDelta = any(),
+                summaryUpsert = any(),
+                pendingDelete = any(),
+            )
+        }
+    }
+
+    @Test
+    fun `syncFamilyData sweeps local SYNCED orphan in pull window without outbox`() = runTest {
+        val orphan = localFamilyTx(id = "tx-orphan", amount = 5_000_000L)
+        stubFamilyPull()
+        coEvery { transactionRemote.getByFamilyId("fam-1", limit = 200) } returns
+            listOf(familyIncome(amount = 11_000_000L))
+        coEvery { transactionLocal.getByFamilyId("fam-1") } returns listOf(orphan)
+
+        repo.syncFamilyData("fam-1")
+
+        coVerify {
+            transactionLocal.applyDeletedTransactionAtomically(
+                id = "tx-orphan",
+                walletId = "w-fam",
+                walletDelta = -5_000_000L,
+                budgetId = any(),
+                budgetDelta = any(),
+                summaryUpsert = any(),
+                pendingDelete = null,
+            )
+        }
+        coVerify { transactionLocal.upsert(match { it.id == "tx-fam" }) }
+    }
+
+    @Test
+    fun `syncFamilyData does not sweep local PENDING create`() = runTest {
+        val pending = localFamilyTx(id = "tx-new", syncStatus = SyncStatus.PENDING.name)
+        stubFamilyPull()
+        coEvery { transactionRemote.getByFamilyId("fam-1", limit = 200) } returns
+            listOf(familyIncome(amount = 11_000_000L))
+        coEvery { transactionLocal.getByFamilyId("fam-1") } returns listOf(pending)
+
+        repo.syncFamilyData("fam-1")
+
+        coVerify(exactly = 0) {
+            transactionLocal.applyDeletedTransactionAtomically(
+                id = any(),
+                walletId = any(),
+                walletDelta = any(),
+                budgetId = any(),
+                budgetDelta = any(),
+                summaryUpsert = any(),
+                pendingDelete = any(),
+            )
+        }
+    }
+
+    @Test
+    fun `syncFamilyData does not sweep SYNCED older than oldest pulled`() = runTest {
+        val older = localFamilyTx(
+            id = "tx-old",
+            date = Instant.parse("2026-01-01T00:00:00Z"),
+        )
+        stubFamilyPull()
+        coEvery { transactionRemote.getByFamilyId("fam-1", limit = 200) } returns
+            listOf(familyIncome(amount = 11_000_000L))
+        coEvery { transactionLocal.getByFamilyId("fam-1") } returns listOf(older)
+
+        repo.syncFamilyData("fam-1")
+
+        coVerify(exactly = 0) {
+            transactionLocal.applyDeletedTransactionAtomically(
+                id = any(),
+                walletId = any(),
+                walletDelta = any(),
+                budgetId = any(),
+                budgetDelta = any(),
+                summaryUpsert = any(),
+                pendingDelete = any(),
+            )
+        }
+    }
+
+    @Test
+    fun `syncFamilyData sweeps all SYNCED when pull is empty`() = runTest {
+        val orphan = localFamilyTx(id = "tx-orphan", amount = 5_000_000L)
+        stubFamilyPull()
+        coEvery { transactionLocal.getByFamilyId("fam-1") } returns listOf(orphan)
+
+        repo.syncFamilyData("fam-1")
+
+        coVerify {
+            transactionLocal.applyDeletedTransactionAtomically(
+                id = "tx-orphan",
+                walletId = "w-fam",
+                walletDelta = -5_000_000L,
+                budgetId = any(),
+                budgetDelta = any(),
+                summaryUpsert = any(),
+                pendingDelete = null,
+            )
+        }
+    }
+
+    @Test
     fun `syncPersonalData is no-op when userId is blank`() = runTest {
         repo.syncPersonalData("  ")
 
@@ -711,10 +829,54 @@ class SyncRepositoryImplTest {
         }
     }
 
+    @Test
+    fun `syncPersonalData skips upsert when remote tx id is in outbox`() = runTest {
+        stubPersonalPull(
+            wallets = listOf(personalWallet(id = "w-old")),
+            txs = listOf(personalIncome(walletId = "w-old", amount = 50_000L)),
+        )
+        coEvery { walletLocal.getById("w-old") } returns null
+        coEvery { walletLocal.getByType("personal") } returns emptyList()
+        coEvery { transactionLocal.getPendingDeletes() } returns
+            listOf(pendingDelete(id = "tx-personal"))
+
+        repo.syncPersonalData("user-1")
+
+        coVerify(exactly = 0) { transactionLocal.upsert(any()) }
+    }
+
+    @Test
+    fun `syncPersonalData sweeps local SYNCED orphan without writing outbox`() = runTest {
+        val orphan = localPersonalTx(id = "tx-orphan", amount = 20_000L)
+        stubPersonalPull(
+            wallets = listOf(personalWallet(id = "w-old")),
+            txs = listOf(personalIncome(walletId = "w-old", amount = 50_000L)),
+        )
+        coEvery { walletLocal.getById("w-old") } returns null
+        coEvery { walletLocal.getByType("personal") } returns emptyList()
+        coEvery { transactionLocal.getByWalletId("w-old") } returns listOf(orphan)
+
+        repo.syncPersonalData("user-1")
+
+        coVerify {
+            transactionLocal.applyDeletedTransactionAtomically(
+                id = "tx-orphan",
+                walletId = "w-old",
+                walletDelta = -20_000L,
+                budgetId = any(),
+                budgetDelta = any(),
+                summaryUpsert = null,
+                pendingDelete = null,
+            )
+        }
+    }
+
     private fun stubFamilyPull() {
         coEvery { walletRemote.getByFamilyId("fam-1") } returns emptyList()
         coEvery { transactionRemote.getByFamilyId("fam-1", limit = 200) } returns emptyList()
         coEvery { transactionLocal.getPending() } returns emptyList()
+        coEvery { transactionLocal.getPendingDeletes() } returns emptyList()
+        coEvery { transactionLocal.getByFamilyId("fam-1") } returns emptyList()
     }
 
     private fun currentMonthKey(): String = YearMonth.now().toString()
@@ -762,6 +924,8 @@ class SyncRepositoryImplTest {
         coEvery { walletRemote.getByOwnerId("user-1") } returns wallets
         coEvery { transactionRemote.getByUserId("user-1", limit = 200) } returns txs
         coEvery { transactionLocal.getPending() } returns emptyList()
+        coEvery { transactionLocal.getPendingDeletes() } returns emptyList()
+        coEvery { transactionLocal.getByWalletId(any()) } returns emptyList()
     }
 
     private fun pendingWallet() = WalletEntity(
@@ -892,6 +1056,46 @@ class SyncRepositoryImplTest {
         type = WalletType.FAMILY,
         balance = balance,
         createdAt = Instant.parse("2026-08-01T00:00:00Z"),
+    )
+
+    private fun localFamilyTx(
+        id: String,
+        amount: Long = 5_000_000L,
+        date: Instant = Instant.parse("2026-08-16T10:22:00Z"),
+        syncStatus: String = SyncStatus.SYNCED.name,
+    ) = TransactionEntity(
+        id = id,
+        walletId = "w-fam",
+        userId = "user-1",
+        familyId = "fam-1",
+        type = TransactionType.INCOME.value,
+        amount = amount,
+        categoryId = "cat_gaji",
+        note = null,
+        dateEpochMs = date.toEpochMilli(),
+        addedByName = "Irul",
+        syncStatus = syncStatus,
+        createdAtEpochMs = date.toEpochMilli(),
+    )
+
+    private fun localPersonalTx(
+        id: String,
+        amount: Long = 20_000L,
+        date: Instant = Instant.parse("2026-08-16T10:22:00Z"),
+        syncStatus: String = SyncStatus.SYNCED.name,
+    ) = TransactionEntity(
+        id = id,
+        walletId = "w-old",
+        userId = "user-1",
+        familyId = null,
+        type = TransactionType.INCOME.value,
+        amount = amount,
+        categoryId = "cat_gaji",
+        note = null,
+        dateEpochMs = date.toEpochMilli(),
+        addedByName = "Irul",
+        syncStatus = syncStatus,
+        createdAtEpochMs = date.toEpochMilli(),
     )
 
     private fun familyIncome(amount: Long) = Transaction(

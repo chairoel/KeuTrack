@@ -147,11 +147,20 @@ class SyncRepositoryImpl @Inject constructor(
         try {
             if (familyId.isBlank()) return
 
+            val outboxIds = transactionLocal.getPendingDeletes().map { it.id }.toSet()
             val remoteWallets = walletRemote.getByFamilyId(familyId)
             val remoteTransactions =
                 transactionRemote.getByFamilyId(familyId, limit = FAMILY_TX_PULL_LIMIT)
             val pendingWalletIds =
                 transactionLocal.getPending().map { it.walletId }.toSet()
+
+            upsertPulledTransactions(remoteTransactions, outboxIds)
+            sweepOrphanTransactions(
+                localCandidates = transactionLocal.getByFamilyId(familyId),
+                pulled = remoteTransactions,
+                outboxIds = outboxIds,
+                reverseSummary = true,
+            )
 
             remoteWallets.forEach { wallet ->
                 val existing = walletLocal.getById(wallet.id)
@@ -198,18 +207,6 @@ class SyncRepositoryImpl @Inject constructor(
                 }
             }
 
-            remoteTransactions.forEach { transaction ->
-                val existing = transactionLocal.getById(transaction.id)
-                if (existing != null && existing.syncStatus == SyncStatus.PENDING.name) {
-                    return@forEach
-                }
-                transactionLocal.upsert(
-                    transactionMapper.toEntity(
-                        transaction.copy(syncStatus = SyncStatus.SYNCED),
-                    ),
-                )
-            }
-
             hydrateFamilyBudgets(familyId)
         } catch (e: CancellationException) {
             throw e
@@ -229,6 +226,30 @@ class SyncRepositoryImpl @Inject constructor(
                 .filter { it.walletId == canonical.id }
             val pendingTxs = transactionLocal.getPending()
             val pendingWalletIds = pendingTxs.map { it.walletId }.toSet()
+            val outboxIds = transactionLocal.getPendingDeletes().map { it.id }.toSet()
+
+            walletLocal.getByType(WalletType.PERSONAL.value)
+                .filter { it.id != canonical.id && it.id !in pendingWalletIds }
+                .forEach { extra -> walletLocal.delete(extra.id) }
+
+            val upsertedTxs = mutableListOf<Transaction>()
+            remoteTxs.forEach { transaction ->
+                if (transaction.id in outboxIds) return@forEach
+                val existingTx = transactionLocal.getById(transaction.id)
+                if (existingTx?.syncStatus == SyncStatus.PENDING.name) {
+                    return@forEach
+                }
+                val synced = transaction.copy(syncStatus = SyncStatus.SYNCED)
+                transactionLocal.upsert(transactionMapper.toEntity(synced))
+                upsertedTxs += synced
+            }
+
+            val swept = sweepOrphanTransactions(
+                localCandidates = transactionLocal.getByWalletId(canonical.id),
+                pulled = remoteTxs,
+                outboxIds = outboxIds,
+                reverseSummary = false,
+            )
 
             val existing = walletLocal.getById(canonical.id)
             if (existing?.syncStatus != SyncStatus.PENDING.name &&
@@ -254,25 +275,15 @@ class SyncRepositoryImpl @Inject constructor(
                 }
             }
 
-            walletLocal.getByType(WalletType.PERSONAL.value)
-                .filter { it.id != canonical.id && it.id !in pendingWalletIds }
-                .forEach { extra -> walletLocal.delete(extra.id) }
-
-            val upsertedTxs = mutableListOf<Transaction>()
-            remoteTxs.forEach { transaction ->
-                val existingTx = transactionLocal.getById(transaction.id)
-                if (existingTx?.syncStatus == SyncStatus.PENDING.name) {
-                    return@forEach
-                }
-                val synced = transaction.copy(syncStatus = SyncStatus.SYNCED)
-                transactionLocal.upsert(transactionMapper.toEntity(synced))
-                upsertedTxs += synced
-            }
-
             val pendingCanonicalTxs = pendingTxs
                 .filter { it.walletId == canonical.id }
                 .map(transactionMapper::toDomain)
-            rebuildPersonalSummaries(userId, upsertedTxs + pendingCanonicalTxs)
+            val cycleStartDay = periodPreferences.observe().first().cycleStartDay
+            rebuildPersonalSummaries(
+                userId = userId,
+                transactions = upsertedTxs + pendingCanonicalTxs,
+                extraPeriods = swept.map { monthKey(it, cycleStartDay) }.toSet(),
+            )
         } catch (e: CancellationException) {
             throw e
         }
@@ -359,60 +370,177 @@ class SyncRepositoryImpl @Inject constructor(
             TransactionType.EXPENSE -> -transaction.amount
         }
 
+    private suspend fun upsertPulledTransactions(
+        remoteTransactions: List<Transaction>,
+        outboxIds: Set<String>,
+    ) {
+        remoteTransactions.forEach { transaction ->
+            if (transaction.id in outboxIds) return@forEach
+            val existing = transactionLocal.getById(transaction.id)
+            if (existing != null && existing.syncStatus == SyncStatus.PENDING.name) {
+                return@forEach
+            }
+            transactionLocal.upsert(
+                transactionMapper.toEntity(
+                    transaction.copy(syncStatus = SyncStatus.SYNCED),
+                ),
+            )
+        }
+    }
+
+    private suspend fun sweepOrphanTransactions(
+        localCandidates: List<TransactionEntity>,
+        pulled: List<Transaction>,
+        outboxIds: Set<String>,
+        reverseSummary: Boolean,
+    ): List<Transaction> {
+        val remoteIds = pulled.map { it.id }.toSet()
+        val oldestPulled = pulled.minByOrNull { it.date }?.date
+        return localCandidates
+            .filter { it.syncStatus == SyncStatus.SYNCED.name }
+            .filter { it.id !in remoteIds }
+            .filter { it.id !in outboxIds }
+            .filter { entity ->
+                val date = Instant.ofEpochMilli(entity.dateEpochMs)
+                oldestPulled == null || !date.isBefore(oldestPulled)
+            }
+            .map { entity ->
+                val old = transactionMapper.toDomain(entity)
+                reverseLocalOrphan(old, reverseSummary)
+                old
+            }
+    }
+
+    private suspend fun reverseLocalOrphan(
+        old: Transaction,
+        reverseSummary: Boolean,
+    ) {
+        val cycleStartDay = periodPreferences.observe().first().cycleStartDay
+        val month = monthKey(old, cycleStartDay)
+        val budget = budgetMatch(old, month)
+        transactionLocal.applyDeletedTransactionAtomically(
+            id = old.id,
+            walletId = old.walletId,
+            walletDelta = -walletDeltaFor(old),
+            budgetId = budget?.id,
+            budgetDelta = budgetDeltaFor(old, budget, sign = -1),
+            summaryUpsert = if (reverseSummary) {
+                summaryMapper.toEntity(summaryAfterReverse(old, month))
+            } else {
+                null
+            },
+            pendingDelete = null,
+        )
+    }
+
+    private suspend fun summaryAfterReverse(
+        transaction: Transaction,
+        month: String,
+    ): CategorySummary {
+        val base = summaryLocal.getByPeriod(month, transaction.userId)
+            ?.let(summaryMapper::toDomain)
+            ?: CategorySummary(
+                period = month,
+                userId = transaction.userId,
+                familyId = transaction.familyId,
+                totalIncome = 0L,
+                totalExpense = 0L,
+                byCategory = emptyMap(),
+            )
+        return summaryAfterDelta(base, transaction, sign = -1)
+    }
+
+    private fun summaryAfterDelta(
+        base: CategorySummary,
+        transaction: Transaction,
+        sign: Int,
+    ): CategorySummary {
+        val incomeDelta =
+            if (transaction.type == TransactionType.INCOME) transaction.amount * sign else 0L
+        val expenseDelta =
+            if (transaction.type == TransactionType.EXPENSE) transaction.amount * sign else 0L
+        val existingBreakdown = base.byCategory[transaction.categoryId]
+            ?: CategoryBreakdown(
+                name = transaction.categoryId,
+                totalExpense = 0L,
+                totalIncome = 0L,
+                transactionCount = 0,
+            )
+        val updatedBreakdown = existingBreakdown.copy(
+            totalExpense = existingBreakdown.totalExpense + expenseDelta,
+            totalIncome = existingBreakdown.totalIncome + incomeDelta,
+            transactionCount = (existingBreakdown.transactionCount + sign).coerceAtLeast(0),
+        )
+        val byCategory = base.byCategory + (transaction.categoryId to updatedBreakdown)
+        val totalExpense = base.totalExpense + expenseDelta
+        val topExpenseCategoryId = byCategory
+            .maxByOrNull { it.value.totalExpense }
+            ?.takeIf { it.value.totalExpense > 0 }
+            ?.key
+        return base.copy(
+            totalIncome = base.totalIncome + incomeDelta,
+            totalExpense = totalExpense,
+            byCategory = byCategory,
+            topExpenseCategoryId = topExpenseCategoryId,
+        )
+    }
+
     private suspend fun rebuildPersonalSummaries(
         userId: String,
         transactions: List<Transaction>,
+        extraPeriods: Set<String> = emptySet(),
     ) {
-        if (transactions.isEmpty()) return
         val cycleStartDay = periodPreferences.observe().first().cycleStartDay
-        transactions
-            .groupBy { monthKey(it, cycleStartDay) }
-            .forEach { (period, periodTxs) ->
-                var totalIncome = 0L
-                var totalExpense = 0L
-                val byCategory = mutableMapOf<String, CategoryBreakdown>()
-                periodTxs.forEach { tx ->
-                    val existing = byCategory[tx.categoryId] ?: CategoryBreakdown(
-                        name = tx.categoryId,
-                        totalExpense = 0L,
-                        totalIncome = 0L,
-                        transactionCount = 0,
-                    )
-                    when (tx.type) {
-                        TransactionType.INCOME -> {
-                            totalIncome += tx.amount
-                            byCategory[tx.categoryId] = existing.copy(
-                                totalIncome = existing.totalIncome + tx.amount,
-                                transactionCount = existing.transactionCount + 1,
-                            )
-                        }
-                        TransactionType.EXPENSE -> {
-                            totalExpense += tx.amount
-                            byCategory[tx.categoryId] = existing.copy(
-                                totalExpense = existing.totalExpense + tx.amount,
-                                transactionCount = existing.transactionCount + 1,
-                            )
-                        }
+        val grouped = transactions.groupBy { monthKey(it, cycleStartDay) }
+        val periods = grouped.keys + extraPeriods
+        if (periods.isEmpty()) return
+        periods.forEach { period ->
+            val periodTxs = grouped[period].orEmpty()
+            var totalIncome = 0L
+            var totalExpense = 0L
+            val byCategory = mutableMapOf<String, CategoryBreakdown>()
+            periodTxs.forEach { tx ->
+                val existing = byCategory[tx.categoryId] ?: CategoryBreakdown(
+                    name = tx.categoryId,
+                    totalExpense = 0L,
+                    totalIncome = 0L,
+                    transactionCount = 0,
+                )
+                when (tx.type) {
+                    TransactionType.INCOME -> {
+                        totalIncome += tx.amount
+                        byCategory[tx.categoryId] = existing.copy(
+                            totalIncome = existing.totalIncome + tx.amount,
+                            transactionCount = existing.transactionCount + 1,
+                        )
+                    }
+                    TransactionType.EXPENSE -> {
+                        totalExpense += tx.amount
+                        byCategory[tx.categoryId] = existing.copy(
+                            totalExpense = existing.totalExpense + tx.amount,
+                            transactionCount = existing.transactionCount + 1,
+                        )
                     }
                 }
-                val topExpenseCategoryId = byCategory
-                    .maxByOrNull { it.value.totalExpense }
-                    ?.takeIf { it.value.totalExpense > 0 }
-                    ?.key
-                summaryLocal.upsert(
-                    summaryMapper.toEntity(
-                        CategorySummary(
-                            period = period,
-                            userId = userId,
-                            familyId = null,
-                            totalIncome = totalIncome,
-                            totalExpense = totalExpense,
-                            byCategory = byCategory,
-                            topExpenseCategoryId = topExpenseCategoryId,
-                        ),
-                    ),
-                )
             }
+            val topExpenseCategoryId = byCategory
+                .maxByOrNull { it.value.totalExpense }
+                ?.takeIf { it.value.totalExpense > 0 }
+                ?.key
+            summaryLocal.upsert(
+                summaryMapper.toEntity(
+                    CategorySummary(
+                        period = period,
+                        userId = userId,
+                        familyId = null,
+                        totalIncome = totalIncome,
+                        totalExpense = totalExpense,
+                        byCategory = byCategory,
+                        topExpenseCategoryId = topExpenseCategoryId,
+                    ),
+                ),
+            )
+        }
     }
 
     private suspend fun budgetMatch(transaction: Transaction, month: String): BudgetEntity? =

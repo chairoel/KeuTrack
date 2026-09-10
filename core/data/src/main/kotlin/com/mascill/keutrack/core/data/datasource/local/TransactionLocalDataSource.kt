@@ -29,6 +29,10 @@ interface TransactionLocalDataSource {
 
     suspend fun getById(id: String): TransactionEntity?
 
+    suspend fun getByFamilyId(familyId: String): List<TransactionEntity>
+
+    suspend fun getByWalletId(walletId: String): List<TransactionEntity>
+
     suspend fun upsert(entity: TransactionEntity)
 
     suspend fun delete(id: String)

@@ -58,6 +58,12 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE id = :id LIMIT 1")
     suspend fun getById(id: String): TransactionEntity?
 
+    @Query("SELECT * FROM transactions WHERE familyId = :familyId")
+    suspend fun getByFamilyId(familyId: String): List<TransactionEntity>
+
+    @Query("SELECT * FROM transactions WHERE walletId = :walletId")
+    suspend fun getByWalletId(walletId: String): List<TransactionEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: TransactionEntity)
 

@@ -62,6 +62,12 @@ class TransactionLocalDataSourceImpl @Inject constructor(
     override suspend fun getById(id: String): TransactionEntity? =
         transactionDao.getById(id)
 
+    override suspend fun getByFamilyId(familyId: String): List<TransactionEntity> =
+        transactionDao.getByFamilyId(familyId)
+
+    override suspend fun getByWalletId(walletId: String): List<TransactionEntity> =
+        transactionDao.getByWalletId(walletId)
+
     override suspend fun upsert(entity: TransactionEntity) {
         transactionDao.upsert(entity)
     }

@@ -3,7 +3,7 @@
 > **Modul target:** `:core:data` (outbox + Strategy A harden) → `docs/database/firestore-rules.md` (ACL write family) · domain **additive tipis** (komentar `hasPendingSync` saja)  
 > **Estimasi:** ~2–2.5 hari · **17a** ~0.4 hari (outbox lokal) · **17b** ~0.8–1 hari (update remote) · **17c** ~0.6–0.8 hari (delete remote + pull) · **17d** ~0.2 hari (rules)  
 > **Prasyarat:** Phase 16a–c ✅ (edit/delete lokal benar) · Phase 2 ✅ (Strategy A skip-if-exists) · Phase 6C ✅ (pull family) · Phase 10 ✅ (pull personal) · Phase 11 ✅ (`findBudgetForExpense`) · Phase 14 ✅ (`PeriodBounds.periodKey`)  
-> **Status:** **17a + 17b + 17c Task 5 done** — outbox drain + delete-with-reverse. Task 6–7 belum. Follow-up **16d** di [`PHASE_16_TRANSACTION_EDIT_AND_DELETE.md`](./PHASE_16_TRANSACTION_EDIT_AND_DELETE.md).  
+> **Status:** **17a + 17b + 17c done** — pull skip outbox + orphan sweep. Task 7 (rules) belum. Follow-up **16d** di [`PHASE_16_TRANSACTION_EDIT_AND_DELETE.md`](./PHASE_16_TRANSACTION_EDIT_AND_DELETE.md).  
 
 > **Hasil akhir:** Edit/hapus yang sudah benar di Room **ikut benar di Firestore**. Device/akun lain melihat field baru, saldo wallet, dan budget `spent` yang terkoreksi. Hapus tidak “hidup lagi” saat pull Phase 6C/10. UI History / New Entry **tidak** berubah.  
 > **Asal-usul 16d:** (1) update remote jangan skip-if-exists — tulis field + increment selisih; (2) delete remote butuh outbox **sebelum** row hilang; (3) reverse `FieldValue.increment` wallet/budget; (4) pull vs tombstone/outbox.
@@ -19,12 +19,12 @@
 | 17b | Task 3 — Firestore update + monthKey | **Done** (2026-09-10) |
 | 17b | Task 4 — Tes update sync | **Done** (2026-09-10) |
 | 17c | Task 5 — Delete remote + drain outbox | **Done** (2026-09-10) |
-| 17c | Task 6 — Pull skip + sweep | Not started |
+| 17c | Task 6 — Pull skip + sweep | **Done** (2026-09-10) |
 | 17d | Task 7 — Rules | Not started |
 
-**Terakhir dikerjakan:** Task 5 — `deleteTransactionWithReverse` (snapshot reverse + hard-delete; missing doc no-op); `syncPendingTransactions` drain outbox dulu, skip upsert id outbox, gagal → `FAILED`.
+**Terakhir dikerjakan:** Task 6 — pull family/personal skip id outbox; orphan sweep `SYNCED` di jendela (local reverse tanpa outbox); `PENDING` / lebih tua dari `oldestPulled` tidak di-sweep; wallet recompute setelah sweep.
 
-**Berikutnya:** Task 6 — pull skip id outbox + orphan sweep `SYNCED` di `syncFamilyData` / `syncPersonalData`.
+**Berikutnya:** Task 7 — rules family `update`/`delete` transaksi + budget `spent`-only; publish `keutrack-dev`.
 
 ---
 
@@ -889,13 +889,13 @@ Verify akhir: `./gradlew :core:data:testDevDebugUnitTest assembleDevDebug`
 - [ ] Create path: dokumen baru tetap increment penuh; FAB create tidak regresi
 - [x] Hapus tx `SYNCED`: dokumen Firestore hilang; wallet/budget remote terkoreksi (reverse)
 - [x] Hapus tx yang belum pernah ada di remote: outbox ter-ack, increment remote 0
-- [ ] Device B pull family: tx yang A hapus (sudah sync) **tidak** muncul lagi; saldo/spent selaras
-- [ ] Device yang sama pull sebelum delete sempat push: id outbox **tidak** di-upsert kembali
-- [ ] Orphan sweep tidak menghapus `PENDING` lokal / tx di luar jendela 200
+- [x] Device B pull family: tx yang A hapus (sudah sync) **tidak** muncul lagi; saldo/spent selaras
+- [x] Device yang sama pull sebelum delete sempat push: id outbox **tidak** di-upsert kembali
+- [x] Orphan sweep tidak menghapus `PENDING` lokal / tx di luar jendela 200
 - [x] `monthKey` sync = siklus payday (kasus `cycleStartDay` 25)
 - [x] `migration1To2` ada; Room v2
-- [ ] Auth / splash / Settings / Family invite UI tidak disentuh
-- [ ] Tes 17a–17c hijau
+- [x] Auth / splash / Settings / Family invite UI tidak disentuh
+- [x] Tes 17a–17c hijau
 
 ### Sengaja belum
 
