@@ -529,7 +529,7 @@ class TransactionRepositoryImplTest {
         stubLookupsForWrite()
         val personalBudget = budgetEntity(id = "b-personal", familyId = null)
         coEvery { budgetLocal.getByMonthCategoryPersonal(any(), "cat-food") } returns personalBudget
-        stubExistingTransaction(domainTransaction())
+        stubExistingTransaction(domainTransaction().copy(syncStatus = SyncStatus.SYNCED))
         stubSummary(period = "2026-08", totalExpense = 15_000L, categoryId = "cat-food")
 
         repo.deleteTransaction("tx-1")
@@ -546,13 +546,16 @@ class TransactionRepositoryImplTest {
                     it.id == "tx-1" &&
                         it.walletId == "wallet-1" &&
                         it.userId == "user-1" &&
+                        it.familyId == null &&
                         it.type == TransactionType.EXPENSE.value &&
                         it.amount == 15_000L &&
                         it.categoryId == "cat-food" &&
+                        it.dateEpochMs == Instant.parse("2026-08-01T00:00:00Z").toEpochMilli() &&
                         it.syncStatus == SyncStatus.PENDING.name
                 },
             )
         }
+        coVerify(exactly = 0) { local.getPending() }
         verify { syncScheduler.enqueueSync() }
     }
 
@@ -573,7 +576,32 @@ class TransactionRepositoryImplTest {
                 pendingDelete = any(),
             )
         }
+        coVerify(exactly = 0) { local.getPendingDeletes() }
         verify(exactly = 0) { syncScheduler.enqueueSync() }
+    }
+
+    @Test
+    fun `updateTransaction does not write delete outbox`() = runTest {
+        stubCycleStartDay(1)
+        stubLookupsForWrite()
+        val old = domainTransaction(note = "lama")
+        stubExistingTransaction(old)
+
+        repo.updateTransaction(old.copy(note = "baru"))
+
+        coVerify(exactly = 0) {
+            local.applyDeletedTransactionAtomically(
+                id = any(),
+                walletId = any(),
+                walletDelta = any(),
+                budgetId = any(),
+                budgetDelta = any(),
+                summaryUpsert = any(),
+                pendingDelete = any(),
+            )
+        }
+        coVerify(exactly = 0) { local.getPendingDeletes() }
+        verify { syncScheduler.enqueueSync() }
     }
 
     private fun stubCycleStartDay(day: Int) {

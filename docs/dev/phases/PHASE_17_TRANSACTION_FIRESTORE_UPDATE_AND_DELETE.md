@@ -3,7 +3,7 @@
 > **Modul target:** `:core:data` (outbox + Strategy A harden) → `docs/database/firestore-rules.md` (ACL write family) · domain **additive tipis** (komentar `hasPendingSync` saja)  
 > **Estimasi:** ~2–2.5 hari · **17a** ~0.4 hari (outbox lokal) · **17b** ~0.8–1 hari (update remote) · **17c** ~0.6–0.8 hari (delete remote + pull) · **17d** ~0.2 hari (rules)  
 > **Prasyarat:** Phase 16a–c ✅ (edit/delete lokal benar) · Phase 2 ✅ (Strategy A skip-if-exists) · Phase 6C ✅ (pull family) · Phase 10 ✅ (pull personal) · Phase 11 ✅ (`findBudgetForExpense`) · Phase 14 ✅ (`PeriodBounds.periodKey`)  
-> **Status:** **17a Task 1 done** — outbox Room v2 + atomic delete + `hasPendingSync` melihat outbox. Task 2–7 belum. Follow-up **16d** di [`PHASE_16_TRANSACTION_EDIT_AND_DELETE.md`](./PHASE_16_TRANSACTION_EDIT_AND_DELETE.md).  
+> **Status:** **17a Task 1–2 done** — outbox Room v2 + tes delete lokal hijau. Task 3–7 belum. Follow-up **16d** di [`PHASE_16_TRANSACTION_EDIT_AND_DELETE.md`](./PHASE_16_TRANSACTION_EDIT_AND_DELETE.md).  
 
 > **Hasil akhir:** Edit/hapus yang sudah benar di Room **ikut benar di Firestore**. Device/akun lain melihat field baru, saldo wallet, dan budget `spent` yang terkoreksi. Hapus tidak “hidup lagi” saat pull Phase 6C/10. UI History / New Entry **tidak** berubah.  
 > **Asal-usul 16d:** (1) update remote jangan skip-if-exists — tulis field + increment selisih; (2) delete remote butuh outbox **sebelum** row hilang; (3) reverse `FieldValue.increment` wallet/budget; (4) pull vs tombstone/outbox.
@@ -15,16 +15,16 @@
 | Slice | Task | Status |
 |-------|------|--------|
 | 17a | Task 1 — Schema + atomic outbox | **Done** (2026-09-10) |
-| 17a | Task 2 — Tes delete lokal | Not started |
+| 17a | Task 2 — Tes delete lokal | **Done** (2026-09-10) |
 | 17b | Task 3 — Firestore update + monthKey | Not started |
 | 17b | Task 4 — Tes update sync | Not started |
 | 17c | Task 5 — Delete remote + drain outbox | Not started |
 | 17c | Task 6 — Pull skip + sweep | Not started |
 | 17d | Task 7 — Rules | Not started |
 
-**Terakhir dikerjakan:** Task 1 — tabel `pending_transaction_deletes`, `migration1To2`, `applyDeleted` menulis outbox sebelum hapus row, `hasPendingSync` true jika hanya outbox terisi.
+**Terakhir dikerjakan:** Task 2 — tes delete `SYNCED` mengisi outbox (bukan `getPending`); missing id no-op; update tidak menulis outbox.
 
-**Berikutnya:** Task 2 — tes delete lokal di `TransactionRepositoryImplTest` (outbox ada + row hilang; missing id tidak tulis outbox; update tidak menulis outbox).
+**Berikutnya:** Task 3 — Firestore update snapshot-diff + `monthKey` siklus di `SyncRepositoryImpl`.
 
 ---
 
