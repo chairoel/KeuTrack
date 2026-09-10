@@ -28,6 +28,7 @@ import com.mascill.keutrack.core.domain.model.WalletType
 import com.mascill.keutrack.core.domain.repository.PeriodPreferencesRepository
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
@@ -270,6 +271,153 @@ class SyncRepositoryImplTest {
 
         coVerify { budgetLocal.getByMonthCategoryPersonal("2026-08", "cat_makan") }
         coVerify(exactly = 0) { budgetLocal.getByMonthCategoryPersonal("2026-07", any()) }
+    }
+
+    @Test
+    fun `syncPendingTransactions drains outbox with reverse then removes it`() = runTest {
+        val remote = remoteExpense(amount = 15_000L)
+        val budget = personalExpenseBudget()
+        stubPendingDelete(outbox = pendingDelete(), remote = remote)
+        coEvery { budgetLocal.getByMonthCategoryPersonal("2026-08", "cat_makan") } returns budget
+
+        repo.syncPendingTransactions()
+
+        coVerify {
+            transactionRemote.deleteTransactionWithReverse(
+                transactionId = "tx-1",
+                expected = match { it.id == "tx-1" && it.amount == 15_000L },
+                budgetId = "b-food",
+                budgetDelta = -15_000L,
+                walletDelta = 15_000L,
+                summaries = match { it.size == 1 },
+            )
+        }
+        coVerify { transactionLocal.removePendingDelete("tx-1") }
+        coVerify(exactly = 0) {
+            transactionLocal.updateDeleteSyncStatus("tx-1", SyncStatus.FAILED)
+        }
+    }
+
+    @Test
+    fun `syncPendingTransactions acks outbox when remote doc is missing`() = runTest {
+        stubPendingDelete(outbox = pendingDelete(), remote = null)
+
+        repo.syncPendingTransactions()
+
+        coVerify {
+            transactionRemote.deleteTransactionWithReverse(
+                transactionId = "tx-1",
+                expected = match {
+                    it.id == "tx-1" &&
+                        it.amount == 15_000L &&
+                        it.walletId == "w-1"
+                },
+                budgetId = any(),
+                budgetDelta = any(),
+                walletDelta = 15_000L,
+                summaries = any(),
+            )
+        }
+        coVerify { transactionLocal.removePendingDelete("tx-1") }
+        coVerify(exactly = 0) {
+            transactionLocal.updateDeleteSyncStatus(any(), SyncStatus.FAILED)
+        }
+    }
+
+    @Test
+    fun `syncPendingTransactions skips upsert for id that is in outbox`() = runTest {
+        stubPendingDelete(outbox = pendingDelete(), remote = remoteExpense(amount = 15_000L))
+        coEvery { transactionLocal.getPending() } returns listOf(pendingExpense())
+
+        repo.syncPendingTransactions()
+
+        coVerify {
+            transactionRemote.deleteTransactionWithReverse(
+                transactionId = "tx-1",
+                expected = any(),
+                budgetId = any(),
+                budgetDelta = any(),
+                walletDelta = any(),
+                summaries = any(),
+            )
+        }
+        coVerify(exactly = 0) {
+            transactionRemote.upsertTransactionWithSideEffects(
+                transaction = any(),
+                remoteSnapshot = any(),
+                oldWalletId = any(),
+                oldWalletDelta = any(),
+                newWalletDelta = any(),
+                oldBudgetId = any(),
+                oldBudgetDelta = any(),
+                newBudgetId = any(),
+                newBudgetDelta = any(),
+                summaries = any(),
+            )
+        }
+    }
+
+    @Test
+    fun `syncPendingTransactions marks outbox failed and throws when remote delete fails`() =
+        runTest {
+            stubPendingDelete(outbox = pendingDelete(), remote = remoteExpense(amount = 15_000L))
+            coEvery {
+                transactionRemote.deleteTransactionWithReverse(
+                    transactionId = any(),
+                    expected = any(),
+                    budgetId = any(),
+                    budgetDelta = any(),
+                    walletDelta = any(),
+                    summaries = any(),
+                )
+            } throws IllegalStateException("offline")
+
+            try {
+                repo.syncPendingTransactions()
+                org.junit.Assert.fail("Expected IllegalStateException")
+            } catch (e: IllegalStateException) {
+                assertThat(e.message).contains("transactions failed")
+            }
+            coVerify { transactionLocal.updateDeleteSyncStatus("tx-1", SyncStatus.FAILED) }
+            coVerify(exactly = 0) { transactionLocal.removePendingDelete(any()) }
+        }
+
+    @Test
+    fun `syncPendingTransactions drains outbox before pending upserts`() = runTest {
+        val outbox = pendingDelete(id = "tx-del")
+        val local = pendingExpense()
+        coEvery { transactionLocal.getPendingDeletes() } returns listOf(outbox)
+        coEvery { transactionLocal.getPending() } returns listOf(local)
+        coEvery { transactionRemote.getById("tx-del") } returns null
+        coEvery { transactionRemote.getById("tx-1") } returns null
+        coEvery { budgetLocal.getByMonthCategoryPersonal(any(), any()) } returns null
+        coEvery { budgetLocal.getByMonthCategoryAndFamily(any(), any(), any()) } returns null
+        coEvery { summaryLocal.getByPeriod(any(), any()) } returns null
+
+        repo.syncPendingTransactions()
+
+        coVerifyOrder {
+            transactionRemote.deleteTransactionWithReverse(
+                transactionId = "tx-del",
+                expected = any(),
+                budgetId = any(),
+                budgetDelta = any(),
+                walletDelta = any(),
+                summaries = any(),
+            )
+            transactionRemote.upsertTransactionWithSideEffects(
+                transaction = match { it.id == "tx-1" },
+                remoteSnapshot = any(),
+                oldWalletId = any(),
+                oldWalletDelta = any(),
+                newWalletDelta = any(),
+                oldBudgetId = any(),
+                oldBudgetDelta = any(),
+                newBudgetId = any(),
+                newBudgetDelta = any(),
+                summaries = any(),
+            )
+        }
     }
 
     @Test
@@ -634,8 +782,21 @@ class SyncRepositoryImplTest {
         local: TransactionEntity,
         remote: Transaction?,
     ) {
+        coEvery { transactionLocal.getPendingDeletes() } returns emptyList()
         coEvery { transactionLocal.getPending() } returns listOf(local)
         coEvery { transactionRemote.getById(local.id) } returns remote
+        coEvery { budgetLocal.getByMonthCategoryPersonal(any(), any()) } returns null
+        coEvery { budgetLocal.getByMonthCategoryAndFamily(any(), any(), any()) } returns null
+        coEvery { summaryLocal.getByPeriod(any(), any()) } returns null
+    }
+
+    private fun stubPendingDelete(
+        outbox: PendingTransactionDeleteEntity,
+        remote: Transaction?,
+    ) {
+        coEvery { transactionLocal.getPendingDeletes() } returns listOf(outbox)
+        coEvery { transactionLocal.getPending() } returns emptyList()
+        coEvery { transactionRemote.getById(outbox.id) } returns remote
         coEvery { budgetLocal.getByMonthCategoryPersonal(any(), any()) } returns null
         coEvery { budgetLocal.getByMonthCategoryAndFamily(any(), any(), any()) } returns null
         coEvery { summaryLocal.getByPeriod(any(), any()) } returns null
@@ -710,8 +871,8 @@ class SyncRepositoryImplTest {
         createdAtEpochMs = Instant.parse("2026-08-16T10:22:00Z").toEpochMilli(),
     )
 
-    private fun pendingDelete() = PendingTransactionDeleteEntity(
-        id = "tx-1",
+    private fun pendingDelete(id: String = "tx-1") = PendingTransactionDeleteEntity(
+        id = id,
         walletId = "w-1",
         userId = "user-1",
         familyId = "fam-1",

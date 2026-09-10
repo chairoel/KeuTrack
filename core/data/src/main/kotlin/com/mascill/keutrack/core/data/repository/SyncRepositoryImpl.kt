@@ -11,6 +11,8 @@ import com.mascill.keutrack.core.data.datasource.local.TransactionLocalDataSourc
 import com.mascill.keutrack.core.data.datasource.local.WalletLocalDataSource
 import com.mascill.keutrack.core.data.datasource.local.findBudgetForExpense
 import com.mascill.keutrack.core.data.db.entity.BudgetEntity
+import com.mascill.keutrack.core.data.db.entity.PendingTransactionDeleteEntity
+import com.mascill.keutrack.core.data.db.entity.TransactionEntity
 import com.mascill.keutrack.core.data.mapper.BudgetMapper
 import com.mascill.keutrack.core.data.mapper.CategorySummaryMapper
 import com.mascill.keutrack.core.data.mapper.TransactionMapper
@@ -25,6 +27,7 @@ import com.mascill.keutrack.core.domain.model.WalletType
 import com.mascill.keutrack.core.domain.repository.PeriodPreferencesRepository
 import com.mascill.keutrack.core.domain.repository.SyncRepository
 import kotlinx.coroutines.flow.first
+import java.time.Instant
 import java.time.YearMonth
 import java.time.ZoneId
 import javax.inject.Inject
@@ -97,33 +100,25 @@ class SyncRepositoryImpl @Inject constructor(
         try {
             var hasFailure = false
             val cycleStartDay = periodPreferences.observe().first().cycleStartDay
-            transactionLocal.getPending().forEach { entity ->
-                try {
-                    val local = transactionMapper.toDomain(entity)
-                    val remote = transactionRemote.getById(local.id)
-                    val oldMonth = remote?.let { monthKey(it, cycleStartDay) }
-                    val newMonth = monthKey(local, cycleStartDay)
-                    val oldBudget = if (remote != null && oldMonth != null) {
-                        budgetMatch(remote, oldMonth)
-                    } else {
-                        null
-                    }
-                    val newBudget = budgetMatch(local, newMonth)
+            val pendingDeletes = transactionLocal.getPendingDeletes()
+            val outboxIds = pendingDeletes.map { it.id }.toSet()
 
-                    transactionRemote.upsertTransactionWithSideEffects(
-                        transaction = local,
-                        remoteSnapshot = remote,
-                        oldWalletId = remote?.walletId,
-                        oldWalletDelta = remote?.let { -walletDeltaFor(it) } ?: 0L,
-                        newWalletDelta = walletDeltaFor(local),
-                        oldBudgetId = oldBudget?.id,
-                        oldBudgetDelta = budgetDeltaFor(remote, oldBudget, sign = -1),
-                        newBudgetId = newBudget?.id,
-                        newBudgetDelta = budgetDeltaFor(local, newBudget, sign = +1),
-                        summaries = summariesFor(local, oldMonth, newMonth),
-                    )
-                    transactionLocal.updateSyncStatus(entity.id, SyncStatus.SYNCED)
-                    walletLocal.updateSyncStatus(local.walletId, SyncStatus.SYNCED)
+            pendingDeletes.forEach { pending ->
+                try {
+                    pushPendingDelete(pending, cycleStartDay)
+                    transactionLocal.removePendingDelete(pending.id)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    transactionLocal.updateDeleteSyncStatus(pending.id, SyncStatus.FAILED)
+                    hasFailure = true
+                }
+            }
+
+            transactionLocal.getPending().forEach { entity ->
+                if (entity.id in outboxIds) return@forEach
+                try {
+                    pushPendingUpsert(entity, cycleStartDay)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (_: Exception) {
@@ -292,6 +287,71 @@ class SyncRepositoryImpl @Inject constructor(
     override fun enqueuePendingSync(force: Boolean) {
         syncScheduler.enqueueSync(force = force)
     }
+
+    private suspend fun pushPendingDelete(
+        pending: PendingTransactionDeleteEntity,
+        cycleStartDay: Int,
+    ) {
+        val remote = transactionRemote.getById(pending.id)
+        val expected = remote ?: pending.toExpectedTransaction()
+        val month = monthKey(expected, cycleStartDay)
+        val budget = budgetMatch(expected, month)
+        transactionRemote.deleteTransactionWithReverse(
+            transactionId = pending.id,
+            expected = expected,
+            budgetId = budget?.id,
+            budgetDelta = budgetDeltaFor(expected, budget, sign = -1),
+            walletDelta = -walletDeltaFor(expected),
+            summaries = summariesFor(expected, oldMonth = month, newMonth = null),
+        )
+    }
+
+    private suspend fun pushPendingUpsert(
+        entity: TransactionEntity,
+        cycleStartDay: Int,
+    ) {
+        val local = transactionMapper.toDomain(entity)
+        val remote = transactionRemote.getById(local.id)
+        val oldMonth = remote?.let { monthKey(it, cycleStartDay) }
+        val newMonth = monthKey(local, cycleStartDay)
+        val oldBudget = if (remote != null && oldMonth != null) {
+            budgetMatch(remote, oldMonth)
+        } else {
+            null
+        }
+        val newBudget = budgetMatch(local, newMonth)
+
+        transactionRemote.upsertTransactionWithSideEffects(
+            transaction = local,
+            remoteSnapshot = remote,
+            oldWalletId = remote?.walletId,
+            oldWalletDelta = remote?.let { -walletDeltaFor(it) } ?: 0L,
+            newWalletDelta = walletDeltaFor(local),
+            oldBudgetId = oldBudget?.id,
+            oldBudgetDelta = budgetDeltaFor(remote, oldBudget, sign = -1),
+            newBudgetId = newBudget?.id,
+            newBudgetDelta = budgetDeltaFor(local, newBudget, sign = +1),
+            summaries = summariesFor(local, oldMonth, newMonth),
+        )
+        transactionLocal.updateSyncStatus(entity.id, SyncStatus.SYNCED)
+        walletLocal.updateSyncStatus(local.walletId, SyncStatus.SYNCED)
+    }
+
+    private fun PendingTransactionDeleteEntity.toExpectedTransaction(): Transaction =
+        Transaction(
+            id = id,
+            walletId = walletId,
+            userId = userId,
+            familyId = familyId,
+            type = TransactionType.fromValue(type),
+            amount = amount,
+            categoryId = categoryId,
+            note = null,
+            date = Instant.ofEpochMilli(dateEpochMs),
+            addedByName = "",
+            syncStatus = SyncStatus.PENDING,
+            createdAt = Instant.ofEpochMilli(queuedAtEpochMs),
+        )
 
     private fun walletDeltaFor(transaction: Transaction): Long =
         when (transaction.type) {

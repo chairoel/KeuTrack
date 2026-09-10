@@ -18,7 +18,8 @@ import javax.inject.Singleton
  *
  * Strategy A: set transaction fields + [FieldValue.increment] for wallet/budget.
  * Create (missing doc) applies the new deltas only. Update uses snapshot-diff
- * increments so a retry after success is a no-op (Δ = 0).
+ * increments so a retry after success is a no-op (Δ = 0). Delete reverses the
+ * snapshot then removes the doc; a missing doc is a no-op (ack the outbox).
  */
 @Singleton
 class TransactionFirestoreDataSource @Inject constructor(
@@ -98,8 +99,61 @@ class TransactionFirestoreDataSource @Inject constructor(
         }.await()
     }
 
-    suspend fun deleteTransaction(transactionId: String) {
-        firestore.collection(COLLECTION_TRANSACTIONS).document(transactionId).delete().await()
+    /**
+     * Reverse wallet/budget from the live snapshot, set summaries, then delete
+     * the transaction doc. Missing doc → no increment (create-then-delete
+     * before first push). Snapshot identity drift → [SideEffectSnapshotMismatch].
+     */
+    suspend fun deleteTransactionWithReverse(
+        transactionId: String,
+        expected: Transaction?,
+        budgetId: String?,
+        budgetDelta: Long,
+        walletDelta: Long,
+        summaries: List<CategorySummary>,
+    ) {
+        val txnRef = firestore.collection(COLLECTION_TRANSACTIONS).document(transactionId)
+
+        firestore.runTransaction { fsTxn ->
+            val existing = fsTxn.get(txnRef)
+            if (!existing.exists()) {
+                return@runTransaction
+            }
+            val actual = fromSnapshot(existing.id, existing.data.orEmpty())
+            if (expected == null || !identityMatches(expected, actual)) {
+                throw SideEffectSnapshotMismatch(transactionId)
+            }
+
+            val walletInc = -walletDeltaFor(actual)
+            check(walletDelta == walletInc) {
+                "walletDelta pre-read drifted from snapshot for $transactionId"
+            }
+            if (walletInc != 0L && actual.walletId.isNotEmpty()) {
+                fsTxn.update(
+                    firestore.collection(COLLECTION_WALLETS).document(actual.walletId),
+                    FIELD_BALANCE,
+                    FieldValue.increment(walletInc),
+                )
+            }
+            if (budgetId != null && budgetDelta != 0L) {
+                fsTxn.update(
+                    firestore.collection(COLLECTION_BUDGETS).document(budgetId),
+                    FIELD_SPENT,
+                    FieldValue.increment(budgetDelta),
+                )
+            }
+
+            fsTxn.delete(txnRef)
+
+            summaries.forEach { summary ->
+                val summaryRef = firestore
+                    .collection(COLLECTION_USERS)
+                    .document(summary.userId)
+                    .collection(COLLECTION_CATEGORY_SUMMARIES)
+                    .document(summary.period)
+                fsTxn.set(summaryRef, summaryFields(summary))
+            }
+        }.await()
     }
 
     /**
