@@ -1,5 +1,6 @@
 package com.mascill.keutrack.core.data.repository
 
+import com.mascill.keutrack.core.common.utils.PeriodBounds
 import com.mascill.keutrack.core.data.datasource.firestore.BudgetFirestoreDataSource
 import com.mascill.keutrack.core.data.datasource.firestore.CategorySummaryFirestoreDataSource
 import com.mascill.keutrack.core.data.datasource.firestore.TransactionFirestoreDataSource
@@ -9,6 +10,7 @@ import com.mascill.keutrack.core.data.datasource.local.CategorySummaryLocalDataS
 import com.mascill.keutrack.core.data.datasource.local.TransactionLocalDataSource
 import com.mascill.keutrack.core.data.datasource.local.WalletLocalDataSource
 import com.mascill.keutrack.core.data.datasource.local.findBudgetForExpense
+import com.mascill.keutrack.core.data.db.entity.BudgetEntity
 import com.mascill.keutrack.core.data.mapper.BudgetMapper
 import com.mascill.keutrack.core.data.mapper.CategorySummaryMapper
 import com.mascill.keutrack.core.data.mapper.TransactionMapper
@@ -20,10 +22,11 @@ import com.mascill.keutrack.core.domain.model.SyncStatus
 import com.mascill.keutrack.core.domain.model.Transaction
 import com.mascill.keutrack.core.domain.model.TransactionType
 import com.mascill.keutrack.core.domain.model.WalletType
+import com.mascill.keutrack.core.domain.repository.PeriodPreferencesRepository
 import com.mascill.keutrack.core.domain.repository.SyncRepository
+import kotlinx.coroutines.flow.first
 import java.time.YearMonth
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.cancellation.CancellationException
@@ -43,6 +46,7 @@ class SyncRepositoryImpl @Inject constructor(
     private val budgetMapper: BudgetMapper,
     private val summaryMapper: CategorySummaryMapper,
     private val syncScheduler: SyncScheduler,
+    private val periodPreferences: PeriodPreferencesRepository,
 ) : SyncRepository {
 
     override suspend fun syncPendingWallets() {
@@ -92,51 +96,34 @@ class SyncRepositoryImpl @Inject constructor(
     override suspend fun syncPendingTransactions() {
         try {
             var hasFailure = false
+            val cycleStartDay = periodPreferences.observe().first().cycleStartDay
             transactionLocal.getPending().forEach { entity ->
                 try {
-                    val transaction = transactionMapper.toDomain(entity)
-                    val month = MONTH_FORMATTER.format(
-                        transaction.date.atZone(ZoneId.systemDefault()),
-                    )
-                    val summary = summaryLocal.getByPeriod(month, transaction.userId)
-                        ?.let(summaryMapper::toDomain)
-                        ?: CategorySummary(
-                            period = month,
-                            userId = transaction.userId,
-                            familyId = transaction.familyId,
-                            totalIncome = 0L,
-                            totalExpense = 0L,
-                            byCategory = emptyMap(),
-                        )
-
-                    val budget = if (transaction.type == TransactionType.EXPENSE) {
-                        budgetLocal.findBudgetForExpense(
-                            month = month,
-                            categoryId = transaction.categoryId,
-                            familyId = transaction.familyId,
-                        )
+                    val local = transactionMapper.toDomain(entity)
+                    val remote = transactionRemote.getById(local.id)
+                    val oldMonth = remote?.let { monthKey(it, cycleStartDay) }
+                    val newMonth = monthKey(local, cycleStartDay)
+                    val oldBudget = if (remote != null && oldMonth != null) {
+                        budgetMatch(remote, oldMonth)
                     } else {
                         null
                     }
-
-                    val walletDelta = transactionRemote.walletDeltaFor(transaction)
-                    val budgetSpentDelta =
-                        if (budget != null && transaction.type == TransactionType.EXPENSE) {
-                            transaction.amount
-                        } else {
-                            0L
-                        }
+                    val newBudget = budgetMatch(local, newMonth)
 
                     transactionRemote.upsertTransactionWithSideEffects(
-                        transaction = transaction,
-                        walletBalanceDelta = walletDelta,
-                        budgetId = budget?.id,
-                        budgetSpentDelta = budgetSpentDelta,
-                        summary = summary,
+                        transaction = local,
+                        remoteSnapshot = remote,
+                        oldWalletId = remote?.walletId,
+                        oldWalletDelta = remote?.let { -walletDeltaFor(it) } ?: 0L,
+                        newWalletDelta = walletDeltaFor(local),
+                        oldBudgetId = oldBudget?.id,
+                        oldBudgetDelta = budgetDeltaFor(remote, oldBudget, sign = -1),
+                        newBudgetId = newBudget?.id,
+                        newBudgetDelta = budgetDeltaFor(local, newBudget, sign = +1),
+                        summaries = summariesFor(local, oldMonth, newMonth),
                     )
-                    summaryRemote.upsertSummary(summary)
                     transactionLocal.updateSyncStatus(entity.id, SyncStatus.SYNCED)
-                    walletLocal.updateSyncStatus(transaction.walletId, SyncStatus.SYNCED)
+                    walletLocal.updateSyncStatus(local.walletId, SyncStatus.SYNCED)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (_: Exception) {
@@ -317,8 +304,9 @@ class SyncRepositoryImpl @Inject constructor(
         transactions: List<Transaction>,
     ) {
         if (transactions.isEmpty()) return
+        val cycleStartDay = periodPreferences.observe().first().cycleStartDay
         transactions
-            .groupBy { monthKey(it) }
+            .groupBy { monthKey(it, cycleStartDay) }
             .forEach { (period, periodTxs) ->
                 var totalIncome = 0L
                 var totalExpense = 0L
@@ -367,8 +355,55 @@ class SyncRepositoryImpl @Inject constructor(
             }
     }
 
-    private fun monthKey(transaction: Transaction): String =
-        MONTH_FORMATTER.format(transaction.date.atZone(ZoneId.systemDefault()))
+    private suspend fun budgetMatch(transaction: Transaction, month: String): BudgetEntity? =
+        if (transaction.type == TransactionType.EXPENSE) {
+            budgetLocal.findBudgetForExpense(
+                month = month,
+                categoryId = transaction.categoryId,
+                familyId = transaction.familyId,
+            )
+        } else {
+            null
+        }
+
+    private fun budgetDeltaFor(
+        transaction: Transaction?,
+        budget: BudgetEntity?,
+        sign: Int,
+    ): Long =
+        if (transaction != null &&
+            transaction.type == TransactionType.EXPENSE &&
+            budget != null
+        ) {
+            transaction.amount * sign
+        } else {
+            0L
+        }
+
+    private suspend fun summariesFor(
+        local: Transaction,
+        oldMonth: String?,
+        newMonth: String?,
+    ): List<CategorySummary> =
+        listOfNotNull(oldMonth, newMonth)
+            .distinct()
+            .map { period ->
+                summaryLocal.getByPeriod(period, local.userId)
+                    ?.let(summaryMapper::toDomain)
+                    ?: CategorySummary(
+                        period = period,
+                        userId = local.userId,
+                        familyId = local.familyId,
+                        totalIncome = 0L,
+                        totalExpense = 0L,
+                        byCategory = emptyMap(),
+                    )
+            }
+
+    private fun monthKey(transaction: Transaction, cycleStartDay: Int): String {
+        val date = transaction.date.atZone(ZoneId.systemDefault()).toLocalDate()
+        return PeriodBounds.periodKey(date, cycleStartDay)
+    }
 
     private suspend fun hydrateFamilyBudgets(familyId: String) {
         val remoteBudgets =
@@ -398,7 +433,6 @@ class SyncRepositoryImpl @Inject constructor(
         status == SyncStatus.PENDING.name || status == SyncStatus.FAILED.name
 
     private companion object {
-        val MONTH_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM")
         const val FAMILY_TX_PULL_LIMIT = 200
         const val PERSONAL_TX_PULL_LIMIT = 200
     }

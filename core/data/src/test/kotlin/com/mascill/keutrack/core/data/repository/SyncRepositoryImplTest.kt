@@ -19,11 +19,13 @@ import com.mascill.keutrack.core.data.mapper.TransactionMapper
 import com.mascill.keutrack.core.data.mapper.WalletMapper
 import com.mascill.keutrack.core.data.sync.SyncScheduler
 import com.mascill.keutrack.core.domain.model.Budget
+import com.mascill.keutrack.core.domain.model.PeriodPreferences
 import com.mascill.keutrack.core.domain.model.SyncStatus
 import com.mascill.keutrack.core.domain.model.Transaction
 import com.mascill.keutrack.core.domain.model.TransactionType
 import com.mascill.keutrack.core.domain.model.Wallet
 import com.mascill.keutrack.core.domain.model.WalletType
+import com.mascill.keutrack.core.domain.repository.PeriodPreferencesRepository
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -31,6 +33,7 @@ import io.mockk.just
 import io.mockk.mockk
 import io.mockk.runs
 import io.mockk.verify
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import java.time.Instant
@@ -47,6 +50,9 @@ class SyncRepositoryImplTest {
     private val budgetRemote = mockk<BudgetFirestoreDataSource>(relaxed = true)
     private val summaryRemote = mockk<CategorySummaryFirestoreDataSource>(relaxed = true)
     private val syncScheduler = mockk<SyncScheduler>(relaxed = true)
+    private val periodPreferences = mockk<PeriodPreferencesRepository> {
+        every { observe() } returns flowOf(PeriodPreferences(cycleStartDay = 1))
+    }
     private val repo = SyncRepositoryImpl(
         transactionLocal = transactionLocal,
         walletLocal = walletLocal,
@@ -61,6 +67,7 @@ class SyncRepositoryImplTest {
         budgetMapper = BudgetMapper(),
         summaryMapper = CategorySummaryMapper(),
         syncScheduler = syncScheduler,
+        periodPreferences = periodPreferences,
     )
 
     @Test
