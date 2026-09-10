@@ -4,9 +4,11 @@ import androidx.room.withTransaction
 import com.mascill.keutrack.core.data.db.AppDatabase
 import com.mascill.keutrack.core.data.db.dao.BudgetDao
 import com.mascill.keutrack.core.data.db.dao.CategorySummaryDao
+import com.mascill.keutrack.core.data.db.dao.PendingTransactionDeleteDao
 import com.mascill.keutrack.core.data.db.dao.TransactionDao
 import com.mascill.keutrack.core.data.db.dao.WalletDao
 import com.mascill.keutrack.core.data.db.entity.CategorySummaryEntity
+import com.mascill.keutrack.core.data.db.entity.PendingTransactionDeleteEntity
 import com.mascill.keutrack.core.data.db.entity.TransactionEntity
 import com.mascill.keutrack.core.data.db.model.AmountByTypeRow
 import com.mascill.keutrack.core.domain.model.SyncStatus
@@ -19,6 +21,7 @@ class TransactionLocalDataSourceImpl @Inject constructor(
     private val walletDao: WalletDao,
     private val budgetDao: BudgetDao,
     private val categorySummaryDao: CategorySummaryDao,
+    private val pendingDeleteDao: PendingTransactionDeleteDao,
 ) : TransactionLocalDataSource {
 
     override fun observeFiltered(
@@ -69,6 +72,17 @@ class TransactionLocalDataSourceImpl @Inject constructor(
 
     override suspend fun getPending(): List<TransactionEntity> =
         transactionDao.getPending()
+
+    override suspend fun getPendingDeletes(): List<PendingTransactionDeleteEntity> =
+        pendingDeleteDao.getPending()
+
+    override suspend fun removePendingDelete(id: String) {
+        pendingDeleteDao.deleteById(id)
+    }
+
+    override suspend fun updateDeleteSyncStatus(id: String, status: SyncStatus) {
+        pendingDeleteDao.updateSyncStatus(id, status.name)
+    }
 
     override suspend fun updateSyncStatus(id: String, status: SyncStatus) {
         transactionDao.updateSyncStatus(id, status.name)
@@ -134,8 +148,12 @@ class TransactionLocalDataSourceImpl @Inject constructor(
         budgetId: String?,
         budgetDelta: Long,
         summaryUpsert: CategorySummaryEntity?,
+        pendingDelete: PendingTransactionDeleteEntity?,
     ) {
         db.withTransaction {
+            if (pendingDelete != null) {
+                pendingDeleteDao.upsert(pendingDelete)
+            }
             applyWalletDelta(walletId, walletDelta)
             applyBudgetDelta(budgetId, budgetDelta)
             if (summaryUpsert != null) {

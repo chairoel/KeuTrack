@@ -10,6 +10,7 @@ import com.mascill.keutrack.core.data.datasource.local.CategorySummaryLocalDataS
 import com.mascill.keutrack.core.data.datasource.local.TransactionLocalDataSource
 import com.mascill.keutrack.core.data.datasource.local.WalletLocalDataSource
 import com.mascill.keutrack.core.data.db.entity.BudgetEntity
+import com.mascill.keutrack.core.data.db.entity.PendingTransactionDeleteEntity
 import com.mascill.keutrack.core.data.db.entity.TransactionEntity
 import com.mascill.keutrack.core.data.db.entity.WalletEntity
 import com.mascill.keutrack.core.data.mapper.BudgetMapper
@@ -67,6 +68,7 @@ class SyncRepositoryImplTest {
         coEvery { walletLocal.getPending() } returns listOf(pendingWallet())
         coEvery { budgetLocal.getPending() } returns emptyList()
         coEvery { transactionLocal.getPending() } returns emptyList()
+        coEvery { transactionLocal.getPendingDeletes() } returns emptyList()
 
         assertThat(repo.hasPendingSync()).isTrue()
     }
@@ -76,8 +78,19 @@ class SyncRepositoryImplTest {
         coEvery { walletLocal.getPending() } returns emptyList()
         coEvery { budgetLocal.getPending() } returns emptyList()
         coEvery { transactionLocal.getPending() } returns emptyList()
+        coEvery { transactionLocal.getPendingDeletes() } returns emptyList()
 
         assertThat(repo.hasPendingSync()).isFalse()
+    }
+
+    @Test
+    fun `hasPendingSync is true when only delete outbox is pending`() = runTest {
+        coEvery { walletLocal.getPending() } returns emptyList()
+        coEvery { budgetLocal.getPending() } returns emptyList()
+        coEvery { transactionLocal.getPending() } returns emptyList()
+        coEvery { transactionLocal.getPendingDeletes() } returns listOf(pendingDelete())
+
+        assertThat(repo.hasPendingSync()).isTrue()
     }
 
     @Test
@@ -497,6 +510,19 @@ class SyncRepositoryImplTest {
         addedByName = "Irul",
         syncStatus = "PENDING",
         createdAtEpochMs = Instant.parse("2026-08-16T10:22:00Z").toEpochMilli(),
+    )
+
+    private fun pendingDelete() = PendingTransactionDeleteEntity(
+        id = "tx-1",
+        walletId = "w-1",
+        userId = "user-1",
+        familyId = "fam-1",
+        type = "expense",
+        amount = 15_000L,
+        categoryId = "cat_makan",
+        dateEpochMs = Instant.parse("2026-08-16T10:22:00Z").toEpochMilli(),
+        queuedAtEpochMs = Instant.parse("2026-08-16T10:22:00Z").toEpochMilli(),
+        syncStatus = SyncStatus.PENDING.name,
     )
 
     private fun familyWallet(balance: Long) = Wallet(

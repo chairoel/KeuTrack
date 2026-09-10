@@ -1,6 +1,7 @@
 package com.mascill.keutrack.core.data.datasource.local
 
 import com.mascill.keutrack.core.data.db.entity.CategorySummaryEntity
+import com.mascill.keutrack.core.data.db.entity.PendingTransactionDeleteEntity
 import com.mascill.keutrack.core.data.db.entity.TransactionEntity
 import com.mascill.keutrack.core.data.db.model.AmountByTypeRow
 import com.mascill.keutrack.core.domain.model.SyncStatus
@@ -34,6 +35,12 @@ interface TransactionLocalDataSource {
 
     suspend fun getPending(): List<TransactionEntity>
 
+    suspend fun getPendingDeletes(): List<PendingTransactionDeleteEntity>
+
+    suspend fun removePendingDelete(id: String)
+
+    suspend fun updateDeleteSyncStatus(id: String, status: SyncStatus)
+
     suspend fun updateSyncStatus(id: String, status: SyncStatus)
 
     /**
@@ -64,7 +71,9 @@ interface TransactionLocalDataSource {
     )
 
     /**
-     * Atomic local write for a delete: reverse wallet/budget/summary, then remove the row.
+     * Atomic local write for a delete: queue [pendingDelete] (if any), reverse
+     * wallet/budget/summary, then remove the row. Pass null for local-only reverse
+     * (orphan sweep) so a second remote delete is not enqueued.
      */
     suspend fun applyDeletedTransactionAtomically(
         id: String,
@@ -73,5 +82,6 @@ interface TransactionLocalDataSource {
         budgetId: String?,
         budgetDelta: Long,
         summaryUpsert: CategorySummaryEntity?,
+        pendingDelete: PendingTransactionDeleteEntity? = null,
     )
 }

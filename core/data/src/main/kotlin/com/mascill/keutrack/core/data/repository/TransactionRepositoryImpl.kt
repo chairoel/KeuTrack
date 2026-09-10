@@ -8,6 +8,7 @@ import com.mascill.keutrack.core.data.datasource.local.TransactionLocalDataSourc
 import com.mascill.keutrack.core.data.datasource.local.findBudgetForExpense
 import com.mascill.keutrack.core.data.db.entity.BudgetEntity
 import com.mascill.keutrack.core.data.db.entity.CategorySummaryEntity
+import com.mascill.keutrack.core.data.db.entity.PendingTransactionDeleteEntity
 import com.mascill.keutrack.core.data.mapper.CategorySummaryMapper
 import com.mascill.keutrack.core.data.mapper.TransactionMapper
 import com.mascill.keutrack.core.data.sync.SyncScheduler
@@ -156,6 +157,7 @@ class TransactionRepositoryImpl @Inject constructor(
                 budgetId = budget?.id,
                 budgetDelta = budgetDeltaFor(old, budget, sign = -1),
                 summaryUpsert = summaryMapper.toEntity(summary),
+                pendingDelete = pendingDeleteOf(old),
             )
             syncScheduler.enqueueSync()
         } catch (e: CancellationException) {
@@ -277,6 +279,20 @@ class TransactionRepositoryImpl @Inject constructor(
         } else {
             0L
         }
+
+    private fun pendingDeleteOf(old: Transaction): PendingTransactionDeleteEntity =
+        PendingTransactionDeleteEntity(
+            id = old.id,
+            walletId = old.walletId,
+            userId = old.userId,
+            familyId = old.familyId,
+            type = old.type.value,
+            amount = old.amount,
+            categoryId = old.categoryId,
+            dateEpochMs = old.date.toEpochMilli(),
+            queuedAtEpochMs = Instant.now().toEpochMilli(),
+            syncStatus = SyncStatus.PENDING.name,
+        )
 
     private fun walletDeltaFor(transaction: Transaction): Long =
         when (transaction.type) {

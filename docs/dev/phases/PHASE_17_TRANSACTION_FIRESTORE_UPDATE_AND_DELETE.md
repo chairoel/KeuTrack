@@ -3,14 +3,34 @@
 > **Modul target:** `:core:data` (outbox + Strategy A harden) → `docs/database/firestore-rules.md` (ACL write family) · domain **additive tipis** (komentar `hasPendingSync` saja)  
 > **Estimasi:** ~2–2.5 hari · **17a** ~0.4 hari (outbox lokal) · **17b** ~0.8–1 hari (update remote) · **17c** ~0.6–0.8 hari (delete remote + pull) · **17d** ~0.2 hari (rules)  
 > **Prasyarat:** Phase 16a–c ✅ (edit/delete lokal benar) · Phase 2 ✅ (Strategy A skip-if-exists) · Phase 6C ✅ (pull family) · Phase 10 ✅ (pull personal) · Phase 11 ✅ (`findBudgetForExpense`) · Phase 14 ✅ (`PeriodBounds.periodKey`)  
-> **Status:** **Not started** — ini spesifikasi lengkap follow-up **16d** di [`PHASE_16_TRANSACTION_EDIT_AND_DELETE.md`](./PHASE_16_TRANSACTION_EDIT_AND_DELETE.md).  
+> **Status:** **17a Task 1 done** — outbox Room v2 + atomic delete + `hasPendingSync` melihat outbox. Task 2–7 belum. Follow-up **16d** di [`PHASE_16_TRANSACTION_EDIT_AND_DELETE.md`](./PHASE_16_TRANSACTION_EDIT_AND_DELETE.md).  
+
 > **Hasil akhir:** Edit/hapus yang sudah benar di Room **ikut benar di Firestore**. Device/akun lain melihat field baru, saldo wallet, dan budget `spent` yang terkoreksi. Hapus tidak “hidup lagi” saat pull Phase 6C/10. UI History / New Entry **tidak** berubah.  
 > **Asal-usul 16d:** (1) update remote jangan skip-if-exists — tulis field + increment selisih; (2) delete remote butuh outbox **sebelum** row hilang; (3) reverse `FieldValue.increment` wallet/budget; (4) pull vs tombstone/outbox.
 
 ---
 
+## Progress
+
+| Slice | Task | Status |
+|-------|------|--------|
+| 17a | Task 1 — Schema + atomic outbox | **Done** (2026-09-10) |
+| 17a | Task 2 — Tes delete lokal | Not started |
+| 17b | Task 3 — Firestore update + monthKey | Not started |
+| 17b | Task 4 — Tes update sync | Not started |
+| 17c | Task 5 — Delete remote + drain outbox | Not started |
+| 17c | Task 6 — Pull skip + sweep | Not started |
+| 17d | Task 7 — Rules | Not started |
+
+**Terakhir dikerjakan:** Task 1 — tabel `pending_transaction_deletes`, `migration1To2`, `applyDeleted` menulis outbox sebelum hapus row, `hasPendingSync` true jika hanya outbox terisi.
+
+**Berikutnya:** Task 2 — tes delete lokal di `TransactionRepositoryImplTest` (outbox ada + row hilang; missing id tidak tulis outbox; update tidak menulis outbox).
+
+---
+
 ## Daftar Isi
 
+- [Progress](#progress)
 1. [Konteks & Tujuan](#1-konteks--tujuan)
 2. [Inventory — Apa yang Sudah Ada](#2-inventory--apa-yang-sudah-ada)
 3. [Root Cause (Kenapa Cloud Stale)](#3-root-cause-kenapa-cloud-stale)
@@ -122,7 +142,7 @@ Dampak produk (Phase 16 §22.6, sengaja bukan AC):
 | `setBalance` setelah recompute pull | sama | Safety net; **bukan** strategi primer update/delete |
 | `SyncRepository` interface | domain | Signature **tidak** berubah |
 | Tes `SyncRepositoryImplTest` | data test | Pola mockk; 17 menambah kasus update/delete/pull |
-| `AppDatabase` version | `1`, `exportSchema = false` | **Bump** ke `2` + `MIGRATION_1_2` |
+| `AppDatabase` version | `1`, `exportSchema = false` | **Bump** ke `2` + `migration1To2` |
 | `fallbackToDestructiveMigration` | `DatabaseModule` | Tetap last-resort; **jangan** andalkan wipe untuk 17 |
 
 ### Rules
@@ -204,7 +224,7 @@ Enqueue tidak ada yang dikonsumsi. `deleteTransaction` Firestore tidak pernah di
 | P10 | Pull vs outbox | Jangan upsert id yang ada di outbox; jika row sempat ter-hydrate, hapus lagi tanpa enqueue | Device yang sama: pull jangan mengalahkan delete yang belum ter-push |
 | P11 | Pull vs device lain | **Orphan sweep**: lokal `SYNCED` yang tanggalnya ≥ tx remote tertua di hasil pull, id tidak ada di remote → reverse lokal **tanpa** outbox | Limit 200: jangan sweep tx lebih tua dari jendela. `PENDING` lokal jangan di-sweep |
 | P12 | Interface `SyncRepository` | **Tidak** pecah method baru | Lipat ke `syncPendingTransactions` + `hasPendingSync` + pull existing |
-| P13 | Schema Room | Version **2** + `MIGRATION_1_2` `CREATE TABLE` | Jangan andalkan `fallbackToDestructiveMigration` (itu wipe data user) |
+| P13 | Schema Room | Version **2** + `migration1To2` `CREATE TABLE` | Jangan andalkan `fallbackToDestructiveMigration` (itu wipe data user) |
 | P14 | UI / use case tulis | **Tidak** berubah | 16b/16c sudah cukup; ini phase data |
 | P15 | `monthKey` sync | Sama dengan `TransactionRepositoryImpl` (`PeriodBounds` + `cycleStartDay`) | Budget reverse/apply harus kena dokumen yang sama |
 | P16 | Budget id di snapshot | Pre-read + `findBudgetForExpense` **sebelum** `runTransaction`; jika snapshot berubah vs pre-read, abort agar retry | `runTransaction` sinkron — tidak bisa query Room di dalamnya. Dokumen tx **tidak** punya `budgetId` hari ini |
@@ -220,7 +240,7 @@ Enqueue tidak ada yang dikonsumsi. `deleteTransaction` Firestore tidak pernah di
 
 ### 17a — Outbox lokal
 
-1. Entity + DAO + register `AppDatabase` v2 + `MIGRATION_1_2`.
+1. Entity + DAO + register `AppDatabase` v2 + `migration1To2`.
 2. `applyDeletedTransactionAtomically` menulis outbox lalu hapus row.
 3. `hasPendingSync` melihat outbox.
 4. Tes repo: delete → outbox ada, row hilang; delete missing id → tidak tulis outbox.
@@ -323,8 +343,8 @@ Boleh sentuh `docs/database/firestore-rules.md` **hanya** klausa update/delete t
 | `core/data/.../db/entity/PendingTransactionDeleteEntity.kt` | **Baru** |
 | `core/data/.../db/dao/PendingTransactionDeleteDao.kt` | **Baru** |
 | `core/data/.../db/AppDatabase.kt` | Register entity; `version = 2` |
-| `core/data/.../db/Migrations.kt` (atau di `AppDatabase`) | `MIGRATION_1_2` |
-| `core/data/.../di/DatabaseModule.kt` | `.addMigrations(MIGRATION_1_2)` + provide DAO |
+| `core/data/.../db/Migrations.kt` (atau di `AppDatabase`) | `migration1To2` |
+| `core/data/.../di/DatabaseModule.kt` | `.addMigrations(migration1To2)` + provide DAO |
 | `TransactionLocalDataSource.kt` + Impl | `getPendingDeletes` / `removePendingDelete`; atomic delete menulis outbox |
 | `TransactionRepositoryImpl.deleteTransaction` | Pastikan snapshot outbox lengkap; tetap `enqueueSync()` |
 | `TransactionRepositoryImplTest` | Assert outbox |
@@ -356,7 +376,7 @@ Interface `SyncRepository` method **tidak** bertambah.
 ```
 core/data/.../db/
 ├── AppDatabase.kt                         ← v2 + pending deletes
-├── Migrations.kt                          ← MIGRATION_1_2
+├── Migrations.kt                          ← migration1To2
 ├── entity/PendingTransactionDeleteEntity.kt
 └── dao/PendingTransactionDeleteDao.kt
 
@@ -500,7 +520,7 @@ CREATE TABLE IF NOT EXISTS pending_transaction_deletes (
 `AppDatabase.version = 2`. `DatabaseModule`:
 
 ```kotlin
-.addMigrations(MIGRATION_1_2)
+.addMigrations(migration1To2)
 .fallbackToDestructiveMigration(dropAllTables = true) // last-resort saja
 ```
 
@@ -794,7 +814,7 @@ Kerjakan **17a → 17b → 17c → 17d**. 17d boleh disiapkan paralel (docs) tet
 
 ### 17a — Task 1: Schema + atomic outbox
 
-- Entity, DAO, v2, `MIGRATION_1_2`, Hilt provide.
+- Entity, DAO, v2, `migration1To2`, Hilt provide.
 - `applyDeleted` tulis outbox.
 - `getPendingDeletes` / `removePendingDelete` / `updateDeleteSyncStatus`.
 - `hasPendingSync` + tes existing `hasPendingSync is false` **update** (stub outbox kosong).
@@ -862,8 +882,8 @@ Verify akhir: `./gradlew :core:data:testDevDebugUnitTest assembleDevDebug`
 
 ### Harus terpenuhi
 
-- [ ] Delete lokal menulis outbox dalam transaksi yang sama dengan hapus row
-- [ ] `hasPendingSync()` true jika hanya outbox yang terisi
+- [x] Delete lokal menulis outbox dalam transaksi yang sama dengan hapus row
+- [x] `hasPendingSync()` true jika hanya outbox yang terisi
 - [ ] Update tx `SYNCED`: dokumen Firestore field ikut berubah; wallet increment = selisih, **bukan** amount penuh
 - [ ] Retry update setelah sukses (atau snapshot sudah = lokal) **tidak** mendobel saldo remote
 - [ ] Create path: dokumen baru tetap increment penuh; FAB create tidak regresi
@@ -873,7 +893,7 @@ Verify akhir: `./gradlew :core:data:testDevDebugUnitTest assembleDevDebug`
 - [ ] Device yang sama pull sebelum delete sempat push: id outbox **tidak** di-upsert kembali
 - [ ] Orphan sweep tidak menghapus `PENDING` lokal / tx di luar jendela 200
 - [ ] `monthKey` sync = siklus payday (kasus `cycleStartDay` 25)
-- [ ] `MIGRATION_1_2` ada; Room v2
+- [x] `migration1To2` ada; Room v2
 - [ ] Auth / splash / Settings / Family invite UI tidak disentuh
 - [ ] Tes 17a–17c hijau
 
@@ -945,7 +965,7 @@ syncFamilyData / syncPersonalData
 | Rules owner-only | Member edit/hapus `FAILED` selamanya | P17 / P18 + Task 7 |
 | Pre-read vs snapshot drift | Delta salah | P16 throw mismatch → retry |
 | `hasPendingSync` lupa outbox | Hapus tidak pernah di-retry | Task 1 |
-| Destructive migration tanpa `MIGRATION_1_2` | User kehilangan Room | P13 |
+| Destructive migration tanpa `migration1To2` | User kehilangan Room | P13 |
 | Upsert lalu delete id yang sama | Flash remote + increment sia-sia | P7 |
 | Summary di-set dua kali + increment retry | Agregat aneh | Satu `set` di `runTransaction` |
 | Family ACL diam-diam diketatkan | Bertentangan 16 P11 | P17 |

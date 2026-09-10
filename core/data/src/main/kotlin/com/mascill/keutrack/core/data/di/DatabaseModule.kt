@@ -3,9 +3,11 @@ package com.mascill.keutrack.core.data.di
 import android.content.Context
 import androidx.room.Room
 import com.mascill.keutrack.core.data.db.AppDatabase
+import com.mascill.keutrack.core.data.db.migration1To2
 import com.mascill.keutrack.core.data.db.dao.BudgetDao
 import com.mascill.keutrack.core.data.db.dao.CategoryDao
 import com.mascill.keutrack.core.data.db.dao.CategorySummaryDao
+import com.mascill.keutrack.core.data.db.dao.PendingTransactionDeleteDao
 import com.mascill.keutrack.core.data.db.dao.TransactionDao
 import com.mascill.keutrack.core.data.db.dao.WalletDao
 import dagger.Module
@@ -25,7 +27,7 @@ object DatabaseModule {
         @ApplicationContext context: Context,
     ): AppDatabase =
         Room.databaseBuilder(context, AppDatabase::class.java, "keutrack.db")
-            // OK for v1 pre-production; replace with Migration before release.
+            .addMigrations(migration1To2)
             .fallbackToDestructiveMigration(dropAllTables = true)
             .build()
 
@@ -43,4 +45,8 @@ object DatabaseModule {
 
     @Provides
     fun provideCategorySummaryDao(db: AppDatabase): CategorySummaryDao = db.categorySummaryDao()
+
+    @Provides
+    fun providePendingTransactionDeleteDao(db: AppDatabase): PendingTransactionDeleteDao =
+        db.pendingTransactionDeleteDao()
 }

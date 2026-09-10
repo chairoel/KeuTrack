@@ -299,7 +299,8 @@ class SyncRepositoryImpl @Inject constructor(
     override suspend fun hasPendingSync(): Boolean =
         walletLocal.getPending().isNotEmpty() ||
             budgetLocal.getPending().isNotEmpty() ||
-            transactionLocal.getPending().isNotEmpty()
+            transactionLocal.getPending().isNotEmpty() ||
+            transactionLocal.getPendingDeletes().isNotEmpty()
 
     override fun enqueuePendingSync(force: Boolean) {
         syncScheduler.enqueueSync(force = force)

@@ -542,6 +542,15 @@ class TransactionRepositoryImplTest {
                 budgetId = "b-personal",
                 budgetDelta = -15_000L,
                 summaryUpsert = match { it.totalExpense == 0L },
+                pendingDelete = match {
+                    it.id == "tx-1" &&
+                        it.walletId == "wallet-1" &&
+                        it.userId == "user-1" &&
+                        it.type == TransactionType.EXPENSE.value &&
+                        it.amount == 15_000L &&
+                        it.categoryId == "cat-food" &&
+                        it.syncStatus == SyncStatus.PENDING.name
+                },
             )
         }
         verify { syncScheduler.enqueueSync() }
@@ -561,6 +570,7 @@ class TransactionRepositoryImplTest {
                 budgetId = any(),
                 budgetDelta = any(),
                 summaryUpsert = any(),
+                pendingDelete = any(),
             )
         }
         verify(exactly = 0) { syncScheduler.enqueueSync() }
@@ -601,6 +611,7 @@ class TransactionRepositoryImplTest {
                 budgetId = any(),
                 budgetDelta = any(),
                 summaryUpsert = any(),
+                pendingDelete = any(),
             )
         } just runs
     }
