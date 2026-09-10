@@ -37,7 +37,9 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import java.time.Instant
+import java.time.LocalDate
 import java.time.YearMonth
+import java.time.ZoneId
 
 class SyncRepositoryImplTest {
 
@@ -145,6 +147,130 @@ class SyncRepositoryImplTest {
             coVerify { walletRemote.upsertWallet(match { it.id == "w-1" }) }
             coVerify(exactly = 0) { walletLocal.updateSyncStatus("w-1", SyncStatus.SYNCED) }
         }
+
+    @Test
+    fun `hasPendingSync is true when a pending transaction is queued`() = runTest {
+        coEvery { walletLocal.getPending() } returns emptyList()
+        coEvery { budgetLocal.getPending() } returns emptyList()
+        coEvery { transactionLocal.getPending() } returns listOf(pendingExpense())
+        coEvery { transactionLocal.getPendingDeletes() } returns emptyList()
+
+        assertThat(repo.hasPendingSync()).isTrue()
+    }
+
+    @Test
+    fun `syncPendingTransactions amount edit passes reverse and apply wallet deltas`() = runTest {
+        val local = pendingExpense(amount = 150_000L)
+        val remote = remoteExpense(amount = 100_000L)
+        val budget = personalExpenseBudget()
+        stubPendingUpsert(local = local, remote = remote)
+        coEvery { budgetLocal.getByMonthCategoryPersonal("2026-08", "cat_makan") } returns budget
+
+        repo.syncPendingTransactions()
+
+        coVerify {
+            transactionRemote.upsertTransactionWithSideEffects(
+                transaction = match { it.id == "tx-1" && it.amount == 150_000L },
+                remoteSnapshot = match { it.amount == 100_000L },
+                oldWalletId = "w-1",
+                oldWalletDelta = 100_000L,
+                newWalletDelta = -150_000L,
+                oldBudgetId = "b-food",
+                oldBudgetDelta = -100_000L,
+                newBudgetId = "b-food",
+                newBudgetDelta = 150_000L,
+                summaries = match { it.size == 1 },
+            )
+        }
+        coVerify { transactionLocal.updateSyncStatus("tx-1", SyncStatus.SYNCED) }
+        coVerify(exactly = 0) { summaryRemote.upsertSummary(any()) }
+    }
+
+    @Test
+    fun `syncPendingTransactions missing remote treats as create`() = runTest {
+        val local = pendingExpense(amount = 150_000L)
+        stubPendingUpsert(local = local, remote = null)
+
+        repo.syncPendingTransactions()
+
+        coVerify {
+            transactionRemote.upsertTransactionWithSideEffects(
+                transaction = match { it.amount == 150_000L },
+                remoteSnapshot = null,
+                oldWalletId = null,
+                oldWalletDelta = 0L,
+                newWalletDelta = -150_000L,
+                oldBudgetId = null,
+                oldBudgetDelta = 0L,
+                newBudgetId = null,
+                newBudgetDelta = 0L,
+                summaries = match { it.size == 1 },
+            )
+        }
+        coVerify { transactionLocal.updateSyncStatus("tx-1", SyncStatus.SYNCED) }
+    }
+
+    @Test
+    fun `syncPendingTransactions note only nets wallet increment to zero`() = runTest {
+        val local = pendingExpense(amount = 100_000L, note = "baru")
+        val remote = remoteExpense(amount = 100_000L, note = "lama")
+        stubPendingUpsert(local = local, remote = remote)
+
+        repo.syncPendingTransactions()
+
+        coVerify {
+            transactionRemote.upsertTransactionWithSideEffects(
+                transaction = match { it.note == "baru" && it.amount == 100_000L },
+                remoteSnapshot = match { it.note == "lama" },
+                oldWalletId = "w-1",
+                oldWalletDelta = 100_000L,
+                newWalletDelta = -100_000L,
+                oldBudgetId = any(),
+                oldBudgetDelta = any(),
+                newBudgetId = any(),
+                newBudgetDelta = any(),
+                summaries = any(),
+            )
+        }
+    }
+
+    @Test
+    fun `syncPendingTransactions still upserts when remote already exists`() = runTest {
+        val local = pendingExpense(amount = 100_000L)
+        val remote = remoteExpense(amount = 100_000L)
+        stubPendingUpsert(local = local, remote = remote)
+
+        repo.syncPendingTransactions()
+
+        coVerify(exactly = 1) {
+            transactionRemote.upsertTransactionWithSideEffects(
+                transaction = match { it.id == "tx-1" },
+                remoteSnapshot = match { it.id == "tx-1" },
+                oldWalletId = "w-1",
+                oldWalletDelta = 100_000L,
+                newWalletDelta = -100_000L,
+                oldBudgetId = any(),
+                oldBudgetDelta = any(),
+                newBudgetId = any(),
+                newBudgetDelta = any(),
+                summaries = any(),
+            )
+        }
+        coVerify { transactionLocal.updateSyncStatus("tx-1", SyncStatus.SYNCED) }
+    }
+
+    @Test
+    fun `syncPendingTransactions uses payday cycle month key for budget match`() = runTest {
+        every { periodPreferences.observe() } returns flowOf(PeriodPreferences(cycleStartDay = 25))
+        val date = LocalDate.of(2026, 7, 26).atStartOfDay(ZoneId.systemDefault()).toInstant()
+        val local = pendingExpense(amount = 15_000L, dateEpochMs = date.toEpochMilli())
+        stubPendingUpsert(local = local, remote = null)
+
+        repo.syncPendingTransactions()
+
+        coVerify { budgetLocal.getByMonthCategoryPersonal("2026-08", "cat_makan") }
+        coVerify(exactly = 0) { budgetLocal.getByMonthCategoryPersonal("2026-07", any()) }
+    }
 
     @Test
     fun `syncFamilyData repairs doubled remote wallet balance from transactions`() = runTest {
@@ -501,6 +627,71 @@ class SyncRepositoryImplTest {
         icon = null,
         color = null,
         syncStatus = "PENDING",
+        createdAtEpochMs = Instant.parse("2026-08-01T00:00:00Z").toEpochMilli(),
+    )
+
+    private fun stubPendingUpsert(
+        local: TransactionEntity,
+        remote: Transaction?,
+    ) {
+        coEvery { transactionLocal.getPending() } returns listOf(local)
+        coEvery { transactionRemote.getById(local.id) } returns remote
+        coEvery { budgetLocal.getByMonthCategoryPersonal(any(), any()) } returns null
+        coEvery { budgetLocal.getByMonthCategoryAndFamily(any(), any(), any()) } returns null
+        coEvery { summaryLocal.getByPeriod(any(), any()) } returns null
+    }
+
+    private fun pendingExpense(
+        amount: Long = 100_000L,
+        note: String? = null,
+        dateEpochMs: Long = Instant.parse("2026-08-16T10:22:00Z").toEpochMilli(),
+        categoryId: String = "cat_makan",
+    ) = TransactionEntity(
+        id = "tx-1",
+        walletId = "w-1",
+        userId = "user-1",
+        familyId = null,
+        type = TransactionType.EXPENSE.value,
+        amount = amount,
+        categoryId = categoryId,
+        note = note,
+        dateEpochMs = dateEpochMs,
+        addedByName = "Irul",
+        syncStatus = SyncStatus.PENDING.name,
+        createdAtEpochMs = Instant.parse("2026-08-16T10:22:00Z").toEpochMilli(),
+    )
+
+    private fun remoteExpense(
+        amount: Long = 100_000L,
+        note: String? = null,
+        date: Instant = Instant.parse("2026-08-16T10:22:00Z"),
+        categoryId: String = "cat_makan",
+    ) = Transaction(
+        id = "tx-1",
+        walletId = "w-1",
+        userId = "user-1",
+        familyId = null,
+        type = TransactionType.EXPENSE,
+        amount = amount,
+        categoryId = categoryId,
+        note = note,
+        date = date,
+        addedByName = "Irul",
+        syncStatus = SyncStatus.SYNCED,
+        createdAt = Instant.parse("2026-08-16T10:22:00Z"),
+    )
+
+    private fun personalExpenseBudget() = BudgetEntity(
+        id = "b-food",
+        userId = "user-1",
+        familyId = null,
+        categoryId = "cat_makan",
+        limit = 1_000_000L,
+        spent = 100_000L,
+        period = "monthly",
+        month = "2026-08",
+        walletId = "w-1",
+        syncStatus = SyncStatus.SYNCED.name,
         createdAtEpochMs = Instant.parse("2026-08-01T00:00:00Z").toEpochMilli(),
     )
 
