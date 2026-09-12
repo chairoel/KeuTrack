@@ -3,7 +3,7 @@
 > **Modul target:** `:core:data` (outbox + Strategy A harden) → `docs/database/firestore-rules.md` (ACL write family) · domain **additive tipis** (komentar `hasPendingSync` saja)  
 > **Estimasi:** ~2–2.5 hari · **17a** ~0.4 hari (outbox lokal) · **17b** ~0.8–1 hari (update remote) · **17c** ~0.6–0.8 hari (delete remote + pull) · **17d** ~0.2 hari (rules)  
 > **Prasyarat:** Phase 16a–c ✅ (edit/delete lokal benar) · Phase 2 ✅ (Strategy A skip-if-exists) · Phase 6C ✅ (pull family) · Phase 10 ✅ (pull personal) · Phase 11 ✅ (`findBudgetForExpense`) · Phase 14 ✅ (`PeriodBounds.periodKey`)  
-> **Status:** **17a + 17b + 17c done** — pull skip outbox + orphan sweep. Task 7 (rules) belum. Follow-up **16d** di [`PHASE_16_TRANSACTION_EDIT_AND_DELETE.md`](./PHASE_16_TRANSACTION_EDIT_AND_DELETE.md).  
+> **Status:** **17a–17d docs done** — rules markdown siap. **Publish Console `keutrack-dev` masih wajib** sebelum QA 2 akun. Follow-up **16d** di [`PHASE_16_TRANSACTION_EDIT_AND_DELETE.md`](./PHASE_16_TRANSACTION_EDIT_AND_DELETE.md).  
 
 > **Hasil akhir:** Edit/hapus yang sudah benar di Room **ikut benar di Firestore**. Device/akun lain melihat field baru, saldo wallet, dan budget `spent` yang terkoreksi. Hapus tidak “hidup lagi” saat pull Phase 6C/10. UI History / New Entry **tidak** berubah.  
 > **Asal-usul 16d:** (1) update remote jangan skip-if-exists — tulis field + increment selisih; (2) delete remote butuh outbox **sebelum** row hilang; (3) reverse `FieldValue.increment` wallet/budget; (4) pull vs tombstone/outbox.
@@ -20,11 +20,11 @@
 | 17b | Task 4 — Tes update sync | **Done** (2026-09-10) |
 | 17c | Task 5 — Delete remote + drain outbox | **Done** (2026-09-10) |
 | 17c | Task 6 — Pull skip + sweep | **Done** (2026-09-10) |
-| 17d | Task 7 — Rules | Not started |
+| 17d | Task 7 — Rules | **Done** (2026-09-10) — markdown; Console publish pending |
 
-**Terakhir dikerjakan:** Task 6 — pull family/personal skip id outbox; orphan sweep `SYNCED` di jendela (local reverse tanpa outbox); `PENDING` / lebih tua dari `oldestPulled` tidak di-sweep; wallet recompute setelah sweep.
+**Terakhir dikerjakan:** Task 7 — family member boleh `update`/`delete` tx `familyId` yang sama; budget member hanya field `spent`. Salin blok rules di `docs/database/firestore-rules.md` ke Firebase Console → **Publish** `keutrack-dev`.
 
-**Berikutnya:** Task 7 — rules family `update`/`delete` transaksi + budget `spent`-only; publish `keutrack-dev`.
+**Berikutnya:** Publish rules, lalu QA §24 (2 device / 2 akun family). Jangan QA member sebelum rules live.
 
 ---
 
