@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
@@ -28,6 +29,7 @@ fun KeuTrackCard(
     modifier: Modifier = Modifier,
     highlighted: Boolean = false,
     focused: Boolean = false,
+    shape: Shape? = null,
     contentPadding: PaddingValues = PaddingValues(16.dp),
     onClick: (() -> Unit)? = null,
     content: @Composable () -> Unit,
@@ -35,7 +37,7 @@ fun KeuTrackCard(
     val semantic = KeuTrackTheme.semanticColors
     val shapes = KeuTrackTheme.shapeTokens
     val effects = KeuTrackTheme.effectTokens
-    val cardShape = RoundedCornerShape(shapes.radiusLg)
+    val cardShape = shape ?: RoundedCornerShape(shapes.radiusLg)
 
     Box(
         modifier =

@@ -20,6 +20,7 @@ import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,6 +39,7 @@ import com.mascill.keutrack.core.domain.model.SyncStatus
 import com.mascill.keutrack.feature.transaction.presentation.components.DateRangePickerDialogHost
 import com.mascill.keutrack.feature.transaction.presentation.components.HistoryPeriodBar
 import com.mascill.keutrack.feature.transaction.presentation.components.HistoryPeriodTotalsRow
+import com.mascill.keutrack.feature.transaction.presentation.components.SwipeRevealRow
 import com.mascill.keutrack.feature.transaction.presentation.components.TransactionHistoryRow
 import com.mascill.keutrack.feature.transaction.presentation.model.HistoryPeriodPreset
 import com.mascill.keutrack.feature.transaction.presentation.model.HistoryScope
@@ -77,6 +79,7 @@ fun TransactionHistoryScreen(
     onBack: () -> Unit,
     onAddTransaction: () -> Unit,
     onTransactionClick: (String) -> Unit = {},
+    onDeleteClick: (String) -> Unit = {},
     onReadOnlyTransactionClick: () -> Unit = {},
     onDismissError: () -> Unit = {},
     onPeriodPresetSelected: (HistoryPeriodPreset) -> Unit = {},
@@ -89,6 +92,14 @@ fun TransactionHistoryScreen(
     val textColors = KeuTrackTheme.textColors
     val today = LocalDate.now()
     var showCustomRangePicker by remember { mutableStateOf(false) }
+    var revealedId by remember { mutableStateOf<String?>(null) }
+    val visibleItemIds = remember(uiState.items) { uiState.items.map { it.id } }
+
+    LaunchedEffect(visibleItemIds) {
+        if (revealedId != null && revealedId !in visibleItemIds) {
+            revealedId = null
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
@@ -198,16 +209,32 @@ fun TransactionHistoryScreen(
                             verticalArrangement = Arrangement.spacedBy(HISTORY_ROW_SPACING.dp),
                         ) {
                             items(uiState.items, key = { it.id }) { row ->
-                                TransactionHistoryRow(
-                                    row = row,
-                                    onClick = {
-                                        if (row.canEdit) {
-                                            onTransactionClick(row.id)
-                                        } else {
-                                            onReadOnlyTransactionClick()
-                                        }
+                                SwipeRevealRow(
+                                    revealed = revealedId == row.id,
+                                    enabled = row.canEdit,
+                                    onRevealedChange = { open ->
+                                        revealedId =
+                                            if (open) {
+                                                row.id
+                                            } else {
+                                                revealedId.takeUnless { it == row.id }
+                                            }
                                     },
-                                )
+                                    onEdit = { onTransactionClick(row.id) },
+                                    onDelete = { onDeleteClick(row.id) },
+                                ) { contentShape ->
+                                    TransactionHistoryRow(
+                                        row = row,
+                                        shape = contentShape,
+                                        onClick = {
+                                            if (row.canEdit) {
+                                                onTransactionClick(row.id)
+                                            } else {
+                                                onReadOnlyTransactionClick()
+                                            }
+                                        },
+                                    )
+                                }
                             }
                         }
                     }

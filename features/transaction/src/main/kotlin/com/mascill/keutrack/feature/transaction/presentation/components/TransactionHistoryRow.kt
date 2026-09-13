@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -56,6 +57,7 @@ fun TransactionHistoryRow(
     row: TransactionRowUi,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    shape: Shape? = null,
 ) {
     val semantic = KeuTrackTheme.semanticColors
     val shapes = KeuTrackTheme.shapeTokens
@@ -75,6 +77,7 @@ fun TransactionHistoryRow(
 
     KeuTrackCard(
         modifier = modifier,
+        shape = shape,
         contentPadding =
             PaddingValues(
                 horizontal = TXN_ROW_PH.dp,
