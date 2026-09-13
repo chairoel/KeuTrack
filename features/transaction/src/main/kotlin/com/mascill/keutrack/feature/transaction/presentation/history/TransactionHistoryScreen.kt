@@ -80,7 +80,6 @@ fun TransactionHistoryScreen(
     onAddTransaction: () -> Unit,
     onTransactionClick: (String) -> Unit = {},
     onDeleteClick: (String) -> Unit = {},
-    onReadOnlyTransactionClick: () -> Unit = {},
     onDismissError: () -> Unit = {},
     onPeriodPresetSelected: (HistoryPeriodPreset) -> Unit = {},
     onCustomRangeConfirmed: (LocalDate, LocalDate) -> Unit = { _, _ -> },
@@ -220,19 +219,15 @@ fun TransactionHistoryScreen(
                                                 revealedId.takeUnless { it == row.id }
                                             }
                                     },
-                                    onEdit = { onTransactionClick(row.id) },
+                                    onEdit = {
+                                        revealedId = null
+                                        onTransactionClick(row.id)
+                                    },
                                     onDelete = { onDeleteClick(row.id) },
                                 ) { contentShape ->
                                     TransactionHistoryRow(
                                         row = row,
                                         shape = contentShape,
-                                        onClick = {
-                                            if (row.canEdit) {
-                                                onTransactionClick(row.id)
-                                            } else {
-                                                onReadOnlyTransactionClick()
-                                            }
-                                        },
                                     )
                                 }
                             }
@@ -436,5 +431,17 @@ private fun previewHistoryItems(): List<TransactionRowUi> =
             isExpense = false,
             walletLabel = "Personal",
             categoryIcon = TransactionCategoryIcon.Payout,
+        ),
+        TransactionRowUi(
+            id = "3",
+            title = "Family groceries",
+            categoryLabel = "Shopping",
+            timeLabel = "Yesterday",
+            amountLabel = "IDR 80.000",
+            isExpense = true,
+            walletLabel = "Family",
+            categoryIcon = TransactionCategoryIcon.Shopping,
+            canEdit = false,
+            authorLabel = "Budi",
         ),
     )

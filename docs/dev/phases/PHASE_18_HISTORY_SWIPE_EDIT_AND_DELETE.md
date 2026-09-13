@@ -3,7 +3,7 @@
 > **Modul target:** `:features:transaction` (History list + dialog) · domain/data **tidak** berubah  
 > **Estimasi:** ~0.8–1.2 hari · **18a** ~0.4–0.5 hari (gesture + Ubah) · **18b** ~0.2–0.3 hari (Hapus dari list) · **18c** ~0.2 hari (tes + preview)  
 > **Prasyarat:** Phase 16c ✅ (tap row → form edit; hapus di form + dialog) · Phase 17e app ✅ (`canEdit` / `NotOwner` / tap orang lain snackbar)  
-> **Status:** **18a Task 1 done** (2026-09-13). **Task 2 sebagian** — Ubah + ACL swipe + satu `revealedId`. **P7 tap kartu terbuka belum** (masih navigate). **18b–18c belum** (Hapus tampil; dialog + VM delete belum).  
+> **Status:** **18a done** (2026-09-13) — reveal + Ubah + P6/P7 (tap kartu tertutup **tidak** edit). **18b–18c belum** (Hapus tampil; `onDeleteClick` no-op; dialog + VM delete belum).  
 > **Hasil akhir:** Di Riwayat, swipe kiri pada transaksi **milik sendiri** membuka dua aksi seperti keranjang e-commerce: **Ubah** (oranye) dan **Hapus** (merah). Ubah memakai form `NewEntryScreen` yang sudah ada. Hapus memakai dialog konfirmasi yang sama, lalu `DeleteTransactionUseCase`. Transaksi penulis lain **tidak** bisa di-swipe.  
 > **Asal-usul:** Phase 16 P2/P4 menunda swipe (tap cukup; Material 2 belum rapi). Phase 17 menandai swipe-to-delete **sengaja belum**. Referensi UX: swipe-to-reveal (tombol tetap, user harus tap) — **bukan** swipe-to-dismiss.  
 > **Tidak memblokir Phase 17:** Publish rules Console 17e tetap wajib untuk QA 2 akun, tetapi **bukan** DoR Phase 18. Jalur hapus lokal + outbox sudah 16a + 17a.
@@ -15,13 +15,13 @@
 | Slice | Task | Status |
 |-------|------|--------|
 | 18a | Task 1 — `SwipeRevealRow` + wrap History | **Done** (2026-09-13) |
-| 18a | Task 2 — Ubah + tap/swipe conflict + ACL swipe | **In progress** — Ubah + `canEdit` + satu reveal; **P7 tap-open-close belum** |
+| 18a | Task 2 — Ubah + tap/swipe conflict + ACL swipe | **Done** (2026-09-13) |
 | 18b | Task 3 — Dialog hapus di History + VM delete | **Not started** — tombol Hapus ada; `onDeleteClick` masih no-op |
-| 18c | Task 4 — Tes VM + preview | **In progress** — preview tertutup/terbuka ada; tes VM belum |
+| 18c | Task 4 — Tes VM + preview | **In progress** — preview tertutup/terbuka/read-only ada; tes VM belum |
 
-**Terakhir dikerjakan:** 18a reveal — `SwipeRevealRow` (`anchoredDraggable`), wrap History, sudut kanan kartu merata saat swipe supaya menyatu dengan Ubah/Hapus, tanpa magic number.
+**Terakhir dikerjakan:** 18a — swipe Ubah/Hapus; tap kartu milik sendiri tidak edit (P6); tap terbuka menutup (P7); flatten end (P23); `Arrangement.End`; preview read-only.
 
-**Berikutnya:** Selesaikan P7 (tap kartu terbuka menutup reveal, bukan navigate). Baru 18b dialog + VM. Jangan merge Hapus no-op ke `main`.
+**Berikutnya:** 18b dialog hapus + History VM `DeleteTransactionUseCase`. Jangan merge Hapus no-op ke `main`.
 
 ---
 
@@ -74,7 +74,7 @@ Trigger tap-only kurang discoverable untuk hapus: user harus masuk form dulu. Re
 2. History membungkus `TransactionHistoryRow`; swipe kiri milik sendiri membuka **Ubah** + **Hapus**.
 3. Satu row terbuka pada satu waktu.
 4. Row `canEdit == false` tidak menerima horizontal drag.
-5. Tap kartu tertutup tetap edit (16c). Tap kartu terbuka menutup reveal, **bukan** navigate.
+5. Tap kartu tertutup **tidak** edit. Edit hanya **Ubah**. Tap kartu terbuka menutup reveal.
 
 **Tujuan 18b — Hapus dari list:**
 
@@ -105,11 +105,11 @@ Trigger tap-only kurang discoverable untuk hapus: user harus masuk form dulu. Re
 
 | Item | Lokasi | Status vs Phase 18 |
 |------|--------|-------------------|
-| `TransactionHistoryScreen` | `.../history/TransactionHistoryScreen.kt` | Wrap `SwipeRevealRow`; `revealedId`; tap `canEdit`; `onDeleteClick` **belum** dialog |
-| `TransactionHistoryRouting` | sama package | Wiring read-only; **belum** delete callback |
+| `TransactionHistoryScreen` | `.../history/TransactionHistoryScreen.kt` | Wrap `SwipeRevealRow`; `revealedId`; tap kartu hanya tutup reveal; Hapus no-op |
+| `TransactionHistoryRouting` | sama package | Wiring list; **belum** delete callback |
 | `TransactionHistoryViewModel` | sama package | Tidak inject write use case (16 P3) |
 | `SwipeRevealRow` | `.../components/SwipeRevealRow.kt` | **Ada** — dua jangkar, ACL `enabled`, `contentShape` dari offset |
-| `TransactionHistoryRow` | `.../components/TransactionHistoryRow.kt` | Kartu + `onClick`; `shape` opsional (P23) |
+| `TransactionHistoryRow` | `.../components/TransactionHistoryRow.kt` | Kartu presentational; `shape` opsional (P23); tap di `SwipeRevealRow` |
 | `TransactionRowUi.canEdit` | `.../model/TransactionRowUi.kt` | Diisi mapper 17e |
 | `TransactionUiMapper.toTransactionRows` | `.../model/TransactionUiMapper.kt` | `userId == currentUserId` |
 | `NewEntryScreen` + `DeleteTransactionDialog` (private) | `NewEntryScreen.kt` | Dialog hapus **hanya** di form |
@@ -142,10 +142,10 @@ Room atomic delete, outbox 17a, snapshot-diff 17b, pull sweep 17c, rules 17e. Ha
 | P3 | Tombol | Tepat **dua**: **Ubah** lalu **Hapus** (Hapus paling kanan) | Cermin referensi; Hapus di tepi = destructive |
 | P4 | Warna | Ubah = `warning.w500` (Beer); Hapus = `danger.d500` (CarminePink); teks `on` / putih | Token existing; jangan hex baru |
 | P5 | Lebar aksi | ~72.dp per tombol (total reveal ~144.dp); tinggi = tinggi kartu | Cukup tap; jangan full-width |
-| P6 | Trigger edit tetap | Tap kartu **tertutup** **atau** tap **Ubah** | 16c tidak dihilangkan; swipe menambah affordance |
+| P6 | Trigger edit | Tap **Ubah** saja | Swipe adalah jalur edit di list; tap kartu tertutup tidak navigate |
 | P7 | Tap kartu terbuka | **Tutup** reveal, jangan navigate | Hindari tap tidak sengaja ke form |
 | P8 | Satu reveal | Hanya satu `revealedId` | List tidak berantakan |
-| P9 | ACL | Swipe **hanya** `canEdit`; orang lain: tap snackbar 17e | Jangan reveal palsu |
+| P9 | ACL | Swipe **hanya** `canEdit`; tap item **hanya** tutup reveal | Jangan reveal palsu; jangan snackbar/edit dari tap kartu |
 | P10 | Konfirmasi hapus | Dialog **wajib** (copy 16 P9) | Destructive; sama form |
 | P11 | Tempat delete | History VM + `DeleteTransactionUseCase` | Feature → UseCase; supersede 16 P3 “History read-only” **hanya** untuk delete |
 | P12 | State reveal | `remember` di Screen, **bukan** ViewModel / `SavedStateHandle` | Gesture ephemeral; rotasi boleh menutup |
@@ -162,7 +162,7 @@ Room atomic delete, outbox 17a, snapshot-diff 17b, pull sweep 17c, rules 17e. Ha
 | P23 | Sudut kartu saat swipe | End radius interpolasi `radiusLg` → 0 mengikuti offset | Kartu putih menyatu dengan Ubah/Hapus; kiri tetap rounded |
 | P24 | Angka di reveal | Named `private const val` di `SwipeRevealRow` | Jangan magic number di offset / progress / lebar aksi |
 
-Phase 16 P2 (tap-only) **tetap** sebagai jalur primer. Phase 16 P3/P4 **disupersede** untuk list: swipe + hapus dari History diizinkan, dengan dialog.
+Phase 16 P2 (tap-only di list) **disupersede** oleh P6: edit list hanya **Ubah**. Phase 16 P3/P4 **disupersede** untuk hapus dari History (18b, dengan dialog). Form tetap punya tap/hapus 16c.
 
 ---
 
@@ -174,7 +174,7 @@ Phase 16 P2 (tap-only) **tetap** sebagai jalur primer. Phase 16 P3/P4 **disupers
 2. Wrap item di `TransactionHistoryScreen`; `revealedId` satu nilai. ✅
 3. **Ubah** → `onTransactionClick(id)` (nav existing). ✅
 4. `enabled = row.canEdit`. ✅
-5. Tap tertutup / terbuka sesuai P6–P7. **P6 tap tertutup ✅; P7 tap terbuka masih navigate**
+5. Tap tertutup / terbuka sesuai P6–P7. ✅
 6. Clip aksi `topEnd`/`bottomEnd` `radiusLg`; kartu flatten end (P23) saat offset. ✅
 7. Preview komponen (tertutup / terbuka). ✅
 
@@ -263,8 +263,8 @@ Boleh menambah **dependency feature** hanya jika Foundation belum ter-export lew
 
 | Path | Aksi |
 |------|------|
-| `features/transaction/.../components/SwipeRevealRow.kt` | **Baru** — wrapper reveal + `contentShape` |
-| `TransactionHistoryRow.kt` | `shape` opsional diteruskan ke `KeuTrackCard` |
+| `features/transaction/.../components/SwipeRevealRow.kt` | **Baru** — wrapper reveal + `contentShape`; tap terbuka tutup; tap `!canEdit` snackbar |
+| `TransactionHistoryRow.kt` | `shape` opsional; tanpa `onClick` (tap di wrapper swipe) |
 | `KeuTrackCard.kt` | `shape: Shape? = null` (default tidak berubah) |
 | `TransactionHistoryScreen.kt` | Wrap row; `revealedId`; callbacks Ubah/Hapus |
 | `TransactionHistoryRouting.kt` | Teruskan `onDeleteConfirmed` jika 18b sudah ada; 18a boleh Hapus no-op / belum tampil dialog |
@@ -338,10 +338,10 @@ features/transaction/.../presentation/
 |---------------|-----------|--------|
 | Swipe kiri cukup threshold | ya | Snap `Open` |
 | Swipe kanan / tap kartu saat `Open` | ya | Snap `Closed` |
-| Tap kartu `Closed` | ya | Edit form (16c) |
+| Tap kartu `Closed` | ya | Tidak navigate |
 | Tap **Ubah** | ya | Edit form; tutup reveal |
 | Tap **Hapus** | ya | Dialog; reveal boleh tetap sampai confirm/dismiss |
-| Swipe | tidak | Tidak bergerak; tap → snackbar 17e |
+| Swipe / tap kartu | tidak | Tidak bergerak; tap no-op |
 | Swipe row lain | ya | Row lama `Closed`, yang baru mengikuti drag |
 
 Jangan buka dua reveal. Saat `items` berubah (filter / delete sukses), reset `revealedId` jika id hilang.
@@ -388,13 +388,15 @@ fun SwipeRevealRow(
 )
 ```
 
-- Aksi: `Row` di belakang (`matchParentSize`); spacer `weight` + Ubah + Hapus.
-- Content: `Modifier.offset` + `anchoredDraggable` horizontal; slot terima `contentShape`.
+- Aksi: `Row` di belakang (`matchParentSize`); `Arrangement.End` + Ubah + Hapus.
+- Content: sliding `Box` memakai `clickable` + `anchoredDraggable` di **node yang sama**.
+- Kartu di dalam **tanpa** `onClick` — tap wrapper **hanya** menutup reveal.
+- `clickable` on hanya jika terbuka (`isOpenForTap`); selain itu no-op.
 - `contentShape`: `swipeContentShape` — end radius = `radiusLg * (open − progress)`; progress dari `-offset / revealPx`.
 - Anchors: `Closed` di `REVEAL_CLOSED_OFFSET`, `Open` di `-revealPx` (`ACTION_WIDTH * ACTION_COUNT`).
 - `LaunchedEffect(revealed)` menyelaraskan animasi jika parent menutup row lain.
-- `enabled == false`: tidak attach drag; content full width; shape tetap rounded.
-- Angka reveal = named const (P24): lebar aksi, threshold, progress, offset nol.
+- `enabled == false`: tidak attach drag; tap tidak melakukan apa-apa.
+- Angka reveal = named const (P24): lebar aksi, threshold, progress, offset nol, tap slop.
 
 Jangan hardcode px di call-site — `dp` + `LocalDensity`.
 
@@ -402,13 +404,14 @@ API `AnchoredDraggableState` / `updateAnchors` mengikuti Foundation di BOM `2024
 
 ### 12.3 Konflik klik
 
-`KeuTrackCard.onClick` tetap. Wrapper harus:
+Jangan taruh `clickable` di kartu **di dalam** `anchoredDraggable` — parent drag menelan tap.
 
-1. Saat offset ~0 dan tap → `onClick` row (edit / snackbar).
-2. Saat `Open` dan tap kartu → `onRevealedChange(false)` saja.
-3. Drag horizontal tidak boleh terhitung sebagai tap.
+1. `clickable` + `anchoredDraggable` di sliding `Box` yang sama.
+2. Kartu tertutup: `clickable` off.
+3. Kartu terbuka: tap → `onRevealedChange(false)` saja (P7). Tidak edit, tidak snackbar.
+4. Drag horizontal melewati touch slop → reveal.
 
-Jika `clickable` kartu “mencuri” pointer, pindahkan `onClick` ke wrapper (`pointerInput` tap) dan set `TransactionHistoryRow.onClick` kosong / nullable. **Pilih:** tambah `onClick: (() -> Unit)? = null` di row **hanya jika** perlu; jangan pecah preview existing tanpa default.
+`TransactionHistoryRow` tidak punya `onClick`. Edit hanya tombol **Ubah**.
 
 ### 12.4 State list
 
@@ -434,7 +437,7 @@ Bukan `rememberSaveable` (P12). Bukan field `HistoryUIState`.
 | Dialog Batal | `pendingDeleteId = null` |
 | Dialog Hapus | `onDeleteConfirmed(id)` |
 | `isDeleting` → false + sukses | `pendingDeleteId = null`; `revealedId = null` |
-| Row `!canEdit` tap | `onReadOnlyTransactionClick()` (17e) |
+| Row `!canEdit` tap | No-op (17e snackbar tetap di VM, tidak dari tap list) |
 
 ### `HistoryUIState` (additive)
 
@@ -485,10 +488,11 @@ Kerjakan **18a → 18b → 18c**.
 
 ### 18a — Task 2: Ubah + ACL + tap
 
-- **Ubah** / tap tertutup → nav existing. ✅
-- Tap terbuka → close. **Belum** — tap kartu terbuka masih `onTransactionClick`.
+- **Ubah** → nav existing. Tap tertutup tidak edit. ✅
+- Tap terbuka → close. ✅
 - `canEdit == false` tidak reveal. ✅
 - Satu `revealedId`. ✅
+- Preview read-only. ✅
 - Cek manual: scroll vertikal tidak “nyangkut” horizontal.
 
 ### 18b — Task 3: Dialog + VM
@@ -523,12 +527,12 @@ Verify:
 ### Harus terpenuhi
 
 - [x] Swipe kiri row milik sendiri membuka **Ubah** + **Hapus** (reveal, bukan dismiss)
-- [x] Tap **Ubah** atau tap kartu tertutup membuka form edit (16c)
-- [ ] Tap kartu terbuka menutup aksi, tidak navigate **(P7 sisa 18a)**
+- [x] Tap **Ubah** membuka form edit; tap kartu tertutup tidak navigate
+- [x] Tap kartu terbuka menutup aksi, tidak navigate
 - [ ] Tap **Hapus** → dialog 16 P9; Batal tidak menghapus
 - [ ] Confirm hapus: row hilang; saldo/budget/totals lokal terkoreksi (jalur 16a)
-- [ ] Row orang lain tidak bisa di-swipe; tap tetap snackbar 17e
-- [ ] Satu row reveal pada satu waktu
+- [x] Row orang lain tidak bisa di-swipe; tap kartu tidak edit / tidak snackbar
+- [x] Satu row reveal pada satu waktu
 - [ ] Form edit/hapus + read-only 17e tidak regresi
 - [ ] Create FAB / History filter / totals tidak regresi
 - [ ] Auth / splash / Settings / Family invite tidak disentuh
@@ -565,7 +569,7 @@ Verify:
 ```
 Swipe kiri (canEdit)
   → SwipeRevealRow Open
-      ├─ Ubah / tap kartu Closed
+      ├─ Ubah
       │     → onTransactionClick(id)
       │           → navigateToTransaction(id)     // existing 16c
       │                 → NewEntryViewModel update/delete
@@ -587,7 +591,7 @@ Tidak ada method sync baru. Tidak ada route baru.
 
 | Risiko | Dampak | Mitigasi |
 |--------|--------|----------|
-| `clickable` kartu vs drag | Swipe tidak jalan / tap saat drag = edit | P7; wrapper dulu; uji device |
+| `clickable` vs drag | Swipe tidak jalan / tap terbuka tidak tutup | P6/P7; `clickable` + drag di node yang sama |
 | Swipe-to-dismiss terpasang | Hapus tanpa dialog | P1; review PR |
 | Reveal di row orang lain | Melanggar 17e | P9; `enabled = canEdit` |
 | History VM delete tanpa dialog | Destructive | P10; dialog sebelum `onDeleteConfirmed` |
@@ -603,7 +607,7 @@ Tidak ada method sync baru. Tidak ada route baru.
 ## 19. Urutan Pengerjaan yang Disarankan
 
 1. Task 1 — komponen + wrap (preview terbuka). ✅
-2. Task 2 — Ubah + ACL + satu reveal. **Sisa: P7 tap terbuka.** Berhenti jika scroll/tap rusak.
+2. Task 2 — Ubah + ACL + satu reveal + P7. ✅
 3. Task 3 — dialog shared + VM delete.
 4. Task 4 — tes + `assembleDevDebug` + QA §22.
 5. Jangan merge 18b tanpa dialog. Jangan merge Hapus no-op ke `main`.
@@ -616,7 +620,7 @@ Boleh satu PR 18a+18b+18c. Jangan satukan dengan Publish rules / sync 17.
 
 | Phase | Relasi |
 |-------|--------|
-| **16** | 18 menambah trigger; form + dialog + `id` tetap. **16 P3/P4 disupersede** untuk list. P9 copy tetap |
+| **16** | 18 **mengganti** tap list → edit dengan **Ubah**. Form + dialog + `id` tetap. **16 P2/P3/P4 disupersede** untuk list. P9 copy tetap |
 | **17** | ACL 17e wajib dihormati. Sync/outbox **bukan** kerja 18. Swipe yang “sengaja belum” di 17 = dokumen ini |
 | **15** | Totals Flow otomatis setelah delete |
 | **13** | Filter periode tidak berubah; reset reveal jika id tidak ada di `items` |
@@ -628,7 +632,7 @@ Boleh satu PR 18a+18b+18c. Jangan satukan dengan Publish rules / sync 17.
 
 ## 21. Rencana Commit
 
-Ikuti tag repo. Branch usulan: `feat/history-swipe-edit-delete`.
+Ikuti tag repo. Branch kerja: `feat/edit-delete-transaction` (usulan awal `feat/history-swipe-edit-delete`).
 
 ```
 [FEAT] Add swipe-to-reveal on transaction history
@@ -660,7 +664,7 @@ Pakai akun yang punya tx sendiri. Family: dua akun jika memungkinkan (A penulis,
 
 | # | Langkah | Expected |
 |---|---------|----------|
-| 6 | Tap kartu tertutup milik sendiri | Form `Edit Transaksi` |
+| 6 | Tap kartu tertutup milik sendiri | Tetap di History; form tidak terbuka |
 | 7 | Reveal → tap **Ubah** | Form edit; reveal tidak “nyangkut” saat back |
 | 8 | Reveal → tap kartu (bukan tombol) | Reveal tutup; tetap di History |
 | 9 | Simpan perubahan di form | Perilaku 16c; back ke History |
@@ -680,7 +684,7 @@ Pakai akun yang punya tx sendiri. Family: dua akun jika memungkinkan (A penulis,
 | # | Langkah | Expected |
 |---|---------|----------|
 | 15 | History family, swipe tx milik B (sebagai A) | Tidak reveal |
-| 16 | Tap tx B | Snackbar penulis; form tidak terbuka |
+| 16 | Tap tx B | Tidak reveal; form tidak terbuka |
 | 17 | B swipe + hapus **tx B** | Sukses; A pull (setelah 17 sync) tidak melihat row |
 
 ### 22.5 Regresi
@@ -704,19 +708,15 @@ items(uiState.items, key = { it.id }) { row ->
         onRevealedChange = { open ->
             revealedId = if (open) row.id else revealedId.takeUnless { it == row.id }
         },
-        onEdit = { onTransactionClick(row.id) },
+        onEdit = {
+            revealedId = null
+            onTransactionClick(row.id)
+        },
         onDelete = { pendingDeleteId = row.id },
     ) { contentShape ->
         TransactionHistoryRow(
             row = row,
             shape = contentShape,
-            onClick = {
-                when {
-                    revealedId == row.id -> revealedId = null
-                    row.canEdit -> onTransactionClick(row.id)
-                    else -> onReadOnlyTransactionClick()
-                }
-            },
         )
     }
 }
@@ -730,7 +730,7 @@ items(uiState.items, key = { it.id }) { row ->
 
 | Utang | Di mana di 18 |
 |-------|----------------|
-| 16 P2 tap-only / P4 “swipe belakangan” | P6 + seluruh 18a |
+| 16 P2 tap-only / P4 “swipe belakangan” | P6 **supersede** tap list; 18a swipe + Ubah |
 | 16 P3 History VM read-only | P11 — delete saja |
 | 16 P9 dialog | P10 / P14 / §11.3 |
 | 17 “bukan tujuan: swipe-to-delete” / AC sengaja belum | Dokumen ini |

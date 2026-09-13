@@ -12,6 +12,8 @@ import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.anchoredDraggable
 import androidx.compose.foundation.gestures.animateTo
 import androidx.compose.foundation.gestures.snapTo
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -21,6 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Text
+import androidx.compose.material.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -42,6 +45,7 @@ import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
 import com.mascill.keutrack.core.domain.model.SyncStatus
 import com.mascill.keutrack.feature.transaction.presentation.model.TransactionCategoryIcon
 import com.mascill.keutrack.feature.transaction.presentation.model.TransactionRowUi
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 private const val REVEAL_ACTION_WIDTH = 72
@@ -50,9 +54,9 @@ private const val REVEAL_VELOCITY_THRESHOLD_DP = 125
 private const val REVEAL_POSITION_THRESHOLD = 0.5f
 private const val REVEAL_CLOSED_OFFSET = 0f
 private const val REVEAL_OFFSET_NONE = 0
-private const val REVEAL_LEADING_WEIGHT = 1f
 private const val REVEAL_PROGRESS_CLOSED = 0f
 private const val REVEAL_PROGRESS_OPEN = 1f
+private const val REVEAL_CLOSED_TAP_SLOP_DP = 8
 private const val REVEAL_EDIT_LABEL = "Ubah"
 private const val REVEAL_DELETE_LABEL = "Hapus"
 private const val REVEAL_PREVIEW_PADDING = 16
@@ -79,6 +83,8 @@ fun SwipeRevealRow(
     val density = LocalDensity.current
     val revealPx = with(density) { (REVEAL_ACTION_WIDTH * REVEAL_ACTION_COUNT).dp.toPx() }
     val velocityThresholdPx = with(density) { REVEAL_VELOCITY_THRESHOLD_DP.dp.toPx() }
+    val closedTapSlopPx = with(density) { REVEAL_CLOSED_TAP_SLOP_DP.dp.toPx() }
+    val cardInteraction = remember { MutableInteractionSource() }
 
     val state =
         remember {
@@ -129,6 +135,7 @@ fun SwipeRevealRow(
     }
 
     val offsetPx = state.offset
+    val isOpenForTap = enabled && isRevealOpenForTap(offsetPx, revealed, closedTapSlopPx)
     val contentShape =
         swipeContentShape(
             radius = shapes.radiusLg,
@@ -149,9 +156,9 @@ fun SwipeRevealRow(
                                 bottomEnd = shapes.radiusLg,
                             ),
                         ),
+                horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Box(modifier = Modifier.weight(REVEAL_LEADING_WEIGHT))
                 SwipeRevealAction(
                     label = REVEAL_EDIT_LABEL,
                     background = warning.w500,
@@ -171,18 +178,29 @@ fun SwipeRevealRow(
                     .fillMaxWidth()
                     .then(
                         if (enabled) {
-                            Modifier
-                                .offset {
-                                    val px = state.offset
-                                    IntOffset(
-                                        if (px.isNaN()) REVEAL_OFFSET_NONE else px.roundToInt(),
-                                        REVEAL_OFFSET_NONE,
-                                    )
-                                }
-                                .anchoredDraggable(
-                                    state = state,
-                                    orientation = Orientation.Horizontal,
+                            Modifier.offset {
+                                val px = state.offset
+                                IntOffset(
+                                    if (px.isNaN()) REVEAL_OFFSET_NONE else px.roundToInt(),
+                                    REVEAL_OFFSET_NONE,
                                 )
+                            }
+                        } else {
+                            Modifier
+                        },
+                    )
+                    .clickable(
+                        enabled = isOpenForTap,
+                        interactionSource = cardInteraction,
+                        indication = ripple(bounded = true),
+                        onClick = { onRevealedChange(false) },
+                    )
+                    .then(
+                        if (enabled) {
+                            Modifier.anchoredDraggable(
+                                state = state,
+                                orientation = Orientation.Horizontal,
+                            )
                         } else {
                             Modifier
                         },
@@ -191,6 +209,20 @@ fun SwipeRevealRow(
             content(contentShape)
         }
     }
+}
+
+private fun isRevealOpenForTap(
+    offsetPx: Float,
+    revealed: Boolean,
+    slopPx: Float,
+): Boolean {
+    if (revealed) {
+        return true
+    }
+    if (offsetPx.isNaN()) {
+        return false
+    }
+    return abs(offsetPx) > slopPx
 }
 
 private fun swipeContentShape(
@@ -265,8 +297,29 @@ private fun SwipeRevealRowOpenPreview() {
     }
 }
 
+@Preview(name = "Reveal — Read only", showBackground = true)
+@Preview(
+    name = "Reveal — Read only Dark",
+    showBackground = true,
+    uiMode = Configuration.UI_MODE_NIGHT_YES,
+)
 @Composable
-private fun SwipeRevealRowPreviewHost(initiallyRevealed: Boolean) {
+private fun SwipeRevealRowReadOnlyPreview() {
+    KeuTrackTheme {
+        SwipeRevealRowPreviewHost(
+            initiallyRevealed = false,
+            enabled = false,
+            row = previewSwipeRevealRow(canEdit = false),
+        )
+    }
+}
+
+@Composable
+private fun SwipeRevealRowPreviewHost(
+    initiallyRevealed: Boolean,
+    enabled: Boolean = true,
+    row: TransactionRowUi = previewSwipeRevealRow(),
+) {
     val pageBg = KeuTrackTheme.contentColors.pageColor
     var revealed by remember { mutableStateOf(initiallyRevealed) }
     Box(
@@ -277,21 +330,20 @@ private fun SwipeRevealRowPreviewHost(initiallyRevealed: Boolean) {
     ) {
         SwipeRevealRow(
             revealed = revealed,
-            enabled = true,
+            enabled = enabled,
             onRevealedChange = { revealed = it },
-            onEdit = {},
+            onEdit = { revealed = false },
             onDelete = {},
         ) { contentShape ->
             TransactionHistoryRow(
-                row = previewSwipeRevealRow(),
-                onClick = {},
+                row = row,
                 shape = contentShape,
             )
         }
     }
 }
 
-private fun previewSwipeRevealRow(): TransactionRowUi =
+private fun previewSwipeRevealRow(canEdit: Boolean = true): TransactionRowUi =
     TransactionRowUi(
         id = "1",
         title = "Bakmi GM Restaurant",
@@ -299,7 +351,9 @@ private fun previewSwipeRevealRow(): TransactionRowUi =
         timeLabel = "12:45 PM",
         amountLabel = "IDR 125.000",
         isExpense = true,
-        walletLabel = "Personal",
+        walletLabel = if (canEdit) "Personal" else "Family",
         categoryIcon = TransactionCategoryIcon.Restaurant,
         syncStatus = SyncStatus.PENDING,
+        canEdit = canEdit,
+        authorLabel = if (canEdit) null else "Budi",
     )
