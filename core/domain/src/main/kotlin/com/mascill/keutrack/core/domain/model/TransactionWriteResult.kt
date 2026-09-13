@@ -9,6 +9,7 @@ sealed class TransactionWriteResult {
         data object MissingWallet : Error()
         data object MissingCategory : Error()
         data object NotFound : Error()
+        data object NotOwner : Error()
         data class Unknown(val cause: Throwable) : Error()
     }
 }
