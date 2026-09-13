@@ -1,12 +1,13 @@
 # Phase 17 — Firestore Update & Delete Transaksi (ex-16d)
 
-> **Modul target:** `:core:data` (outbox + Strategy A harden) → `docs/database/firestore-rules.md` (ACL write family) · domain **additive tipis** (komentar `hasPendingSync` saja)  
-> **Estimasi:** ~2–2.5 hari · **17a** ~0.4 hari (outbox lokal) · **17b** ~0.8–1 hari (update remote) · **17c** ~0.6–0.8 hari (delete remote + pull) · **17d** ~0.2 hari (rules)  
+> **Modul target:** `:core:data` (outbox + Strategy A harden) → `docs/database/firestore-rules.md` (ACL **penulis-only** pada tx) · **17e** use case + History (jangan buka edit milik orang lain) · domain additive tipis (`hasPendingSync` / `NotOwner`)  
+> **Estimasi:** ~2–2.5 hari (17a–d) · **17e** ~0.3–0.5 hari (kebijakan + rules revert + ACL app)  
 > **Prasyarat:** Phase 16a–c ✅ (edit/delete lokal benar) · Phase 2 ✅ (Strategy A skip-if-exists) · Phase 6C ✅ (pull family) · Phase 10 ✅ (pull personal) · Phase 11 ✅ (`findBudgetForExpense`) · Phase 14 ✅ (`PeriodBounds.periodKey`)  
-> **Status:** **17a–17d docs done** — rules markdown siap. **Publish Console `keutrack-dev` masih wajib** sebelum QA 2 akun. Follow-up **16d** di [`PHASE_16_TRANSACTION_EDIT_AND_DELETE.md`](./PHASE_16_TRANSACTION_EDIT_AND_DELETE.md).  
+> **Status:** **17a–17c code done.** **17d member-write tx dibatalkan (2026-09-13).** **17e** kebijakan author-only — docs + **UX/use case done** (2026-09-13); **Publish Console** author-only masih wajib. Follow-up **16d** di [`PHASE_16_TRANSACTION_EDIT_AND_DELETE.md`](./PHASE_16_TRANSACTION_EDIT_AND_DELETE.md).  
 
-> **Hasil akhir:** Edit/hapus yang sudah benar di Room **ikut benar di Firestore**. Device/akun lain melihat field baru, saldo wallet, dan budget `spent` yang terkoreksi. Hapus tidak “hidup lagi” saat pull Phase 6C/10. UI History / New Entry **tidak** berubah.  
-> **Asal-usul 16d:** (1) update remote jangan skip-if-exists — tulis field + increment selisih; (2) delete remote butuh outbox **sebelum** row hilang; (3) reverse `FieldValue.increment` wallet/budget; (4) pull vs tombstone/outbox.
+> **Hasil akhir (17a–c + 17e):** Edit/hapus **milik sendiri** yang sudah benar di Room **ikut benar di Firestore**. Device/akun lain melihat field baru, saldo wallet, dan budget `spent` yang terkoreksi setelah pull. Hapus milik sendiri tidak “hidup lagi” saat pull Phase 6C/10. Anggota family **boleh lihat** ledger bersama; **tidak** boleh edit/hapus row penulis lain.  
+> **Asal-usul 16d:** (1) update remote jangan skip-if-exists — tulis field + increment selisih; (2) delete remote butuh outbox **sebelum** row hilang; (3) reverse `FieldValue.increment` wallet/budget; (4) pull vs tombstone/outbox.  
+> **Amandemen 17e (supersede Phase 16 P11):** smoke test 2 akun — User 1 hapus tx User 2 di wallet family → Room User 1 berubah, Firebase + User 2 tidak. Sync gagal karena `runTransaction` ikut `set` `/users/{uid penulis}/category_summaries` (owner-only). Badge sync menghilang (row lokal sudah terhapus; outbox tidak tampil). Ledger pecah. Keputusan produk: **hanya penulis** yang boleh update/delete. Bukan last-write-wins antar anggota.
 
 ---
 
@@ -20,11 +21,12 @@
 | 17b | Task 4 — Tes update sync | **Done** (2026-09-10) |
 | 17c | Task 5 — Delete remote + drain outbox | **Done** (2026-09-10) |
 | 17c | Task 6 — Pull skip + sweep | **Done** (2026-09-10) |
-| 17d | Task 7 — Rules | **Done** (2026-09-10) — markdown; Console publish pending |
+| 17d | Task 7 — Rules member-write tx | **Dibatalkan** (2026-09-13) — jangan publish varian `isFamilyMember` pada `update`/`delete` tx |
+| 17e | Task 8 — Author-only family ACL | **App done** (2026-09-13) — History + form + `NotOwner`; **Publish Console** pending |
 
-**Terakhir dikerjakan:** Task 7 — family member boleh `update`/`delete` tx `familyId` yang sama; budget member hanya field `spent`. Salin blok rules di `docs/database/firestore-rules.md` ke Firebase Console → **Publish** `keutrack-dev`.
+**Terakhir dikerjakan:** 17e UX — tap row orang lain tidak buka edit (snackbar); form jadi Detail (tanpa Simpan/Hapus); use case `NotOwner`. Rules markdown author-only. Budget member tetap `spent` untuk tx sendiri.
 
-**Berikutnya:** Publish rules, lalu QA §24 (2 device / 2 akun family). Jangan QA member sebelum rules live.
+**Berikutnya:** Publish rules author-only di Console `keutrack-dev`. QA §24.4. Jangan QA seolah B boleh ubah tx A.
 
 ---
 
@@ -45,7 +47,7 @@
 12. [Desain Outbox Lokal (17a)](#12-desain-outbox-lokal-17a)
 13. [Desain Update Remote (17b)](#13-desain-update-remote-17b)
 14. [Desain Delete Remote + Pull (17c)](#14-desain-delete-remote--pull-17c)
-15. [Firestore Security Rules (17d)](#15-firestore-security-rules-17d)
+15. [Firestore Security Rules (17d dibatalkan / 17e)](#15-firestore-security-rules-17d-dibatalkan--17e)
 16. [Task Breakdown Detail](#16-task-breakdown-detail)
 17. [Acceptance Criteria](#17-acceptance-criteria)
 18. [Catatan Arsitektur & Konvensi](#18-catatan-arsitektur--konvensi)
@@ -100,10 +102,17 @@ Dampak produk (Phase 16 §22.6, sengaja bukan AC):
 10. Delete idempotent: dokumen sudah hilang → ack outbox, jangan increment.
 11. Pull 6C / 10: **jangan** upsert id yang ada di outbox; **orphan sweep** row lokal `SYNCED` yang masuk jendela pull tetapi id-nya tidak ada di remote.
 
-**Tujuan 17d — Rules:**
+**Tujuan 17d — Rules (versi 2026-09-10, lalu dibatalkan):**
 
-12. Anggota family boleh `update` / `delete` dokumen transaksi `familyId` yang sama (cermin Phase 16 P11).
-13. Anggota family boleh `update` budget **hanya** field `spent` (cermin wallet `balance`).
+12. ~~Anggota family boleh `update` / `delete` dokumen transaksi `familyId` yang sama (cermin Phase 16 P11).~~ **Dibatalkan → 17e.**
+13. Anggota family boleh `update` budget **hanya** field `spent` (cermin wallet `balance`) — **tetap**, untuk create/edit/hapus **tx milik member itu sendiri**.
+
+**Tujuan 17e — Author-only (2026-09-13):**
+
+14. `update` / `delete` dokumen `/transactions/{id}` **hanya** `resource.data.userId == request.auth.uid` (personal **dan** family).
+15. App menolak edit/hapus jika `existing.userId !=` user login (use case + History tidak buka form).
+16. Anggota tetap **baca** tx `familyId` yang sama (History family tidak disembunyikan).
+17. Jangan longgarkan `/users/{uid}/category_summaries` — penulis saja yang menulis summary-nya.
 
 **Bukan tujuan Phase 17:**
 
@@ -111,8 +120,9 @@ Dampak produk (Phase 16 §22.6, sengaja bukan AC):
 - Cloud Function / Strategy B (recompute server-side)
 - Tombstone `isDeleted` di dokumen Firestore
 - Realtime listener
-- ACL “hanya penulis” (itu dibatalkan Phase 16 P11 untuk family)
+- Member mengoreksi / menghapus entri penulis lain (16 P11 **ditarik**)
 - Pagination History / filter baru
+- Memperbaiki “member write summary penulis” di dalam `runTransaction` (tidak perlu jika 17e)
 
 ---
 
@@ -147,19 +157,20 @@ Dampak produk (Phase 16 §22.6, sengaja bukan AC):
 
 ### Rules
 
-| Item | Status vs Phase 17 |
+| Item | Status vs Phase 17 / 17e |
 |------|-------------------|
-| Tx `update` / `delete` | Owner `userId` saja — anggota family **gagal** sync edit/hapus tx orang lain |
-| Wallet `update` | Owner penuh; member hanya `balance` — cukup untuk increment |
-| Budget `update` | Owner `userId` saja — increment `spent` oleh member **gagal** (sudah berisiko di create) |
+| Tx `update` / `delete` | **Author-only** (`userId == auth`). Varian 17d `isFamilyMember` **jangan dipakai**. Member tetap `get`/`list` family. |
+| Wallet `update` | Owner penuh; member hanya `balance` — cukup increment saat member menulis **tx sendiri** |
+| Budget `update` | Creator penuh; member hanya `spent` — sama, untuk tx sendiri |
+| Category summaries | Owner-only. Inilah yang menggagalkan sync jika client menulis summary penulis lain dalam satu `runTransaction` |
 
 ### Feature
 
 | Item | Status |
 |------|--------|
-| New Entry edit/delete UI | **Tidak** disentuh |
-| History tap | **Tidak** disentuh |
-| Badge `PENDING` | Tetap; delete tidak punya row jadi badge tidak relevan |
+| New Entry edit/delete UI | 17a–d tidak sentuh. **17e:** tombol Hapus / Simpan hanya tx sendiri |
+| History tap | 17a–d tidak sentuh. **17e:** tap row orang lain **jangan** buka form edit |
+| Badge `PENDING` | Tetap; delete tidak punya row jadi badge tidak relevan — **jangan** anggap “tanpa ikon = cloud OK” |
 
 ---
 
@@ -206,6 +217,18 @@ Enqueue tidak ada yang dikonsumsi. `deleteTransaction` Firestore tidak pernah di
 
 `TransactionRepositoryImpl.monthKey` memakai payday cycle. `SyncRepositoryImpl.syncPendingTransactions` memakai `DateTimeFormatter.ofPattern("yyyy-MM")`. Jika `cycleStartDay != 1`, budget remote bisa kena dokumen bulan yang salah — edit/hapus akan meng-increment budget yang tidak pernah di-increment saat create. Phase 17 **wajib** menyelaraskan.
 
+### 3.5 Member edit/hapus tx penulis lain (smoke test 2026-09-13)
+
+Bukan “dua client saling menimpa dokumen yang sama.” Urutan yang terjadi:
+
+1. App **tidak** cek penulis (16 P11). User 1 hapus tx User 2 → Room User 1 + outbox + enqueue.
+2. `deleteTransactionWithReverse` / upsert dalam **satu** `runTransaction` juga `set` `/users/{userId User 2}/category_summaries/{period}`.
+3. Rules summary `isOwner(uid)` menolak → **seluruh** paket batal: dokumen tx tetap ada, saldo/`spent` remote tidak ter-reverse.
+4. History User 1 sudah tanpa row → tidak ada badge `FAILED`. Outbox tidak tampil. User mengira sync sukses.
+5. Pull User 1 menghitung ulang saldo family dari **tx remote yang masih ada** → saldo terasa “tidak update.” User 2 pull → row masih ada.
+
+**Mitigasi produk (17e):** larang jalur ini. Jangan perlebar rules summary. Jangan andalkan last-write-wins antar anggota.
+
 ---
 
 ## 4. Keputusan Desain
@@ -225,14 +248,15 @@ Enqueue tidak ada yang dikonsumsi. `deleteTransaction` Firestore tidak pernah di
 | P11 | Pull vs device lain | **Orphan sweep**: lokal `SYNCED` yang tanggalnya ≥ tx remote tertua di hasil pull, id tidak ada di remote → reverse lokal **tanpa** outbox | Limit 200: jangan sweep tx lebih tua dari jendela. `PENDING` lokal jangan di-sweep |
 | P12 | Interface `SyncRepository` | **Tidak** pecah method baru | Lipat ke `syncPendingTransactions` + `hasPendingSync` + pull existing |
 | P13 | Schema Room | Version **2** + `migration1To2` `CREATE TABLE` | Jangan andalkan `fallbackToDestructiveMigration` (itu wipe data user) |
-| P14 | UI / use case tulis | **Tidak** berubah | 16b/16c sudah cukup; ini phase data |
+| P14 | UI / use case tulis | **17a–d tidak berubah.** **17e** menambah ACL penulis di use case + History | 16b/16c cukup untuk mutasi milik sendiri |
 | P15 | `monthKey` sync | Sama dengan `TransactionRepositoryImpl` (`PeriodBounds` + `cycleStartDay`) | Budget reverse/apply harus kena dokumen yang sama |
 | P16 | Budget id di snapshot | Pre-read + `findBudgetForExpense` **sebelum** `runTransaction`; jika snapshot berubah vs pre-read, abort agar retry | `runTransaction` sinkron — tidak bisa query Room di dalamnya. Dokumen tx **tidak** punya `budgetId` hari ini |
-| P17 | Rules family tx | Anggota `familyId` boleh update/delete tx shared | Phase 16 P11: siapa yang lihat row boleh edit; tanpa ini sync member → `PERMISSION_DENIED` |
-| P18 | Rules family budget | Member boleh update **hanya** `spent` | Cermin wallet `balance`; perlu untuk create **dan** reverse edit/hapus |
-| P19 | Konflik dua device edit tx yang sama | Last-write-wins pada field dokumen; increment dari snapshot saat transaksi | Tidak ada CRDT / revision vector di 17 |
+| P17 | Rules family tx | **Author-only** `update`/`delete` (personal dan family). Baca family tetap `isFamilyMember` | 16 P11 ditarik. Member write tx orang lain memecah ledger (§3.5). Summary tetap owner-only |
+| P18 | Rules family budget | Member boleh update **hanya** `spent` | Cermin wallet `balance`; perlu untuk create **dan** reverse edit/hapus **tx sendiri** |
+| P19 | Konflik dua device edit tx yang sama | Last-write-wins **hanya** jika penulis yang sama (dua device satu akun). Dua anggota **tidak** boleh menulis satu dokumen tx | Tidak ada CRDT / revision vector di 17 |
 | P20 | `updatedAt` di dokumen tx | **Tidak** wajib | Snapshot-diff sudah idempotent; jangan tambah field kalau tidak dipakai |
-| P21 | Merge PR | 17a boleh merge sendiri (outbox tanpa consumer remote masih lebih aman daripada sekarang). 17b+17c+17d boleh satu PR. **Jangan** ship 17b tanpa tes retry | Rules (17d) wajib sebelum QA 2 akun |
+| P21 | Merge PR | 17a boleh merge sendiri. 17b+17c boleh satu PR. **Jangan** ship / publish rules 17d member-write tx | 17e rules + ACL app sebelum QA 2 akun |
+| P22 | Badge sync vs delete | Ikon hanya `syncStatus` **row yang masih ada**. `SYNCED` = tanpa ikon. Delete menghapus row → outbox tak terlihat | Jangan pakai “tidak ada ikon” sebagai bukti Firebase OK. Cek Console `transactions/{id}` |
 
 ---
 
@@ -260,10 +284,17 @@ Enqueue tidak ada yang dikonsumsi. `deleteTransaction` Firestore tidak pernah di
 12. Pull skip outbox ids + orphan sweep (family + personal).
 13. Tes: delete remote; missing doc; pull tidak menghidupkan id outbox; sweep `SYNCED` di jendela; jangan sweep `PENDING` / lebih tua dari jendela.
 
-### 17d — Rules + catatan
+### 17d — Rules + catatan (dibatalkan untuk klausa tx)
 
-14. Update `docs/database/firestore-rules.md` + publish rules di Firebase Console (`keutrack-dev`).
-15. Catatan: member increment `spent`; member update/delete tx `familyId`.
+14. ~~Member `update`/`delete` tx `familyId`.~~ Jangan publish.
+15. **Tetap:** member increment `spent` (dan wallet `balance`) untuk side-effect **tx sendiri**.
+
+### 17e — Author-only family ACL
+
+16. Rules: `allow update, delete` transaksi = `userId == auth` saja. Publish Console.
+17. `UpdateTransactionUseCase` / `DeleteTransactionUseCase`: `existing.userId != currentUid` → `Error.NotOwner` (jangan tulis Room / outbox).
+18. History: tap row orang lain tidak `navigateToTransaction`. Form: jangan tampilkan Hapus / Simpan untuk tx orang lain jika terlanjur terbuka.
+19. Smoke test sisa: jika User 1 sudah punya outbox hapus milik User 2, sync akan `PERMISSION_DENIED` (benar). User 1 pull / reinstall agar History = cloud.
 
 ---
 
@@ -273,11 +304,11 @@ Enqueue tidak ada yang dikonsumsi. `deleteTransaction` Firestore tidak pernah di
 |------|--------|
 | Kolom `isDeleted` / tombstone Firestore | P1 / P2 |
 | Cloud Function recompute balance | Strategy B; Phase 2 out of scope |
-| UI edit/delete / Dashboard recent tap | Sudah 16c / P16 Phase 16 |
-| Ubah signature `TransactionRepository` / use case | P14 |
+| UI edit/delete / Dashboard recent tap | 17a–d: sudah 16c. **17e** hanya ACL tap / tombol, bukan swipe atau recent |
+| Ubah signature `TransactionRepository` | P14 tetap. Use case boleh error `NotOwner` (17e) |
 | Realtime snapshot listener | Phase 6C/10 tetap pull on open |
 | Pagination / filter History | Phase 13–15 |
-| ACL penulis-only | Bertentangan Phase 16 P11 |
+| Member edit/hapus tx penulis lain | P17 / 17e — ledger tidak sync (§3.5) |
 | Auth / splash / `UserRepository` | Protected |
 | Google Sheets export | Future |
 | Hapus otomatis orphan wallet Firestore | Phase 10 tetap di luar |
@@ -322,15 +353,15 @@ Enqueue tidak ada yang dikonsumsi. `deleteTransaction` Firestore tidak pernah di
 - `features/auth/**`, `features/splashscreen/**`
 - Domain user/auth + `UserRepository` / `UserRepositoryImpl`
 - `build-plugin/**`, `settings.gradle.kts`, `gradle.properties`, `local.properties`
-- `features/transaction/**` UI / ViewModel / History (kecuali terpaksa tes kompilasi — **jangan**)
+- `features/transaction/**` UI / ViewModel / History — **kecuali 17e** (tap + guard form)
 - `features/dashboard/**`, `features/family/**`, `features/settings/**`
-- Signature `TransactionRepository` / `Add` / `Update` / `Delete` use case
+- Signature `TransactionRepository` / `AddTransactionUseCase`. **17e** boleh menambah `TransactionWriteResult.Error.NotOwner` + cek uid di `Update`/`Delete`
 - Schema kolom tabel `transactions` / `wallets` / `budgets` / `category_summaries` (hanya **tabel baru**)
 - Settings siklus UI
 - Family invite / QR / budget authoring UI
 - `GetPeriodTotalsUseCase` / DAO `observeSumsByType` (Phase 15)
 
-Boleh sentuh `docs/database/firestore-rules.md` **hanya** klausa update/delete transaksi + update budget `spent` (17d).
+Boleh sentuh `docs/database/firestore-rules.md` **hanya** klausa update/delete transaksi (17e: author-only) + update budget `spent` (tetap member `spent`-only). **Jangan** longgarkan `category_summaries`.
 
 ---
 
@@ -360,12 +391,23 @@ Boleh sentuh `docs/database/firestore-rules.md` **hanya** klausa update/delete t
 
 `PeriodPreferencesRepository` di-inject ke `SyncRepositoryImpl` (sudah ada di `TransactionRepositoryImpl`).
 
-### 17d
+### 17d (historis — klausa tx member-write **jangan** di-ship)
 
 | Path | Aksi |
 |------|------|
-| `docs/database/firestore-rules.md` | Family tx update/delete; budget `spent`-only |
-| Firebase Console | Publish rules `keutrack-dev` |
+| `docs/database/firestore-rules.md` | Budget `spent`-only **tetap**. Klausa tx `isFamilyMember` pada `update`/`delete` **ditarik** |
+| Firebase Console | Jangan publish varian 17d member-write tx |
+
+### 17e
+
+| Path | Aksi |
+|------|------|
+| `docs/database/firestore-rules.md` | Tx `update`/`delete` = `userId == auth` saja |
+| Firebase Console | **Publish** author-only ke `keutrack-dev` |
+| `TransactionWriteResult` | `Error.NotOwner` |
+| `UpdateTransactionUseCase` / `DeleteTransactionUseCase` | Tolak jika bukan penulis |
+| History / New Entry (17e saja) | Tap + tombol hanya untuk tx sendiri |
+| Tes use case + History VM | Cover `NotOwner` / tap diabaikan |
 
 Interface `SyncRepository` method **tidak** bertambah.
 
@@ -393,10 +435,16 @@ core/data/.../repository/
 
 core/data/.../di/DatabaseModule.kt         ← migration + DAO
 
-docs/database/firestore-rules.md           ← 17d
+docs/database/firestore-rules.md           ← 17e author-only tx write
+
+core/domain/.../model/TransactionWriteResult.kt  ← 17e NotOwner
+core/domain/.../usecase/UpdateTransactionUseCase.kt
+core/domain/.../usecase/DeleteTransactionUseCase.kt
+features/transaction/.../history/          ← 17e tap guard
+features/transaction/.../NewEntryViewModel.kt
 ```
 
-Tidak ada route, screen, atau use case baru.
+Tidak ada route baru. 17e menambah error + guard, bukan screen baru.
 
 ---
 
@@ -756,35 +804,28 @@ Family pull **tidak** rebuild summary hari ini. Sweep harus reverse summary (hel
 
 ---
 
-## 15. Firestore Security Rules (17d)
+## 15. Firestore Security Rules (17d dibatalkan / 17e)
 
-Publish ke Console **sebelum** QA 2 akun. Tanpa ini, 17b/17c hijau di unit test tetapi SyncWorker `PERMISSION_DENIED` di device member.
+Publish **author-only** ke Console sebelum QA 2 akun. Jika Console masih punya klausa 17d (`isFamilyMember` pada `update`/`delete` tx), **revert lalu Publish**.
 
 ### 15.1 Transaksi
 
-Hari ini:
+**Target 17e (wajib):**
 
 ```
 allow update, delete: if signedIn()
   && resource.data.userId == request.auth.uid;
 ```
 
-Target:
-
-```
-allow update, delete: if signedIn() && (
-  resource.data.userId == request.auth.uid
-  || isFamilyMember(resource.data.familyId)
-);
-```
-
-Personal (`familyId` kosong / missing): tetap owner-only (`isFamilyMember` harus false untuk non-string / empty — samakan helper existing).
+Personal dan family sama: hanya penulis. `get` family + `list` **tetap** `isFamilyMember` / signed-in (History shared).
 
 Create tetap `request.resource.data.userId == request.auth.uid` (jangan biarkan member memalsukan `userId`).
 
+~~Target 17d (dibatalkan):~~ `userId == auth || isFamilyMember(familyId)` — **jangan** dipakai. App + rules harus selaras; longgar di cloud = bolong meski UI dilarang.
+
 ### 15.2 Budget `spent`
 
-Cermin wallet:
+Cermin wallet — **tidak ditarik** (bukan ACL History):
 
 ```
 allow update: if signedIn() && (
@@ -796,21 +837,21 @@ allow update: if signedIn() && (
 );
 ```
 
-Perlu untuk create expense member **dan** reverse edit/hapus. Dokumentasikan di `firestore-rules.md` (bagian “How create / get / update is checked” + catatan SyncWorker).
+Perlu untuk create expense member **dan** reverse edit/hapus **tx milik member itu**. Dokumentasikan di `firestore-rules.md`.
 
 ### 15.3 Wallet
 
-Tidak berubah (member sudah boleh `balance`).
+Tidak berubah (member sudah boleh `balance` untuk increment tx sendiri).
 
 ### 15.4 Summary
 
-`/users/{uid}/category_summaries/{period}` tetap owner-only. Sync **penulis** yang men-set summary miliknya. Device member tidak men-set summary user lain.
+`/users/{uid}/category_summaries/{period}` tetap owner-only. Sync **penulis** yang men-set summary miliknya. Jangan longgarkan supaya member bisa edit tx orang lain — itu jalur §3.5.
 
 ---
 
 ## 16. Task Breakdown Detail
 
-Kerjakan **17a → 17b → 17c → 17d**. 17d boleh disiapkan paralel (docs) tetapi **publish** sebelum QA 2 akun.
+Kerjakan **17a → 17b → 17c → 17e**. Jangan kerjakan / publish 17d member-write tx. 17e docs boleh dulu; **Publish rules author-only + ACL app** sebelum QA 2 akun.
 
 ### 17a — Task 1: Schema + atomic outbox
 
@@ -869,12 +910,20 @@ Verify: `./gradlew :core:data:testDevDebugUnitTest --tests "*SyncRepositoryImpl*
 - Tes: lokal `SYNCED` lebih tua dari `oldestPulled` tidak di-sweep.
 - Tes existing recompute wallet **jangan** pecah.
 
-### 17d — Task 7: Rules
+### 17d — Task 7: Rules member-write (dibatalkan)
 
-- Edit markdown + publish Console.
-- QA 2 akun tidak boleh dijalankan sebelum ini.
+- Jangan merge / Publish `isFamilyMember` pada `allow update, delete` transaksi.
+- Budget `spent` + wallet `balance` member **tetap**.
 
-Verify akhir: `./gradlew :core:data:testDevDebugUnitTest assembleDevDebug`
+### 17e — Task 8: Author-only ACL
+
+- `firestore-rules.md` + Publish Console: tx update/delete = penulis.
+- Use case: `NotOwner` jika `existing.userId != currentUid`.
+- History: tap row orang lain no-op (atau toast singkat; tanpa form).
+- Tes: B tidak memanggil `update`/`delete` untuk tx A; rules deny jika dipaksa.
+- QA §24.4.
+
+Verify: `./gradlew :core:domain:testDevDebugUnitTest :core:data:testDevDebugUnitTest :features:transaction:testDevDebugUnitTest assembleDevDebug`
 
 ---
 
@@ -896,21 +945,27 @@ Verify akhir: `./gradlew :core:data:testDevDebugUnitTest assembleDevDebug`
 - [x] `migration1To2` ada; Room v2
 - [x] Auth / splash / Settings / Family invite UI tidak disentuh
 - [x] Tes 17a–17c hijau
+- [x] **17e:** app + markdown author-only (History tap, form read-only, `NotOwner`)
+- [ ] **17e:** rules Console **Published** author-only (bukan `isFamilyMember` pada tx update/delete)
+- [ ] **17e:** QA B tidak bisa edit/hapus tx A; B tetap lihat tx A; A ubah tx A tetap sync
 
 ### Sengaja belum
 
-- [ ] Dua orang mengedit tx yang sama dalam detik yang sama (last-write-wins)
+- [ ] Dua device **akun yang sama** mengedit tx yang sama dalam detik yang sama (last-write-wins)
+- [ ] Member mengoreksi entri penulis lain (ditolak 17e; jangan “perbaiki” lewat longgar summary)
 - [ ] Tombstone Firestore / undo delete
 - [ ] Tap recent Dashboard
 - [ ] Swipe-to-delete
 - [ ] Cloud Function recompute
+- [ ] Badge / UI untuk outbox delete (P22)
 
 ---
 
 ## 18. Catatan Arsitektur & Konvensi
 
 - Feature → UseCase → Repository. Sync **hanya** dari `SyncRepository` / Worker — jangan panggil Firestore dari `TransactionRepositoryImpl`.
-- Offline-first: UI tetap baca Room; 17 hanya memperbaiki **push** dan **pull reconcile**.
+- Offline-first: UI tetap baca Room; 17 memperbaiki **push** dan **pull reconcile** untuk **tx milik penulis**.
+- Family wallet = ledger **baca bersama**, tulis per penulis (17e). Jangan samakan dengan “siapa lihat boleh ubah.”
 - `CancellationException` selalu di-rethrow sebelum `catch (e: Exception)`.
 - Uang `Long`; tanggal domain `Instant`.
 - Kotlin only. Jangan sentuh file protected skill (`User*`, auth, splash, build-plugin, gradle root).
@@ -962,13 +1017,14 @@ syncFamilyData / syncPersonalData
 | Sweep saat pull error / empty exception | Data lokal lenyap | Jangan sweep jika `getByFamilyId` throw |
 | `setBalance` dari Room device A | Menimpa increment device B | P5 |
 | `monthKey` kalender | Budget salah bulan | P15 + tes cycle 25 |
-| Rules owner-only | Member edit/hapus `FAILED` selamanya | P17 / P18 + Task 7 |
+| Rules tx member-write (17d) | Room pecah vs cloud (§3.5); badge menipu (P22) | P17 / 17e — author-only |
+| Summary owner-only + `set` path penulis | `runTransaction` gagal total jika member mengirim summary uid lain | 17e: jangan kirim jalur itu dari UI |
 | Pre-read vs snapshot drift | Delta salah | P16 throw mismatch → retry |
 | `hasPendingSync` lupa outbox | Hapus tidak pernah di-retry | Task 1 |
 | Destructive migration tanpa `migration1To2` | User kehilangan Room | P13 |
 | Upsert lalu delete id yang sama | Flash remote + increment sia-sia | P7 |
-| Summary di-set dua kali + increment retry | Agregat aneh | Satu `set` di `runTransaction` |
-| Family ACL diam-diam diketatkan | Bertentangan 16 P11 | P17 |
+| Summary di-set dua kali + increment retry | Agregat aneh | Satu `set` di `runTransaction` (milik sendiri) |
+| Console masih rules 17d | Cloud bolong meski app 17e | Task 8 Publish revert |
 | Tes create mengharapkan skip | False red / false green | Task 4 #5 |
 
 ---
@@ -978,11 +1034,12 @@ syncFamilyData / syncPersonalData
 1. Task 1–2 (17a) — **berhenti jika tes repo merah.**
 2. Task 3–4 (17b) update remote + `monthKey`.
 3. Task 5–6 (17c) outbox drain + pull.
-4. Task 7 (17d) publish rules.
-5. `assembleDevDebug` + QA §24 (2 device / 2 akun family).
-6. Baru anggap Phase 16 §22.6 tertutup.
+4. ~~Task 7 (17d) publish member-write tx.~~ **Skip.**
+5. Task 8 (17e) rules author-only + ACL app.
+6. `assembleDevDebug` + QA §24 (2 device / 2 akun family).
+7. Baru anggap Phase 16 §22.6 tertutup **untuk tx milik penulis**.
 
-Jangan merge 17c ke `main` tanpa 17a. 17b boleh satu commit dengan 17c. Rules boleh commit `[DOCS]` terpisah tetapi **harus** live sebelum QA.
+Jangan merge 17c ke `main` tanpa 17a. 17b boleh satu commit dengan 17c. Jangan commit / Publish rules yang mengizinkan member `update`/`delete` tx orang lain.
 
 ---
 
@@ -990,15 +1047,15 @@ Jangan merge 17c ke `main` tanpa 17a. 17b boleh satu commit dengan 17c. Rules bo
 
 | Phase | Relasi |
 |-------|--------|
-| **16** | 17 = 16d. Lokal sudah benar; 17 menutup cloud. Jangan rollback 16a reverse/apply |
+| **16** | 17 = 16d. Lokal sudah benar; 17 menutup cloud **milik sendiri**. **16 P11 ditarik oleh 17e.** Jangan rollback 16a reverse/apply |
 | **2** | Strategy A di-extend: skip-if-exists hanya implisit via `Δ = 0`, bukan `return` |
-| **6C** | Pull family wajib skip outbox + sweep; recompute wallet tetap |
+| **6C** | Pull family wajib skip outbox + sweep; recompute wallet tetap. Shared **read**, bukan shared **write** tx |
 | **10** | Pull personal sama; restore setelah hapus-sync tidak boleh menghidupkan tx |
 | **11** | `findBudgetForExpense` dipakai pre-read old/new; rules `spent` |
 | **14** | `monthKey` siklus wajib di sync |
 | **15** | Query History tidak berubah (alasan P1) |
-| **5 / 12** | Form create/edit tidak berubah |
-| **9** | Tes UI cloud tidak wajib; 17 wajib tes repo + sync |
+| **5 / 12** | Form create/edit milik sendiri tidak berubah; 17e hanya guard |
+| **9** | Tes UI cloud tidak wajib; 17 wajib tes repo + sync; 17e tes ACL |
 
 ---
 
@@ -1010,11 +1067,11 @@ Ikuti tag repo. Branch usulan: `feat/transaction-firestore-update-delete`.
 [FEAT] Queue transaction deletes in a Room outbox
 [FEAT] Sync transaction updates with snapshot-diff increments
 [FEAT] Sync transaction deletes and reconcile family pull
-[DOCS] Allow family members to update shared transactions
+[DOCS] Restrict family tx update and delete to the author
 [DOCS] Add Phase 17 Firestore update and delete plan
 ```
 
-Rules Console publish **bukan** git commit — catat di PR bahwa rules sudah di-deploy ke `keutrack-dev`.
+Rules Console publish **bukan** git commit — catat di PR bahwa `keutrack-dev` memakai **author-only** pada tx `update`/`delete` (bukan varian 17d).
 
 ---
 
@@ -1050,13 +1107,14 @@ Pakai **dua akun** satu family jika memungkinkan (A penulis, B anggota). Catat s
 | 12 | Create PENDING (belum sync) → hapus | Tidak ada dokumen remote; wallet remote tidak berubah |
 | 13 | Device B pull setelah A delete SYNCED | Tx tidak muncul; saldo B = recompute remote |
 
-### 24.4 Rules / member
+### 24.4 Rules / member (17e)
 
 | # | Langkah | Expected |
 |---|---------|----------|
-| 14 | B edit tx A (family) | Sync sukses, bukan `PERMISSION_DENIED` |
-| 15 | B hapus tx A (family) | Sama; A pull → row hilang |
-| 16 | B edit tx **personal** A | Tidak bisa (tidak terlihat / rules owner-only) |
+| 14 | B tap tx A (family) | Form edit **tidak** terbuka; row tetap tampil |
+| 15 | B dipaksa `update`/`delete` tx A (tes / rules) | `NotOwner` / `PERMISSION_DENIED`; Firestore A tidak berubah |
+| 16 | B edit/hapus **tx B** di wallet family | Sync sukses; A pull → field/saldo/`spent` A ikut |
+| 16b | B edit tx **personal** A | Tidak bisa (tidak terlihat / rules owner-only) |
 
 ### 24.5 Regresi lain
 
@@ -1101,5 +1159,6 @@ internal fun walletIncrements(old: Transaction?, new: Transaction): Map<String, 
 | 2. Delete remote: outbox/tombstone sebelum hapus row / tabel `pending_deletes` | §12, P1–P3, Task 1–2. **Pilih tabel outbox** |
 | 3. Reverse `FieldValue.increment` wallet/budget | §13 + §14.2, Task 3 + 5 |
 | 4. Konflik pull 6C/10 vs tombstone | §14.3–14.4, P10–P11, Task 6 |
+| Phase 16 P11 (siapa lihat row boleh edit) | **Ditarik 17e.** §3.5, P17, Task 8, §24.4 |
 
 16a sengaja tidak menambah schema. 17a menambah **hanya** tabel outbox supaya slice sync tetap testable tanpa menyentuh query History.
