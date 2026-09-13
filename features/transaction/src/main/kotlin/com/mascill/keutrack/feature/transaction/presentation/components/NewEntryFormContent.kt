@@ -53,6 +53,8 @@ import com.mascill.keutrack.feature.transaction.presentation.model.NewEntryUISta
 import com.mascill.keutrack.feature.transaction.presentation.model.TransactionUiMapper
 
 private const val NEW_ENTRY_SUBTITLE = "Add a transaction to your ledger"
+private const val NEW_ENTRY_READ_ONLY_SUBTITLE =
+    "Transaksi anggota lain. Hanya penulis yang bisa mengubah."
 private const val NEW_ENTRY_AMOUNT_SECTION = "AMOUNT"
 private const val NEW_ENTRY_WALLET_TYPE_LABEL = "WALLET"
 private const val NEW_ENTRY_DATE_LABEL = "DATE"
@@ -127,7 +129,7 @@ fun NewEntryFormContent(
                 .padding(bottom = NEW_ENTRY_PB.dp),
     ) {
         Text(
-            text = NEW_ENTRY_SUBTITLE,
+            text = if (uiState.isReadOnly) NEW_ENTRY_READ_ONLY_SUBTITLE else NEW_ENTRY_SUBTITLE,
             style = typography.bodyRegular14,
             color = textColors.body,
             modifier = Modifier.padding(top = NEW_ENTRY_SUBTITLE_PT.dp),
@@ -140,12 +142,16 @@ fun NewEntryFormContent(
             rightLabel = NEW_ENTRY_INCOME,
             leftSelected = uiState.kind == EntryTransactionKind.Expense,
             onLeftClick = {
-                onClearError()
-                onKindChanged(EntryTransactionKind.Expense)
+                if (!uiState.isReadOnly) {
+                    onClearError()
+                    onKindChanged(EntryTransactionKind.Expense)
+                }
             },
             onRightClick = {
-                onClearError()
-                onKindChanged(EntryTransactionKind.Income)
+                if (!uiState.isReadOnly) {
+                    onClearError()
+                    onKindChanged(EntryTransactionKind.Income)
+                }
             },
         )
 
@@ -170,7 +176,7 @@ fun NewEntryFormContent(
                     vertical = NEW_ENTRY_AMOUNT_CARD_PV.dp,
                     horizontal = NEW_ENTRY_AMOUNT_CARD_PH.dp,
                 ),
-            onClick = onAmountClick,
+            onClick = onAmountClick.takeUnless { uiState.isReadOnly },
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -200,16 +206,18 @@ fun NewEntryFormContent(
                 label = NEW_ENTRY_WALLET_TYPE_LABEL,
                 icon = Icons.Outlined.AccountBalanceWallet,
                 value = walletLabel,
-                showTrailingChevron = true,
+                showTrailingChevron = !uiState.isReadOnly,
                 onClick = onWalletChipClick,
+                enabled = !uiState.isReadOnly,
             )
             WalletDateChip(
                 modifier = Modifier.weight(1f),
                 label = NEW_ENTRY_DATE_LABEL,
                 icon = Icons.Outlined.CalendarToday,
                 value = dateLabel,
-                showTrailingChevron = true,
+                showTrailingChevron = !uiState.isReadOnly,
                 onClick = onDateChipClick,
+                enabled = !uiState.isReadOnly,
             )
         }
 
@@ -225,12 +233,14 @@ fun NewEntryFormContent(
                 style = typography.bodyBold10,
                 color = textColors.body,
             )
-            Text(
-                text = NEW_ENTRY_SEE_ALL,
-                style = typography.bodyBold14,
-                color = textColors.link,
-                modifier = Modifier.clickable(onClick = onSeeAllCategories),
-            )
+            if (!uiState.isReadOnly) {
+                Text(
+                    text = NEW_ENTRY_SEE_ALL,
+                    style = typography.bodyBold14,
+                    color = textColors.link,
+                    modifier = Modifier.clickable(onClick = onSeeAllCategories),
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(NEW_ENTRY_CATEGORY_HEADER_PB.dp))
@@ -246,6 +256,7 @@ fun NewEntryFormContent(
                 categories = uiState.categories,
                 selectedCategoryId = uiState.selectedCategoryId,
                 onCategorySelected = { id ->
+                    if (uiState.isReadOnly) return@CategoryChipRow
                     onClearError()
                     onCategorySelected(id)
                 },
@@ -281,35 +292,37 @@ fun NewEntryFormContent(
 
         Spacer(modifier = Modifier.height(NEW_ENTRY_AFTER_NOTE_SPACER.dp))
 
-        Column(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .navigationBarsPadding(),
-        ) {
-            KeuTrackButton(
-                text =
-                    if (uiState.isEditMode) {
-                        NEW_ENTRY_SAVE_CHANGES
-                    } else {
-                        NEW_ENTRY_ADD_TRANSACTION
-                    },
-                onClick = onSave,
-                modifier = Modifier.fillMaxWidth(),
-                enabled = uiState.hasWallet && !uiState.isSaving && uiState.categories.isNotEmpty(),
-                isLoading = uiState.isSaving,
-            )
-            if (uiState.isEditMode) {
-                TextButton(
-                    onClick = onDeleteClick,
-                    enabled = !uiState.isSaving,
+        if (!uiState.isReadOnly) {
+            Column(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding(),
+            ) {
+                KeuTrackButton(
+                    text =
+                        if (uiState.isEditMode) {
+                            NEW_ENTRY_SAVE_CHANGES
+                        } else {
+                            NEW_ENTRY_ADD_TRANSACTION
+                        },
+                    onClick = onSave,
                     modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(
-                        text = NEW_ENTRY_DELETE,
-                        style = typography.bodyBold16,
-                        color = semantic.error,
-                    )
+                    enabled = uiState.hasWallet && !uiState.isSaving && uiState.categories.isNotEmpty(),
+                    isLoading = uiState.isSaving,
+                )
+                if (uiState.isEditMode) {
+                    TextButton(
+                        onClick = onDeleteClick,
+                        enabled = !uiState.isSaving,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(
+                            text = NEW_ENTRY_DELETE,
+                            style = typography.bodyBold16,
+                            color = semantic.error,
+                        )
+                    }
                 }
             }
         }
@@ -402,6 +415,7 @@ private fun WalletDateChip(
     showTrailingChevron: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     val semantic = KeuTrackTheme.semanticColors
     val textColors = KeuTrackTheme.textColors
@@ -421,7 +435,13 @@ private fun WalletDateChip(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(shapes.radiusMd))
                     .background(semantic.surfaceContainerLow)
-                    .clickable(onClick = onClick)
+                    .then(
+                        if (enabled) {
+                            Modifier.clickable(onClick = onClick)
+                        } else {
+                            Modifier
+                        },
+                    )
                     .padding(
                         horizontal = NEW_ENTRY_WALLET_CHIP_PH.dp,
                         vertical = NEW_ENTRY_WALLET_CHIP_PV.dp,

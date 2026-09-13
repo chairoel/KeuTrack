@@ -105,6 +105,7 @@ class NewEntryViewModel @Inject constructor(
                 note = draft.note,
                 userId = user?.uid,
                 addedByName = addedByName,
+                authorUserId = draft.preservedUserId,
             )
         }.catch { e ->
             emit(
@@ -129,6 +130,7 @@ class NewEntryViewModel @Inject constructor(
     }
 
     fun onKindChanged(kind: EntryTransactionKind) {
+        if (uiState.value.isReadOnly) return
         formState.update {
             it.copy(
                 kind = kind,
@@ -139,6 +141,7 @@ class NewEntryViewModel @Inject constructor(
     }
 
     fun onDigit(digit: Long) {
+        if (uiState.value.isReadOnly) return
         formState.update { draft ->
             val next = draft.amount * 10L + digit
             if (next <= MAX_AMOUNT_RUPIAH) {
@@ -150,6 +153,7 @@ class NewEntryViewModel @Inject constructor(
     }
 
     fun onTripleZero() {
+        if (uiState.value.isReadOnly) return
         formState.update { draft ->
             if (draft.amount <= MAX_AMOUNT_RUPIAH / 1000L) {
                 draft.copy(amount = draft.amount * 1000L, errorMessage = null)
@@ -160,22 +164,26 @@ class NewEntryViewModel @Inject constructor(
     }
 
     fun onBackspace() {
+        if (uiState.value.isReadOnly) return
         formState.update { it.copy(amount = it.amount / 10L, errorMessage = null) }
     }
 
     fun onCategorySelected(categoryId: String) {
+        if (uiState.value.isReadOnly) return
         formState.update {
             it.copy(selectedCategoryId = categoryId, errorMessage = null)
         }
     }
 
     fun onWalletSelected(walletId: String) {
+        if (uiState.value.isReadOnly) return
         formState.update {
             it.copy(selectedWalletId = walletId, errorMessage = null)
         }
     }
 
     fun onDateSelected(date: LocalDate) {
+        if (uiState.value.isReadOnly) return
         formState.update {
             it.copy(
                 selectedDate = TransactionUiMapper.localDateToInstant(date),
@@ -185,6 +193,7 @@ class NewEntryViewModel @Inject constructor(
     }
 
     fun onNoteChanged(note: String) {
+        if (uiState.value.isReadOnly) return
         formState.update {
             it.copy(note = note.take(NOTE_MAX_LENGTH), errorMessage = null)
         }
@@ -201,6 +210,10 @@ class NewEntryViewModel @Inject constructor(
     fun onSave() {
         viewModelScope.launch(dispatcher.io) {
             if (formState.value.isSaving) return@launch
+            if (uiState.value.isReadOnly) {
+                formState.update { it.copy(errorMessage = ERR_NOT_OWNER) }
+                return@launch
+            }
 
             val state = uiState.value
             val walletId = state.selectedWalletId
@@ -276,6 +289,10 @@ class NewEntryViewModel @Inject constructor(
         viewModelScope.launch(dispatcher.io) {
             val id = formState.value.editingTransactionId
             if (id.isNullOrBlank() || formState.value.isSaving) return@launch
+            if (uiState.value.isReadOnly) {
+                formState.update { it.copy(errorMessage = ERR_NOT_OWNER) }
+                return@launch
+            }
 
             formState.update { it.copy(isSaving = true, errorMessage = null) }
             try {
@@ -358,6 +375,9 @@ class NewEntryViewModel @Inject constructor(
             TransactionWriteResult.Error.MissingCategory ->
                 formState.update { it.copy(isSaving = false, errorMessage = ERR_CATEGORY) }
 
+            TransactionWriteResult.Error.NotOwner ->
+                formState.update { it.copy(isSaving = false, errorMessage = ERR_NOT_OWNER) }
+
             TransactionWriteResult.Error.MissingId,
             TransactionWriteResult.Error.NotFound ->
                 formState.update {
@@ -413,6 +433,7 @@ class NewEntryViewModel @Inject constructor(
         const val ERR_SAVE_FAILED = "Gagal menyimpan transaksi"
         const val ERR_DELETE_FAILED = "Gagal menghapus"
         const val ERR_NOT_FOUND = "Transaksi tidak ditemukan"
+        const val ERR_NOT_OWNER = "Hanya penulis yang bisa mengubah transaksi ini"
         const val ERR_LOAD_FAILED = "Gagal memuat form transaksi"
 
         fun readEditingTransactionId(handle: SavedStateHandle): String? =

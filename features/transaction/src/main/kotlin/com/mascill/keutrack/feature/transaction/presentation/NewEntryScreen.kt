@@ -45,6 +45,7 @@ import java.time.LocalDate
 
 private const val NEW_ENTRY_TITLE = "Transaksi Baru"
 private const val EDIT_ENTRY_TITLE = "Edit Transaksi"
+private const val READ_ONLY_ENTRY_TITLE = "Detail Transaksi"
 private const val DELETE_DIALOG_TITLE = "Hapus transaksi?"
 private const val DELETE_DIALOG_BODY =
     "Transaksi ini akan dihapus dari riwayat. Saldo dan anggaran akan disesuaikan."
@@ -97,7 +98,12 @@ fun NewEntryScreen(
                 elevation = NEW_ENTRY_TOP_BAR_ELEVATION.dp,
             ) {
                 KeuTrackTopBar(
-                    title = if (uiState.isEditMode) EDIT_ENTRY_TITLE else NEW_ENTRY_TITLE,
+                    title =
+                        when {
+                            uiState.isReadOnly -> READ_ONLY_ENTRY_TITLE
+                            uiState.isEditMode -> EDIT_ENTRY_TITLE
+                            else -> NEW_ENTRY_TITLE
+                        },
                     modifier =
                         Modifier
                             .fillMaxWidth()
@@ -136,12 +142,12 @@ fun NewEntryScreen(
                 NewEntryFormContent(
                     uiState = uiState,
                     onKindChanged = onKindChanged,
-                    onAmountClick = { showAmountKeypad = true },
-                    amountFocused = showAmountKeypad,
+                    onAmountClick = { if (!uiState.isReadOnly) showAmountKeypad = true },
+                    amountFocused = showAmountKeypad && !uiState.isReadOnly,
                     onCategorySelected = onCategorySelected,
-                    onWalletChipClick = { showWalletPicker = true },
-                    onDateChipClick = { showDatePicker = true },
-                    onSeeAllCategories = { showCategorySeeAll = true },
+                    onWalletChipClick = { if (!uiState.isReadOnly) showWalletPicker = true },
+                    onDateChipClick = { if (!uiState.isReadOnly) showDatePicker = true },
+                    onSeeAllCategories = { if (!uiState.isReadOnly) showCategorySeeAll = true },
                     onNoteChanged = onNoteChanged,
                     onSave = onSave,
                     onDeleteClick = { showDeleteConfirm = true },

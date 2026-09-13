@@ -49,8 +49,8 @@ class NewEntryViewModelTest {
     private val transactionRepo = mockk<TransactionRepository>(relaxed = true)
     private val addTransaction = AddTransactionUseCase(transactionRepo)
     private val getTransactionById = GetTransactionByIdUseCase(transactionRepo)
-    private val updateTransaction = UpdateTransactionUseCase(transactionRepo)
-    private val deleteTransaction = DeleteTransactionUseCase(transactionRepo)
+    private val updateTransaction = UpdateTransactionUseCase(transactionRepo, userRepo)
+    private val deleteTransaction = DeleteTransactionUseCase(transactionRepo, userRepo)
 
     @Test
     fun `initial state is loading`() = runTest(mainDispatcherRule.testDispatcher) {
@@ -261,6 +261,35 @@ class NewEntryViewModelTest {
         }
 
     @Test
+    fun `foreign author opens read only and blocks save delete`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            stubFormData()
+            coEvery { transactionRepo.getTransactionById("tx-1") } returns
+                existingTransaction().copy(userId = "user-2", addedByName = "Budi")
+            val vm = createViewModel(SavedStateHandle(mapOf("transactionId" to "tx-1")))
+
+            vm.uiState.test {
+                skipItems(1)
+                advanceUntilIdle()
+                val state = expectMostRecentItem()
+                assertThat(state.isReadOnly).isTrue()
+                assertThat(state.isEditMode).isTrue()
+                assertThat(state.amount).isEqualTo(25_000L)
+
+                vm.onSave()
+                vm.onDelete()
+                advanceUntilIdle()
+                val blocked = expectMostRecentItem()
+                assertThat(blocked.navigateBack).isFalse()
+                assertThat(blocked.errorMessage)
+                    .isEqualTo("Hanya penulis yang bisa mengubah transaksi ini")
+                cancelAndIgnoreRemainingEvents()
+            }
+            coVerify(exactly = 0) { transactionRepo.updateTransaction(any()) }
+            coVerify(exactly = 0) { transactionRepo.deleteTransaction(any()) }
+        }
+
+    @Test
     fun `delete without edit id is ignored`() = runTest(mainDispatcherRule.testDispatcher) {
         stubFormData()
         val vm = createViewModel()
@@ -319,7 +348,7 @@ class NewEntryViewModelTest {
     private fun existingTransaction() = Transaction(
         id = "tx-1",
         walletId = "w-p",
-        userId = "owner-1",
+        userId = "user-1",
         familyId = null,
         type = TransactionType.EXPENSE,
         amount = 25_000L,

@@ -18,9 +18,15 @@ data class NewEntryUIState(
     val note: String = "",
     val userId: String? = null,
     val addedByName: String = "",
+    val authorUserId: String? = null,
 ) {
     val isEditMode: Boolean
         get() = !editingTransactionId.isNullOrBlank()
+
+    val isReadOnly: Boolean
+        get() = isEditMode &&
+            !authorUserId.isNullOrBlank() &&
+            (userId.isNullOrBlank() || authorUserId != userId)
 
     val selectedWallet: WalletOptionUi?
         get() = wallets.firstOrNull { it.id == selectedWalletId }
