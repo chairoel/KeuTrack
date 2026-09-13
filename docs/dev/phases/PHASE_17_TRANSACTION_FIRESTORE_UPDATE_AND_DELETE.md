@@ -26,7 +26,7 @@
 
 **Terakhir dikerjakan:** 17e UX — tap row orang lain tidak buka edit (snackbar); form jadi Detail (tanpa Simpan/Hapus); use case `NotOwner`. Rules markdown author-only. Budget member tetap `spent` untuk tx sendiri.
 
-**Berikutnya:** Publish rules author-only di Console `keutrack-dev`. QA §24.4. Jangan QA seolah B boleh ubah tx A.
+**Berikutnya:** Publish rules author-only di Console `keutrack-dev`. QA §24.4. Jangan QA seolah B boleh ubah tx A. Swipe History Ubah/Hapus = **Phase 18** (bukan 17) — [`PHASE_18_HISTORY_SWIPE_EDIT_AND_DELETE.md`](./PHASE_18_HISTORY_SWIPE_EDIT_AND_DELETE.md).
 
 ---
 
@@ -116,7 +116,7 @@ Dampak produk (Phase 16 §22.6, sengaja bukan AC):
 
 **Bukan tujuan Phase 17:**
 
-- UI baru, swipe-to-delete, tap Dashboard recent
+- UI baru, swipe-to-delete, tap Dashboard recent — swipe History dipindah ke [Phase 18](./PHASE_18_HISTORY_SWIPE_EDIT_AND_DELETE.md)
 - Cloud Function / Strategy B (recompute server-side)
 - Tombstone `isDeleted` di dokumen Firestore
 - Realtime listener
@@ -304,7 +304,7 @@ Bukan “dua client saling menimpa dokumen yang sama.” Urutan yang terjadi:
 |------|--------|
 | Kolom `isDeleted` / tombstone Firestore | P1 / P2 |
 | Cloud Function recompute balance | Strategy B; Phase 2 out of scope |
-| UI edit/delete / Dashboard recent tap | 17a–d: sudah 16c. **17e** hanya ACL tap / tombol, bukan swipe atau recent |
+| UI edit/delete / Dashboard recent tap | 17a–d: sudah 16c. **17e** hanya ACL tap / tombol, bukan swipe atau recent. Swipe = [Phase 18](./PHASE_18_HISTORY_SWIPE_EDIT_AND_DELETE.md) |
 | Ubah signature `TransactionRepository` | P14 tetap. Use case boleh error `NotOwner` (17e) |
 | Realtime snapshot listener | Phase 6C/10 tetap pull on open |
 | Pagination / filter History | Phase 13–15 |
@@ -955,7 +955,7 @@ Verify: `./gradlew :core:domain:testDevDebugUnitTest :core:data:testDevDebugUnit
 - [ ] Member mengoreksi entri penulis lain (ditolak 17e; jangan “perbaiki” lewat longgar summary)
 - [ ] Tombstone Firestore / undo delete
 - [ ] Tap recent Dashboard
-- [ ] Swipe-to-delete
+- [ ] Swipe-to-delete — [Phase 18](./PHASE_18_HISTORY_SWIPE_EDIT_AND_DELETE.md)
 - [ ] Cloud Function recompute
 - [ ] Badge / UI untuk outbox delete (P22)
 

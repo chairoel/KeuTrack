@@ -154,9 +154,9 @@ History list dan `HistoryPeriodTotalsRow` (Phase 15) tetap Flow Room. Setelah 16
 | # | Keputusan | Pilihan | Alasan |
 |---|-----------|---------|--------|
 | P1 | Entry edit | **Reuse `NewEntryScreen`**, bukan detail screen baru | Route + form sudah ada; hindari dua form diverge |
-| P2 | Trigger edit | **Tap row** History | Paling jelas; Material 2 belum punya swipe rapi |
-| P3 | Trigger delete | **Tombol di form edit** + dialog | Satu tempat mutasi; History VM tetap read-only |
-| P4 | Swipe / long-press list | **Tidak** di 16 | Polish belakangan |
+| P2 | Trigger edit | **Tap row** History | Paling jelas; Material 2 belum punya swipe rapi. Swipe reveal = [Phase 18](./PHASE_18_HISTORY_SWIPE_EDIT_AND_DELETE.md) |
+| P3 | Trigger delete | **Tombol di form edit** + dialog | Satu tempat mutasi; History VM tetap read-only di 16. Hapus dari swipe = Phase 18 |
+| P4 | Swipe / long-press list | **Tidak** di 16 | Polish → [Phase 18](./PHASE_18_HISTORY_SWIPE_EDIT_AND_DELETE.md) |
 | P5 | Identitas row | `id` **tetap** saat update | Sync / deep link / history key |
 | P6 | Field yang dipertahankan | `id`, `createdAt`, `userId`, `addedByName` | Edit mengubah isi, bukan kepemilikan |
 | P7 | Field yang boleh berubah | type, amount, category, wallet (`familyId` ikut wallet), date, note | Form yang sama dengan create |
