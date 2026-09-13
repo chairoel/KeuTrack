@@ -148,6 +148,7 @@ class TransactionRepositoryImplTest {
                 startMs = null,
                 endMs = null,
                 limit = 20,
+                userId = null,
             )
         } returns flowOf(listOf(entity))
 
@@ -157,6 +158,57 @@ class TransactionRepositoryImplTest {
             assertThat(items.first().id).isEqualTo("tx-1")
             assertThat(items.first().amount).isEqualTo(15_000L)
             awaitComplete()
+        }
+
+        verify(exactly = 1) {
+            local.observeFiltered(
+                walletId = "wallet-1",
+                familyId = null,
+                type = null,
+                categoryId = null,
+                startMs = null,
+                endMs = null,
+                limit = 20,
+                userId = null,
+            )
+        }
+    }
+
+    @Test
+    fun `observeTransactions forwards userId to local`() = runTest {
+        every {
+            local.observeFiltered(
+                walletId = "wallet-1",
+                familyId = "fam-1",
+                type = null,
+                categoryId = null,
+                startMs = null,
+                endMs = null,
+                limit = 50,
+                userId = "u-2",
+            )
+        } returns flowOf(emptyList())
+
+        repo.observeTransactions(
+            walletId = "wallet-1",
+            familyId = "fam-1",
+            userId = "u-2",
+        ).test {
+            assertThat(awaitItem()).isEmpty()
+            awaitComplete()
+        }
+
+        verify(exactly = 1) {
+            local.observeFiltered(
+                walletId = "wallet-1",
+                familyId = "fam-1",
+                type = null,
+                categoryId = null,
+                startMs = null,
+                endMs = null,
+                limit = 50,
+                userId = "u-2",
+            )
         }
     }
 
@@ -180,6 +232,7 @@ class TransactionRepositoryImplTest {
                 familyId = null,
                 startMs = start.toEpochMilli(),
                 endMs = end.toEpochMilli(),
+                userId = null,
             )
         } returns flowOf(emptyList())
 
@@ -198,6 +251,7 @@ class TransactionRepositoryImplTest {
                 familyId = null,
                 startMs = start.toEpochMilli(),
                 endMs = end.toEpochMilli(),
+                userId = null,
             )
         }
     }
@@ -210,6 +264,7 @@ class TransactionRepositoryImplTest {
                 familyId = "fam-1",
                 startMs = null,
                 endMs = null,
+                userId = null,
             )
         } returns flowOf(emptyList())
 
@@ -224,6 +279,35 @@ class TransactionRepositoryImplTest {
                 familyId = "fam-1",
                 startMs = null,
                 endMs = null,
+                userId = null,
+            )
+        }
+    }
+
+    @Test
+    fun `observePeriodTotals forwards userId to local`() = runTest {
+        every {
+            local.observeSumsByType(
+                walletId = null,
+                familyId = "fam-1",
+                startMs = null,
+                endMs = null,
+                userId = "u-2",
+            )
+        } returns flowOf(emptyList())
+
+        repo.observePeriodTotals(familyId = "fam-1", userId = "u-2").test {
+            awaitItem()
+            awaitComplete()
+        }
+
+        verify(exactly = 1) {
+            local.observeSumsByType(
+                walletId = null,
+                familyId = "fam-1",
+                startMs = null,
+                endMs = null,
+                userId = "u-2",
             )
         }
     }
@@ -236,6 +320,7 @@ class TransactionRepositoryImplTest {
                 familyId = null,
                 startMs = null,
                 endMs = null,
+                userId = null,
             )
         } returns flowOf(emptyList())
 
@@ -250,6 +335,7 @@ class TransactionRepositoryImplTest {
                 familyId = null,
                 startMs = null,
                 endMs = null,
+                userId = null,
             )
         }
     }
@@ -262,6 +348,7 @@ class TransactionRepositoryImplTest {
                 familyId = null,
                 startMs = null,
                 endMs = null,
+                userId = null,
             )
         } returns flowOf(
             listOf(
@@ -286,6 +373,7 @@ class TransactionRepositoryImplTest {
                 familyId = null,
                 startMs = null,
                 endMs = null,
+                userId = null,
             )
         } returns flowOf(
             listOf(AmountByTypeRow(type = TransactionType.INCOME.value, total = 500_000L)),

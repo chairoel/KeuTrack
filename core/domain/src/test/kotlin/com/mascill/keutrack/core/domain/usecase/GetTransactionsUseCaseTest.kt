@@ -30,6 +30,7 @@ class GetTransactionsUseCaseTest {
                 startDate = null,
                 endDate = null,
                 limit = 10,
+                userId = null,
             )
         } returns flowOf(transactions)
 
@@ -53,12 +54,13 @@ class GetTransactionsUseCaseTest {
                 startDate = null,
                 endDate = null,
                 limit = 10,
+                userId = null,
             )
         }
     }
 
     @Test
-    fun `default params delegate with limit 50`() = runTest {
+    fun `default params delegate with limit 50 and null userId`() = runTest {
         every {
             repo.observeTransactions(
                 walletId = null,
@@ -68,12 +70,66 @@ class GetTransactionsUseCaseTest {
                 startDate = null,
                 endDate = null,
                 limit = 50,
+                userId = null,
             )
         } returns flowOf(emptyList())
 
         useCase().test {
             assertThat(awaitItem()).isEmpty()
             awaitComplete()
+        }
+
+        verify(exactly = 1) {
+            repo.observeTransactions(
+                walletId = null,
+                familyId = null,
+                type = null,
+                categoryId = null,
+                startDate = null,
+                endDate = null,
+                limit = 50,
+                userId = null,
+            )
+        }
+    }
+
+    @Test
+    fun `forwards userId to repository`() = runTest {
+        every {
+            repo.observeTransactions(
+                walletId = "wallet-1",
+                familyId = "fam-1",
+                type = null,
+                categoryId = null,
+                startDate = null,
+                endDate = null,
+                limit = 50,
+                userId = "u-2",
+            )
+        } returns flowOf(emptyList())
+
+        useCase(
+            GetTransactionsUseCase.Params(
+                walletId = "wallet-1",
+                familyId = "fam-1",
+                userId = "u-2",
+            ),
+        ).test {
+            assertThat(awaitItem()).isEmpty()
+            awaitComplete()
+        }
+
+        verify(exactly = 1) {
+            repo.observeTransactions(
+                walletId = "wallet-1",
+                familyId = "fam-1",
+                type = null,
+                categoryId = null,
+                startDate = null,
+                endDate = null,
+                limit = 50,
+                userId = "u-2",
+            )
         }
     }
 

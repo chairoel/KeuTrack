@@ -16,6 +16,7 @@ interface TransactionLocalDataSource {
         startMs: Long?,
         endMs: Long?,
         limit: Int,
+        userId: String? = null,
     ): Flow<List<TransactionEntity>>
 
     fun observeRecent(limit: Int): Flow<List<TransactionEntity>>
@@ -25,6 +26,7 @@ interface TransactionLocalDataSource {
         familyId: String? = null,
         startMs: Long? = null,
         endMs: Long? = null,
+        userId: String? = null,
     ): Flow<List<AmountByTypeRow>>
 
     suspend fun getById(id: String): TransactionEntity?

@@ -18,6 +18,7 @@ class GetTransactionsUseCase @Inject constructor(
         val startDate: Instant? = null,
         val endDate: Instant? = null,
         val limit: Int = 50,
+        val userId: String? = null,
     )
 
     operator fun invoke(params: Params = Params()): Flow<List<Transaction>> =
@@ -29,5 +30,6 @@ class GetTransactionsUseCase @Inject constructor(
             startDate = params.startDate,
             endDate = params.endDate,
             limit = params.limit,
+            userId = params.userId,
         )
 }

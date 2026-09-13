@@ -49,6 +49,7 @@ class TransactionRepositoryImpl @Inject constructor(
         startDate: Instant?,
         endDate: Instant?,
         limit: Int,
+        userId: String?,
     ): Flow<List<Transaction>> =
         local.observeFiltered(
             walletId = walletId,
@@ -58,6 +59,7 @@ class TransactionRepositoryImpl @Inject constructor(
             startMs = startDate?.toEpochMilli(),
             endMs = endDate?.toEpochMilli(),
             limit = limit,
+            userId = userId,
         ).map { entities -> entities.map(mapper::toDomain) }
 
     override fun observeRecentTransactions(limit: Int): Flow<List<Transaction>> =
@@ -68,12 +70,14 @@ class TransactionRepositoryImpl @Inject constructor(
         familyId: String?,
         startDate: Instant?,
         endDate: Instant?,
+        userId: String?,
     ): Flow<PeriodTotals> =
         local.observeSumsByType(
             walletId = walletId,
             familyId = familyId,
             startMs = startDate?.toEpochMilli(),
             endMs = endDate?.toEpochMilli(),
+            userId = userId,
         ).map { rows ->
             var income = 0L
             var expense = 0L

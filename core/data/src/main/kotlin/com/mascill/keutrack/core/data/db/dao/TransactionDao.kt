@@ -17,6 +17,7 @@ interface TransactionDao {
         SELECT * FROM transactions
         WHERE (:walletId IS NULL OR walletId = :walletId)
           AND (:familyId IS NULL OR familyId = :familyId)
+          AND (:userId IS NULL OR userId = :userId)
           AND (:type IS NULL OR type = :type)
           AND (:categoryId IS NULL OR categoryId = :categoryId)
           AND (:startMs IS NULL OR dateEpochMs >= :startMs)
@@ -33,6 +34,7 @@ interface TransactionDao {
         startMs: Long?,
         endMs: Long?,
         limit: Int,
+        userId: String?,
     ): Flow<List<TransactionEntity>>
 
     @Query(
@@ -40,6 +42,7 @@ interface TransactionDao {
         SELECT type AS type, SUM(amount) AS total FROM transactions
         WHERE (:walletId IS NULL OR walletId = :walletId)
           AND (:familyId IS NULL OR familyId = :familyId)
+          AND (:userId IS NULL OR userId = :userId)
           AND (:startMs IS NULL OR dateEpochMs >= :startMs)
           AND (:endMs IS NULL OR dateEpochMs <= :endMs)
         GROUP BY type
@@ -50,6 +53,7 @@ interface TransactionDao {
         familyId: String?,
         startMs: Long?,
         endMs: Long?,
+        userId: String?,
     ): Flow<List<AmountByTypeRow>>
 
     @Query("SELECT * FROM transactions ORDER BY dateEpochMs DESC LIMIT :limit")

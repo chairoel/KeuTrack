@@ -3,7 +3,7 @@
 > **Modul target:** `:core:domain` + `:core:data` (param `userId` di observe list + SUM) → `:features:transaction` (chip penulis + VM)  
 > **Estimasi:** ~0.8–1.2 hari · **19a** ~0.3 hari (query) · **19b** ~0.4–0.6 hari (VM + chip) · **19c** ~0.2 hari (tes + preview)  
 > **Prasyarat:** Phase 13b ✅ (chip periode + empty filter) · Phase 15 ✅ (totals `SUM` mirror filter list) · Phase 17e ✅ (`userId` = penulis; `addedByName` = label) · Phase 18 swipe **tidak** memblokir  
-> **Status:** **Not started**  
+> **Status:** **19a done** (2026-09-13) — `userId` di DAO / repo / use case + tes forward. **19b–19c** belum.  
 > **Hasil akhir:** Di Riwayat, user bisa memfilter transaksi menurut **penulis** (`Transaction.userId`). Chip **Semua** / **Saya** / nama anggota. List **dan** kartu PEMASUKAN / PENGELUARAN memakai filter yang sama di Room. Default tetap Semua penulis.  
 > **Asal-usul:** History keluarga menampilkan tx banyak anggota (`authorLabel` Phase 17e; breakdown Family sudah group by `userId`). Periode (13b) sudah ada; filter penulis belum. Phase 16 §1 menunda “filter tipe/kategori” — **bukan** filter penulis; 19 mengisi gap atribusi.  
 > **Tidak memblokir Phase 18c:** swipe / hapus list tetap. `assembleDevDebug` 18c boleh digabung QA 19.
@@ -14,13 +14,13 @@
 
 | Slice | Task | Status |
 |-------|------|--------|
-| 19a | Task 1–2 — `userId` di DAO / repo / use case + tes forward param | **Not started** |
+| 19a | Task 1–2 — `userId` di DAO / repo / use case + tes forward param | **Done** (2026-09-13) |
 | 19b | Task 3–5 — VM + `HistoryAuthorBar` + empty copy | **Not started** |
 | 19c | Task 6 — tes VM + preview + `assembleDevDebug` | **Not started** |
 
-**Terakhir dikerjakan:** Plan dokumen ini (2026-09-13).
+**Terakhir dikerjakan:** 19a — `userId` nullable di `observeFiltered` / `observeSumsByType` dan diteruskan lewat repo + `GetTransactionsUseCase` / `GetPeriodTotalsUseCase` (default `null` = semua penulis).
 
-**Berikutnya:** 19a query dulu. Jangan mulai chip UI sebelum `GetTransactionsUseCase` + `GetPeriodTotalsUseCase` menerima `userId`.
+**Berikutnya:** 19b — VM + chip penulis. Jangan merge 19a tanpa UI History (P20).
 
 ---
 
@@ -604,10 +604,10 @@ Preview:
 
 ### 15.1 19a
 
-- [ ] `observeFiltered` / `observeSumsByType` hormat `userId` nullable
-- [ ] Default `null` = semua penulis (semantik lama)
-- [ ] Use case meneruskan `userId` ke repo
-- [ ] Tes domain/data hijau setelah signature baru
+- [x] `observeFiltered` / `observeSumsByType` hormat `userId` nullable
+- [x] Default `null` = semua penulis (semantik lama)
+- [x] Use case meneruskan `userId` ke repo
+- [x] Tes domain/data hijau setelah signature baru
 
 ### 15.2 19b
 
