@@ -40,7 +40,7 @@ import kotlin.coroutines.cancellation.CancellationException
 @HiltViewModel
 class TransactionHistoryViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
-    userRepository: UserRepository,
+    private val userRepository: UserRepository,
     private val getTransactions: GetTransactionsUseCase,
     private val getPeriodTotals: GetPeriodTotalsUseCase,
     private val getCategories: GetCategoriesUseCase,
@@ -53,6 +53,7 @@ class TransactionHistoryViewModel @Inject constructor(
     private val scope = readHistoryScope(savedStateHandle)
     private val period = MutableStateFlow(readPeriod(savedStateHandle))
     private val periodRangeError = MutableStateFlow<String?>(null)
+    private val noticeMessage = MutableStateFlow<String?>(null)
     private val cycleStartDay = observePeriodPreferences().map { it.cycleStartDay }
     private val periodContext =
         combine(period, cycleStartDay) { selection, startDay -> selection to startDay }
@@ -133,12 +134,19 @@ class TransactionHistoryViewModel @Inject constructor(
             combine(transactionsFlow, totalsFlow) { transactions, totals ->
                 transactions to totals
             },
+            combine(userRepository.getCurrentUser(), periodRangeError, noticeMessage) {
+                    user,
+                    rangeError,
+                    notice,
+                ->
+                Triple(user?.uid, rangeError, notice)
+            },
             getCategories(),
             getWalletSummary(),
             periodContext,
-            periodRangeError,
-        ) { listAndTotals, categories, walletSummary, context, rangeError ->
+        ) { listAndTotals, userContext, categories, walletSummary, context ->
             val (transactions, totals) = listAndTotals
+            val (currentUserId, rangeError, notice) = userContext
             val (selection, startDay) = context
             val categoriesById = categories.associateBy { it.id }
             val walletsById = TransactionUiMapper.mapWallets(walletSummary)
@@ -149,8 +157,9 @@ class TransactionHistoryViewModel @Inject constructor(
                         transactions = transactions,
                         categoriesById = categoriesById,
                         walletsById = walletsById,
+                        currentUserId = currentUserId,
                     ),
-                errorMessage = null,
+                errorMessage = notice,
                 scope = scope,
                 periodPreset = selection.preset,
                 customFrom = selection.customFrom,
@@ -217,6 +226,14 @@ class TransactionHistoryViewModel @Inject constructor(
 
     fun onClearPeriodFilter() {
         applyPeriod(HistoryPeriod())
+    }
+
+    fun onReadOnlyTransactionTapped() {
+        noticeMessage.value = ERR_NOT_OWNER
+    }
+
+    fun dismissNotice() {
+        noticeMessage.value = null
     }
 
     private fun applyPeriod(next: HistoryPeriod) {
@@ -300,6 +317,7 @@ class TransactionHistoryViewModel @Inject constructor(
         const val LAST_7_INCLUSIVE_OFFSET = 6L
         const val ERR_LOAD_FAILED = "Gagal memuat riwayat transaksi"
         const val ERR_INVALID_RANGE = "Tanggal mulai tidak boleh setelah tanggal akhir."
+        const val ERR_NOT_OWNER = "Hanya penulis yang bisa mengubah transaksi ini"
 
         fun readHistoryScope(savedStateHandle: SavedStateHandle): HistoryScope =
             when {

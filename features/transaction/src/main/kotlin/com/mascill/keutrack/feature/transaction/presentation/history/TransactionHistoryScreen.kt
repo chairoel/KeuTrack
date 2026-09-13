@@ -77,6 +77,7 @@ fun TransactionHistoryScreen(
     onBack: () -> Unit,
     onAddTransaction: () -> Unit,
     onTransactionClick: (String) -> Unit = {},
+    onReadOnlyTransactionClick: () -> Unit = {},
     onDismissError: () -> Unit = {},
     onPeriodPresetSelected: (HistoryPeriodPreset) -> Unit = {},
     onCustomRangeConfirmed: (LocalDate, LocalDate) -> Unit = { _, _ -> },
@@ -199,7 +200,13 @@ fun TransactionHistoryScreen(
                             items(uiState.items, key = { it.id }) { row ->
                                 TransactionHistoryRow(
                                     row = row,
-                                    onClick = { onTransactionClick(row.id) },
+                                    onClick = {
+                                        if (row.canEdit) {
+                                            onTransactionClick(row.id)
+                                        } else {
+                                            onReadOnlyTransactionClick()
+                                        }
+                                    },
                                 )
                             }
                         }

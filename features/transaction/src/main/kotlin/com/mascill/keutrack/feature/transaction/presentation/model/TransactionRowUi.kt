@@ -37,6 +37,8 @@ data class TransactionRowUi(
     val walletLabel: String,
     val categoryIcon: TransactionCategoryIcon,
     val syncStatus: SyncStatus = SyncStatus.SYNCED,
+    val canEdit: Boolean = true,
+    val authorLabel: String? = null,
 )
 
 fun TransactionCategoryIcon.toImageVector(): ImageVector =

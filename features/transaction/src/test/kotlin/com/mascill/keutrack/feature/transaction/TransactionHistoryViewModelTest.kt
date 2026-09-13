@@ -100,9 +100,65 @@ class TransactionHistoryViewModelTest {
             assertThat(state.items).hasSize(1)
             assertThat(state.items.first().title).isEqualTo("Kopi")
             assertThat(state.items.first().amountLabel).isEqualTo("Rp 8.000")
+            assertThat(state.items.first().canEdit).isTrue()
             cancelAndIgnoreRemainingEvents()
         }
     }
+
+    @Test
+    fun `family row by another member is read only`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            stub(
+                transactions =
+                    listOf(
+                        Transaction(
+                            id = "tx-other",
+                            walletId = "w-fam",
+                            userId = "user-2",
+                            familyId = "fam-1",
+                            type = TransactionType.EXPENSE,
+                            amount = 12_000L,
+                            categoryId = "c",
+                            note = "Belanja Budi",
+                            date = Instant.parse("2026-08-01T00:00:00Z"),
+                            addedByName = "Budi",
+                        ),
+                    ),
+                familyId = "fam-1",
+                familyOnly = true,
+            )
+            val vm = createViewModel(familyOnly = true)
+
+            vm.uiState.test {
+                skipItems(1)
+                advanceUntilIdle()
+                val state = awaitItem()
+                assertThat(state.items.first().canEdit).isFalse()
+                assertThat(state.items.first().authorLabel).isEqualTo("Budi")
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `read only tap shows author only notice`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            stub(emptyList())
+            val vm = createViewModel()
+
+            vm.uiState.test {
+                skipItems(1)
+                advanceUntilIdle()
+                awaitItem()
+                vm.onReadOnlyTransactionTapped()
+                advanceUntilIdle()
+                assertThat(expectMostRecentItem().errorMessage)
+                    .isEqualTo("Hanya penulis yang bisa mengubah transaksi ini")
+                vm.dismissNotice()
+                advanceUntilIdle()
+                assertThat(expectMostRecentItem().errorMessage).isNull()
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
 
     @Test
     fun `family only loads transactions for current family`() =

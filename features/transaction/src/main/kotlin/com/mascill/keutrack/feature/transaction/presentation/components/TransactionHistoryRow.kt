@@ -45,6 +45,7 @@ private const val TXN_CHIP_BG_ALPHA = 0.7f
 private const val TXN_EXPENSE_PREFIX = "- "
 private const val TXN_INCOME_PREFIX = "+ "
 private const val TXN_SUBTITLE_SEPARATOR = " • "
+private const val TXN_AUTHOR_PREFIX = "oleh "
 private const val TXN_SYNC_BADGE = 16
 private const val TXN_SYNC_ICON = 11
 private const val TXN_LOCAL_CD = "Belum tersinkron ke cloud"
@@ -122,7 +123,17 @@ fun TransactionHistoryRow(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = row.categoryLabel + TXN_SUBTITLE_SEPARATOR + row.timeLabel,
+                    text =
+                        buildString {
+                            append(row.categoryLabel)
+                            append(TXN_SUBTITLE_SEPARATOR)
+                            append(row.timeLabel)
+                            row.authorLabel?.let { author ->
+                                append(TXN_SUBTITLE_SEPARATOR)
+                                append(TXN_AUTHOR_PREFIX)
+                                append(author)
+                            }
+                        },
                     style = typography.bodyRegular12,
                     color = textColors.body,
                     maxLines = 1,

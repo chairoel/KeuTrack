@@ -118,12 +118,14 @@ internal object TransactionUiMapper {
         transactions: List<Transaction>,
         categoriesById: Map<String, Category>,
         walletsById: Map<String, Wallet>,
+        currentUserId: String? = null,
     ): List<TransactionRowUi> =
         transactions.map { tx ->
             val category = categoriesById[tx.categoryId]
             val categoryName = category?.name ?: LABEL_OTHER_CATEGORY
             val title = tx.note?.takeIf { it.isNotBlank() } ?: categoryName
             val wallet = walletsById[tx.walletId]
+            val canEdit = !currentUserId.isNullOrBlank() && tx.userId == currentUserId
             TransactionRowUi(
                 id = tx.id,
                 title = title,
@@ -138,6 +140,8 @@ internal object TransactionUiMapper {
                     },
                 categoryIcon = iconKeyToCategoryIcon(category?.icon),
                 syncStatus = tx.syncStatus,
+                canEdit = canEdit,
+                authorLabel = tx.addedByName.takeIf { it.isNotBlank() && !canEdit },
             )
         }
 
