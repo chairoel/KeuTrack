@@ -625,6 +625,7 @@ Boleh satu PR 18a+18b+18c. Jangan satukan dengan Publish rules / sync 17.
 | **17** | ACL 17e wajib dihormati. Sync/outbox **bukan** kerja 18. Swipe yang “sengaja belum” di 17 = dokumen ini |
 | **15** | Totals Flow otomatis setelah delete |
 | **13** | Filter periode tidak berubah; reset reveal jika id tidak ada di `items` |
+| **19** | Filter penulis (`userId`) di History — [`PHASE_19_HISTORY_AUTHOR_FILTER.md`](./PHASE_19_HISTORY_AUTHOR_FILTER.md); tidak mengubah swipe |
 | **5 / 12** | Form create/keypad tidak berubah |
 | **9** | Tes UI Compose penuh tidak wajib; 18 wajib tes VM delete |
 | **Dashboard** | Recent tap/swipe tetap di luar (16 P16 / 17) |

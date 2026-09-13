@@ -624,6 +624,7 @@ Jangan merge 15a ke `main` tanpa 15b: API lebih luas tanpa konsumen History. Jan
 | 5 | History list; 15 menambah header |
 | 6 / 11 | Family insights/budget **tidak** diubah |
 | Future | Pagination History; kartu Net; design-system stat row jika ≥2 feature |
+| **19** | Filter penulis History — totals **wajib** ikut `userId` (kontrak P3) — [`PHASE_19_HISTORY_AUTHOR_FILTER.md`](./PHASE_19_HISTORY_AUTHOR_FILTER.md) |
 
 ---
 

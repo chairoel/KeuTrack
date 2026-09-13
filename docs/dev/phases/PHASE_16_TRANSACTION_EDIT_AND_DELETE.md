@@ -94,6 +94,7 @@ History list dan `HistoryPeriodTotalsRow` (Phase 15) tetap Flow Room. Setelah 16
 - ACL “hanya penulis yang boleh edit”
 - Firestore update/delete yang benar (tombstone, reverse remote increment) — **Phase 17** (ex-16d)
 - Pagination History, filter tipe/kategori
+- Filter History by penulis (`userId`) — **Phase 19**
 - Edit dari Dashboard recent (opsional tipis; jangan blokir)
 
 ---
