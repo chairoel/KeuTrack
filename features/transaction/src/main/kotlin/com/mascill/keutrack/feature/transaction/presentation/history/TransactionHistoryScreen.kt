@@ -37,6 +37,7 @@ import com.mascill.keutrack.core.designsystem.model.KeuTrackButtonStyle
 import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
 import com.mascill.keutrack.core.domain.model.SyncStatus
 import com.mascill.keutrack.feature.transaction.presentation.components.DateRangePickerDialogHost
+import com.mascill.keutrack.feature.transaction.presentation.components.DeleteTransactionDialog
 import com.mascill.keutrack.feature.transaction.presentation.components.HistoryPeriodBar
 import com.mascill.keutrack.feature.transaction.presentation.components.HistoryPeriodTotalsRow
 import com.mascill.keutrack.feature.transaction.presentation.components.SwipeRevealRow
@@ -79,7 +80,7 @@ fun TransactionHistoryScreen(
     onBack: () -> Unit,
     onAddTransaction: () -> Unit,
     onTransactionClick: (String) -> Unit = {},
-    onDeleteClick: (String) -> Unit = {},
+    onDeleteConfirmed: (String) -> Unit = {},
     onDismissError: () -> Unit = {},
     onPeriodPresetSelected: (HistoryPeriodPreset) -> Unit = {},
     onCustomRangeConfirmed: (LocalDate, LocalDate) -> Unit = { _, _ -> },
@@ -92,10 +93,21 @@ fun TransactionHistoryScreen(
     val today = LocalDate.now()
     var showCustomRangePicker by remember { mutableStateOf(false) }
     var revealedId by remember { mutableStateOf<String?>(null) }
+    var pendingDeleteId by remember { mutableStateOf<String?>(null) }
     val visibleItemIds = remember(uiState.items) { uiState.items.map { it.id } }
 
     LaunchedEffect(visibleItemIds) {
         if (revealedId != null && revealedId !in visibleItemIds) {
+            revealedId = null
+        }
+        if (pendingDeleteId != null && pendingDeleteId !in visibleItemIds) {
+            pendingDeleteId = null
+        }
+    }
+
+    LaunchedEffect(uiState.isDeleting) {
+        if (!uiState.isDeleting && pendingDeleteId != null && uiState.errorMessage == null) {
+            pendingDeleteId = null
             revealedId = null
         }
     }
@@ -223,7 +235,7 @@ fun TransactionHistoryScreen(
                                         revealedId = null
                                         onTransactionClick(row.id)
                                     },
-                                    onDelete = { onDeleteClick(row.id) },
+                                    onDelete = { pendingDeleteId = row.id },
                                 ) { contentShape ->
                                     TransactionHistoryRow(
                                         row = row,
@@ -257,6 +269,14 @@ fun TransactionHistoryScreen(
         onDismiss = { showCustomRangePicker = false },
         maxDate = today,
     )
+
+    pendingDeleteId?.let { deleteId ->
+        DeleteTransactionDialog(
+            isBusy = uiState.isDeleting,
+            onDismiss = { pendingDeleteId = null },
+            onConfirm = { onDeleteConfirmed(deleteId) },
+        )
+    }
 }
 
 @Composable

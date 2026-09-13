@@ -6,7 +6,9 @@ import androidx.lifecycle.viewModelScope
 import com.mascill.keutrack.core.common.utils.CommonDispatcher
 import com.mascill.keutrack.core.common.utils.PeriodBounds
 import com.mascill.keutrack.core.domain.model.PeriodTotals
+import com.mascill.keutrack.core.domain.model.TransactionWriteResult
 import com.mascill.keutrack.core.domain.repository.UserRepository
+import com.mascill.keutrack.core.domain.usecase.DeleteTransactionUseCase
 import com.mascill.keutrack.core.domain.usecase.GetCategoriesUseCase
 import com.mascill.keutrack.core.domain.usecase.GetPeriodTotalsUseCase
 import com.mascill.keutrack.core.domain.usecase.GetTransactionsUseCase
@@ -46,6 +48,7 @@ class TransactionHistoryViewModel @Inject constructor(
     private val getCategories: GetCategoriesUseCase,
     private val getWalletSummary: GetWalletSummaryUseCase,
     private val retryPendingSync: RetryPendingSyncUseCase,
+    private val deleteTransaction: DeleteTransactionUseCase,
     observePeriodPreferences: ObservePeriodPreferencesUseCase,
     private val dispatcher: CommonDispatcher,
 ) : ViewModel() {
@@ -54,6 +57,7 @@ class TransactionHistoryViewModel @Inject constructor(
     private val period = MutableStateFlow(readPeriod(savedStateHandle))
     private val periodRangeError = MutableStateFlow<String?>(null)
     private val noticeMessage = MutableStateFlow<String?>(null)
+    private val isDeleting = MutableStateFlow(false)
     private val cycleStartDay = observePeriodPreferences().map { it.cycleStartDay }
     private val periodContext =
         combine(period, cycleStartDay) { selection, startDay -> selection to startDay }
@@ -143,10 +147,13 @@ class TransactionHistoryViewModel @Inject constructor(
             },
             getCategories(),
             getWalletSummary(),
-            periodContext,
-        ) { listAndTotals, userContext, categories, walletSummary, context ->
+            combine(periodContext, isDeleting) { context, deleting ->
+                context to deleting
+            },
+        ) { listAndTotals, userContext, categories, walletSummary, periodAndDeleting ->
             val (transactions, totals) = listAndTotals
             val (currentUserId, rangeError, notice) = userContext
+            val (context, deleting) = periodAndDeleting
             val (selection, startDay) = context
             val categoriesById = categories.associateBy { it.id }
             val walletsById = TransactionUiMapper.mapWallets(walletSummary)
@@ -175,6 +182,7 @@ class TransactionHistoryViewModel @Inject constructor(
                 periodRangeError = rangeError,
                 incomeTotal = totals.incomeTotal,
                 expenseTotal = totals.expenseTotal,
+                isDeleting = deleting,
             )
         }.catch { e ->
             emit(
@@ -230,6 +238,38 @@ class TransactionHistoryViewModel @Inject constructor(
 
     fun onReadOnlyTransactionTapped() {
         noticeMessage.value = ERR_NOT_OWNER
+    }
+
+    fun onDeleteConfirmed(id: String) {
+        if (id.isBlank() || !isDeleting.compareAndSet(expect = false, update = true)) return
+        noticeMessage.value = null
+        viewModelScope.launch(dispatcher.io) {
+            try {
+                when (val result = deleteTransaction(id)) {
+                    TransactionWriteResult.Success -> Unit
+                    TransactionWriteResult.Error.NotOwner -> {
+                        noticeMessage.value = ERR_NOT_OWNER
+                    }
+                    TransactionWriteResult.Error.MissingId,
+                    TransactionWriteResult.Error.NotFound,
+                    TransactionWriteResult.Error.InvalidAmount,
+                    TransactionWriteResult.Error.MissingWallet,
+                    TransactionWriteResult.Error.MissingCategory,
+                    -> {
+                        noticeMessage.value = ERR_DELETE_FAILED
+                    }
+                    is TransactionWriteResult.Error.Unknown -> {
+                        noticeMessage.value = result.cause.message ?: ERR_DELETE_FAILED
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                noticeMessage.value = e.message ?: ERR_DELETE_FAILED
+            } finally {
+                isDeleting.value = false
+            }
+        }
     }
 
     fun dismissNotice() {
@@ -318,6 +358,7 @@ class TransactionHistoryViewModel @Inject constructor(
         const val ERR_LOAD_FAILED = "Gagal memuat riwayat transaksi"
         const val ERR_INVALID_RANGE = "Tanggal mulai tidak boleh setelah tanggal akhir."
         const val ERR_NOT_OWNER = "Hanya penulis yang bisa mengubah transaksi ini"
+        const val ERR_DELETE_FAILED = "Gagal menghapus transaksi"
 
         fun readHistoryScope(savedStateHandle: SavedStateHandle): HistoryScope =
             when {

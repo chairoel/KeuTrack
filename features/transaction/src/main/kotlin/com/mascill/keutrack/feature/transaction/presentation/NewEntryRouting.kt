@@ -32,7 +32,6 @@ fun NewEntryRouting(
         onDateSelected = viewModel::onDateSelected,
         onNoteChanged = viewModel::onNoteChanged,
         onSave = viewModel::onSave,
-        onDelete = viewModel::onDelete,
         onClearError = viewModel::clearError,
     )
 }

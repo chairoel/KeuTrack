@@ -25,7 +25,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.Icon
 import androidx.compose.material.Text
-import androidx.compose.material.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.CalendarToday
@@ -64,7 +63,6 @@ private const val NEW_ENTRY_NOTE_LABEL = "Note (optional)"
 private const val NEW_ENTRY_NOTE_PLACEHOLDER = "e.g. Lunch with team"
 private const val NEW_ENTRY_ADD_TRANSACTION = "Add transaction"
 private const val NEW_ENTRY_SAVE_CHANGES = "Simpan perubahan"
-private const val NEW_ENTRY_DELETE = "Hapus"
 private const val NEW_ENTRY_EXPENSE = "Expense"
 private const val NEW_ENTRY_INCOME = "Income"
 private const val NEW_ENTRY_NO_WALLET = "Buat dompet dulu sebelum menambah transaksi"
@@ -106,7 +104,6 @@ fun NewEntryFormContent(
     onSeeAllCategories: () -> Unit,
     onNoteChanged: (String) -> Unit,
     onSave: () -> Unit,
-    onDeleteClick: () -> Unit = {},
     onClearError: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -311,19 +308,6 @@ fun NewEntryFormContent(
                     enabled = uiState.hasWallet && !uiState.isSaving && uiState.categories.isNotEmpty(),
                     isLoading = uiState.isSaving,
                 )
-                if (uiState.isEditMode) {
-                    TextButton(
-                        onClick = onDeleteClick,
-                        enabled = !uiState.isSaving,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(
-                            text = NEW_ENTRY_DELETE,
-                            style = typography.bodyBold16,
-                            color = semantic.error,
-                        )
-                    }
-                }
             }
         }
     }

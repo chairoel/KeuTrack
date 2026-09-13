@@ -21,4 +21,5 @@ data class HistoryUIState(
     val periodRangeError: String? = null,
     val incomeTotal: Long = 0L,
     val expenseTotal: Long = 0L,
+    val isDeleting: Boolean = false,
 )

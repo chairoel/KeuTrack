@@ -24,6 +24,7 @@ fun TransactionHistoryRouting(
         onBack = onBack,
         onAddTransaction = onAddTransaction,
         onTransactionClick = onTransactionClick,
+        onDeleteConfirmed = viewModel::onDeleteConfirmed,
         onDismissError = viewModel::dismissNotice,
         onPeriodPresetSelected = viewModel::onPeriodPresetSelected,
         onCustomRangeConfirmed = viewModel::onCustomRangeConfirmed,

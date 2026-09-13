@@ -13,7 +13,6 @@ import com.mascill.keutrack.core.domain.model.TransactionWriteResult
 import com.mascill.keutrack.core.domain.model.User
 import com.mascill.keutrack.core.domain.repository.UserRepository
 import com.mascill.keutrack.core.domain.usecase.AddTransactionUseCase
-import com.mascill.keutrack.core.domain.usecase.DeleteTransactionUseCase
 import com.mascill.keutrack.core.domain.usecase.GetCategoriesUseCase
 import com.mascill.keutrack.core.domain.usecase.GetTransactionByIdUseCase
 import com.mascill.keutrack.core.domain.usecase.GetWalletSummaryUseCase
@@ -46,7 +45,6 @@ class NewEntryViewModel @Inject constructor(
     private val getTransactionById: GetTransactionByIdUseCase,
     private val addTransaction: AddTransactionUseCase,
     private val updateTransaction: UpdateTransactionUseCase,
-    private val deleteTransaction: DeleteTransactionUseCase,
     private val dispatcher: CommonDispatcher,
 ) : ViewModel() {
 
@@ -285,31 +283,6 @@ class NewEntryViewModel @Inject constructor(
         }
     }
 
-    fun onDelete() {
-        viewModelScope.launch(dispatcher.io) {
-            val id = formState.value.editingTransactionId
-            if (id.isNullOrBlank() || formState.value.isSaving) return@launch
-            if (uiState.value.isReadOnly) {
-                formState.update { it.copy(errorMessage = ERR_NOT_OWNER) }
-                return@launch
-            }
-
-            formState.update { it.copy(isSaving = true, errorMessage = null) }
-            try {
-                applyWriteResult(deleteTransaction(id), deleteAction = true)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                formState.update {
-                    it.copy(
-                        isSaving = false,
-                        errorMessage = e.message ?: ERR_DELETE_FAILED,
-                    )
-                }
-            }
-        }
-    }
-
     private suspend fun loadExistingTransaction(id: String) {
         try {
             val existing = getTransactionById(id)
@@ -357,11 +330,8 @@ class NewEntryViewModel @Inject constructor(
         }
     }
 
-    private fun applyWriteResult(
-        result: TransactionWriteResult,
-        deleteAction: Boolean = false,
-    ) {
-        val fallback = if (deleteAction) ERR_DELETE_FAILED else ERR_SAVE_FAILED
+    private fun applyWriteResult(result: TransactionWriteResult) {
+        val fallback = ERR_SAVE_FAILED
         when (result) {
             TransactionWriteResult.Success ->
                 formState.update { it.copy(isSaving = false, navigateBack = true) }
@@ -431,7 +401,6 @@ class NewEntryViewModel @Inject constructor(
         const val ERR_AMOUNT = "Amount must be greater than 0"
         const val ERR_CATEGORY = "Category must be selected"
         const val ERR_SAVE_FAILED = "Gagal menyimpan transaksi"
-        const val ERR_DELETE_FAILED = "Gagal menghapus"
         const val ERR_NOT_FOUND = "Transaksi tidak ditemukan"
         const val ERR_NOT_OWNER = "Hanya penulis yang bisa mengubah transaksi ini"
         const val ERR_LOAD_FAILED = "Gagal memuat form transaksi"

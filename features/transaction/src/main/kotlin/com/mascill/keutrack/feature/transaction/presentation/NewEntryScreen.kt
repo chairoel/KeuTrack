@@ -6,14 +6,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.material.AlertDialog
 import androidx.compose.material.CircularProgressIndicator
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
 import androidx.compose.material.Scaffold
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
-import androidx.compose.material.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.Restaurant
@@ -46,11 +44,6 @@ import java.time.LocalDate
 private const val NEW_ENTRY_TITLE = "Transaksi Baru"
 private const val EDIT_ENTRY_TITLE = "Edit Transaksi"
 private const val READ_ONLY_ENTRY_TITLE = "Detail Transaksi"
-private const val DELETE_DIALOG_TITLE = "Hapus transaksi?"
-private const val DELETE_DIALOG_BODY =
-    "Transaksi ini akan dihapus dari riwayat. Saldo dan anggaran akan disesuaikan."
-private const val DELETE_DIALOG_DISMISS = "Batal"
-private const val DELETE_DIALOG_CONFIRM = "Hapus"
 private const val NEW_ENTRY_TOP_BAR_ELEVATION = 4
 private const val NEW_ENTRY_TOP_BAR_PH = 8
 private const val NEW_ENTRY_TOP_BAR_PV = 4
@@ -68,7 +61,6 @@ fun NewEntryScreen(
     onDateSelected: (LocalDate) -> Unit,
     onNoteChanged: (String) -> Unit,
     onSave: () -> Unit,
-    onDelete: () -> Unit = {},
     onClearError: () -> Unit,
 ) {
     val pageBg = KeuTrackTheme.contentColors.pageColor
@@ -78,7 +70,6 @@ fun NewEntryScreen(
     var showDatePicker by rememberSaveable { mutableStateOf(false) }
     var showCategorySeeAll by rememberSaveable { mutableStateOf(false) }
     var showAmountKeypad by rememberSaveable { mutableStateOf(false) }
-    var showDeleteConfirm by rememberSaveable { mutableStateOf(false) }
 
     val overlayOpen = showWalletPicker || showDatePicker || showCategorySeeAll || showAmountKeypad
     BackHandler(enabled = overlayOpen) {
@@ -150,7 +141,6 @@ fun NewEntryScreen(
                     onSeeAllCategories = { if (!uiState.isReadOnly) showCategorySeeAll = true },
                     onNoteChanged = onNoteChanged,
                     onSave = onSave,
-                    onDeleteClick = { showDeleteConfirm = true },
                     onClearError = onClearError,
                     modifier = Modifier.padding(innerPadding),
                 )
@@ -199,58 +189,6 @@ fun NewEntryScreen(
         selectedDate = TransactionUiMapper.instantToLocalDate(uiState.selectedDate),
         onDateSelected = onDateSelected,
         onDismiss = { showDatePicker = false },
-    )
-
-    if (showDeleteConfirm) {
-        DeleteTransactionDialog(
-            isBusy = uiState.isSaving,
-            onDismiss = { showDeleteConfirm = false },
-            onConfirm = onDelete,
-        )
-    }
-}
-
-@Composable
-private fun DeleteTransactionDialog(
-    isBusy: Boolean,
-    onDismiss: () -> Unit,
-    onConfirm: () -> Unit,
-) {
-    val typography = KeuTrackTheme.typography
-    val textColors = KeuTrackTheme.textColors
-    val semantic = KeuTrackTheme.semanticColors
-
-    AlertDialog(
-        onDismissRequest = { if (!isBusy) onDismiss() },
-        title = {
-            Text(
-                text = DELETE_DIALOG_TITLE,
-                style = typography.headingBold20,
-                color = textColors.title,
-            )
-        },
-        text = {
-            Text(
-                text = DELETE_DIALOG_BODY,
-                style = typography.bodyRegular14,
-                color = textColors.body,
-            )
-        },
-        confirmButton = {
-            TextButton(onClick = onConfirm, enabled = !isBusy) {
-                Text(
-                    text = DELETE_DIALOG_CONFIRM,
-                    style = typography.bodyBold16,
-                    color = semantic.error,
-                )
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !isBusy) {
-                Text(text = DELETE_DIALOG_DISMISS)
-            }
-        },
-        backgroundColor = semantic.surfaceContainerLowest,
     )
 }
 
@@ -345,7 +283,6 @@ private fun NewEntryScreenEditPreview() {
             onDateSelected = {},
             onNoteChanged = {},
             onSave = {},
-            onDelete = {},
             onClearError = {},
         )
     }
@@ -371,7 +308,6 @@ private fun NewEntryScreenEditDarkPreview() {
             onDateSelected = {},
             onNoteChanged = {},
             onSave = {},
-            onDelete = {},
             onClearError = {},
         )
     }
