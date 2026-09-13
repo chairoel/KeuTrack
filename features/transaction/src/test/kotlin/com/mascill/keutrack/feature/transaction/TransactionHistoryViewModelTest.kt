@@ -14,6 +14,8 @@ import com.mascill.keutrack.core.domain.usecase.GetTransactionsUseCase
 import com.mascill.keutrack.core.domain.usecase.GetWalletSummaryUseCase
 import com.mascill.keutrack.core.domain.model.PeriodPreferences
 import com.mascill.keutrack.core.domain.model.PeriodTotals
+import com.mascill.keutrack.core.domain.model.TransactionWriteResult
+import com.mascill.keutrack.core.domain.usecase.DeleteTransactionUseCase
 import com.mascill.keutrack.core.domain.usecase.GetPeriodTotalsUseCase
 import com.mascill.keutrack.core.domain.usecase.ObservePeriodPreferencesUseCase
 import com.mascill.keutrack.core.domain.usecase.RetryPendingSyncUseCase
@@ -24,6 +26,8 @@ import com.mascill.keutrack.core.common.utils.PeriodBounds
 import com.mascill.keutrack.feature.transaction.presentation.history.TransactionHistoryViewModel
 import com.mascill.keutrack.feature.transaction.presentation.model.HistoryPeriodPreset
 import com.mascill.keutrack.feature.transaction.presentation.model.HistoryScope
+import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -49,6 +53,7 @@ class TransactionHistoryViewModelTest {
     private val getCategories = mockk<GetCategoriesUseCase>()
     private val getWalletSummary = mockk<GetWalletSummaryUseCase>()
     private val retryPendingSync = mockk<RetryPendingSyncUseCase>(relaxed = true)
+    private val deleteTransaction = mockk<DeleteTransactionUseCase>()
     private val observePeriodPreferences = mockk<ObservePeriodPreferencesUseCase>()
 
     @Test
@@ -100,9 +105,145 @@ class TransactionHistoryViewModelTest {
             assertThat(state.items).hasSize(1)
             assertThat(state.items.first().title).isEqualTo("Kopi")
             assertThat(state.items.first().amountLabel).isEqualTo("Rp 8.000")
+            assertThat(state.items.first().canEdit).isTrue()
             cancelAndIgnoreRemainingEvents()
         }
     }
+
+    @Test
+    fun `family row by another member is read only`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            stub(
+                transactions =
+                    listOf(
+                        Transaction(
+                            id = "tx-other",
+                            walletId = "w-fam",
+                            userId = "user-2",
+                            familyId = "fam-1",
+                            type = TransactionType.EXPENSE,
+                            amount = 12_000L,
+                            categoryId = "c",
+                            note = "Belanja Budi",
+                            date = Instant.parse("2026-08-01T00:00:00Z"),
+                            addedByName = "Budi",
+                        ),
+                    ),
+                familyId = "fam-1",
+                familyOnly = true,
+            )
+            val vm = createViewModel(familyOnly = true)
+
+            vm.uiState.test {
+                skipItems(1)
+                advanceUntilIdle()
+                val state = awaitItem()
+                assertThat(state.items.first().canEdit).isFalse()
+                assertThat(state.items.first().authorLabel).isEqualTo("Budi")
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `read only tap shows author only notice`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            stub(emptyList())
+            val vm = createViewModel()
+
+            vm.uiState.test {
+                skipItems(1)
+                advanceUntilIdle()
+                awaitItem()
+                vm.onReadOnlyTransactionTapped()
+                advanceUntilIdle()
+                assertThat(expectMostRecentItem().errorMessage)
+                    .isEqualTo("Hanya penulis yang bisa mengubah transaksi ini")
+                vm.dismissNotice()
+                advanceUntilIdle()
+                assertThat(expectMostRecentItem().errorMessage).isNull()
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `onDeleteConfirmed owned transaction calls use case once`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            stub(emptyList())
+            val vm = createViewModel()
+
+            vm.uiState.test {
+                skipItems(1)
+                advanceUntilIdle()
+                awaitItem()
+                vm.onDeleteConfirmed("tx-1")
+                advanceUntilIdle()
+                val state = expectMostRecentItem()
+                assertThat(state.isDeleting).isFalse()
+                assertThat(state.errorMessage).isNull()
+                cancelAndIgnoreRemainingEvents()
+            }
+
+            coVerify(exactly = 1) { deleteTransaction("tx-1") }
+        }
+
+    @Test
+    fun `onDeleteConfirmed NotOwner shows author only notice`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            stub(emptyList())
+            coEvery { deleteTransaction(any()) } returns TransactionWriteResult.Error.NotOwner
+            val vm = createViewModel()
+
+            vm.uiState.test {
+                skipItems(1)
+                advanceUntilIdle()
+                awaitItem()
+                vm.onDeleteConfirmed("tx-other")
+                advanceUntilIdle()
+                val state = expectMostRecentItem()
+                assertThat(state.isDeleting).isFalse()
+                assertThat(state.errorMessage)
+                    .isEqualTo("Hanya penulis yang bisa mengubah transaksi ini")
+                cancelAndIgnoreRemainingEvents()
+            }
+
+            coVerify(exactly = 1) { deleteTransaction("tx-other") }
+        }
+
+    @Test
+    fun `onDeleteConfirmed unknown error shows delete failed notice`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            stub(emptyList())
+            coEvery { deleteTransaction(any()) } returns
+                TransactionWriteResult.Error.Unknown(IllegalStateException("boom"))
+            val vm = createViewModel()
+
+            vm.uiState.test {
+                skipItems(1)
+                advanceUntilIdle()
+                awaitItem()
+                vm.onDeleteConfirmed("tx-1")
+                advanceUntilIdle()
+                val state = expectMostRecentItem()
+                assertThat(state.isDeleting).isFalse()
+                assertThat(state.errorMessage).isEqualTo("boom")
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `onDeleteConfirmed blank id is ignored`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            stub(emptyList())
+            val vm = createViewModel()
+            advanceUntilIdle()
+
+            vm.onDeleteConfirmed("  ")
+            advanceUntilIdle()
+
+            assertThat(vm.uiState.value.isDeleting).isFalse()
+            assertThat(vm.uiState.value.errorMessage).isNull()
+            coVerify(exactly = 0) { deleteTransaction(any()) }
+        }
 
     @Test
     fun `family only loads transactions for current family`() =
@@ -567,6 +708,7 @@ class TransactionHistoryViewModelTest {
             ),
         )
         every { observePeriodPreferences() } returns flowOf(PeriodPreferences())
+        coEvery { deleteTransaction(any()) } returns TransactionWriteResult.Success
     }
 
     private fun createViewModel(
@@ -586,6 +728,7 @@ class TransactionHistoryViewModelTest {
         getCategories = getCategories,
         getWalletSummary = getWalletSummary,
         retryPendingSync = retryPendingSync,
+        deleteTransaction = deleteTransaction,
         observePeriodPreferences = observePeriodPreferences,
         dispatcher = testCommonDispatcher(mainDispatcherRule.testDispatcher),
     )

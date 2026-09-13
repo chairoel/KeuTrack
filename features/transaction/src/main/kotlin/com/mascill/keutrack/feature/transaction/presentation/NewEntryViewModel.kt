@@ -1,5 +1,6 @@
 package com.mascill.keutrack.feature.transaction.presentation
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mascill.keutrack.core.common.utils.CommonDispatcher
@@ -8,11 +9,14 @@ import com.mascill.keutrack.core.domain.model.Category
 import com.mascill.keutrack.core.domain.model.SyncStatus
 import com.mascill.keutrack.core.domain.model.Transaction
 import com.mascill.keutrack.core.domain.model.TransactionType
+import com.mascill.keutrack.core.domain.model.TransactionWriteResult
 import com.mascill.keutrack.core.domain.model.User
 import com.mascill.keutrack.core.domain.repository.UserRepository
 import com.mascill.keutrack.core.domain.usecase.AddTransactionUseCase
 import com.mascill.keutrack.core.domain.usecase.GetCategoriesUseCase
+import com.mascill.keutrack.core.domain.usecase.GetTransactionByIdUseCase
 import com.mascill.keutrack.core.domain.usecase.GetWalletSummaryUseCase
+import com.mascill.keutrack.core.domain.usecase.UpdateTransactionUseCase
 import com.mascill.keutrack.core.domain.usecase.WalletSummary
 import com.mascill.keutrack.feature.transaction.presentation.model.EntryTransactionKind
 import com.mascill.keutrack.feature.transaction.presentation.model.NewEntryUIState
@@ -34,14 +38,24 @@ import kotlin.coroutines.cancellation.CancellationException
 
 @HiltViewModel
 class NewEntryViewModel @Inject constructor(
+    savedStateHandle: SavedStateHandle,
     private val userRepository: UserRepository,
     private val getWalletSummary: GetWalletSummaryUseCase,
     private val getCategories: GetCategoriesUseCase,
+    private val getTransactionById: GetTransactionByIdUseCase,
     private val addTransaction: AddTransactionUseCase,
+    private val updateTransaction: UpdateTransactionUseCase,
     private val dispatcher: CommonDispatcher,
 ) : ViewModel() {
 
-    private val formState = MutableStateFlow(FormDraft())
+    private val formState = MutableStateFlow(
+        readEditingTransactionId(savedStateHandle).let { editingId ->
+            FormDraft(
+                editingTransactionId = editingId,
+                isLoadingEdit = editingId != null,
+            )
+        },
+    )
 
     private val data =
         combine(
@@ -56,8 +70,11 @@ class NewEntryViewModel @Inject constructor(
         combine(data, formState) { snapshot, draft ->
             val wallets = TransactionUiMapper.toWalletOptions(snapshot.walletSummary)
             val selectedWalletId =
-                draft.selectedWalletId
-                    ?: TransactionUiMapper.defaultWalletId(snapshot.walletSummary)
+                TransactionUiMapper.resolveSelectedWalletId(
+                    summary = snapshot.walletSummary,
+                    selectedWalletId = draft.selectedWalletId,
+                    selectedFamilyId = draft.preservedFamilyId,
+                )
             val categoriesForKind =
                 TransactionUiMapper.filterCategoriesForKind(snapshot.categories, draft.kind)
             val categoryUi = TransactionUiMapper.toNewEntryCategories(categoriesForKind)
@@ -71,10 +88,11 @@ class NewEntryViewModel @Inject constructor(
                     ?: user?.email.orEmpty()
 
             NewEntryUIState(
-                isLoading = false,
+                isLoading = draft.isLoadingEdit,
                 isSaving = draft.isSaving,
                 errorMessage = draft.errorMessage,
                 navigateBack = draft.navigateBack,
+                editingTransactionId = draft.editingTransactionId,
                 kind = draft.kind,
                 amount = draft.amount,
                 categories = categoryUi,
@@ -85,6 +103,7 @@ class NewEntryViewModel @Inject constructor(
                 note = draft.note,
                 userId = user?.uid,
                 addedByName = addedByName,
+                authorUserId = draft.preservedUserId,
             )
         }.catch { e ->
             emit(
@@ -99,7 +118,17 @@ class NewEntryViewModel @Inject constructor(
             initialValue = NewEntryUIState(),
         )
 
+    init {
+        val editingId = formState.value.editingTransactionId
+        if (editingId != null) {
+            viewModelScope.launch(dispatcher.io) {
+                loadExistingTransaction(editingId)
+            }
+        }
+    }
+
     fun onKindChanged(kind: EntryTransactionKind) {
+        if (uiState.value.isReadOnly) return
         formState.update {
             it.copy(
                 kind = kind,
@@ -110,6 +139,7 @@ class NewEntryViewModel @Inject constructor(
     }
 
     fun onDigit(digit: Long) {
+        if (uiState.value.isReadOnly) return
         formState.update { draft ->
             val next = draft.amount * 10L + digit
             if (next <= MAX_AMOUNT_RUPIAH) {
@@ -121,6 +151,7 @@ class NewEntryViewModel @Inject constructor(
     }
 
     fun onTripleZero() {
+        if (uiState.value.isReadOnly) return
         formState.update { draft ->
             if (draft.amount <= MAX_AMOUNT_RUPIAH / 1000L) {
                 draft.copy(amount = draft.amount * 1000L, errorMessage = null)
@@ -131,22 +162,26 @@ class NewEntryViewModel @Inject constructor(
     }
 
     fun onBackspace() {
+        if (uiState.value.isReadOnly) return
         formState.update { it.copy(amount = it.amount / 10L, errorMessage = null) }
     }
 
     fun onCategorySelected(categoryId: String) {
+        if (uiState.value.isReadOnly) return
         formState.update {
             it.copy(selectedCategoryId = categoryId, errorMessage = null)
         }
     }
 
     fun onWalletSelected(walletId: String) {
+        if (uiState.value.isReadOnly) return
         formState.update {
             it.copy(selectedWalletId = walletId, errorMessage = null)
         }
     }
 
     fun onDateSelected(date: LocalDate) {
+        if (uiState.value.isReadOnly) return
         formState.update {
             it.copy(
                 selectedDate = TransactionUiMapper.localDateToInstant(date),
@@ -156,6 +191,7 @@ class NewEntryViewModel @Inject constructor(
     }
 
     fun onNoteChanged(note: String) {
+        if (uiState.value.isReadOnly) return
         formState.update {
             it.copy(note = note.take(NOTE_MAX_LENGTH), errorMessage = null)
         }
@@ -172,6 +208,10 @@ class NewEntryViewModel @Inject constructor(
     fun onSave() {
         viewModelScope.launch(dispatcher.io) {
             if (formState.value.isSaving) return@launch
+            if (uiState.value.isReadOnly) {
+                formState.update { it.copy(errorMessage = ERR_NOT_OWNER) }
+                return@launch
+            }
 
             val state = uiState.value
             val walletId = state.selectedWalletId
@@ -199,12 +239,14 @@ class NewEntryViewModel @Inject constructor(
             }
 
             formState.update { it.copy(isSaving = true, errorMessage = null) }
+            val draft = formState.value
+            val editingId = draft.editingTransactionId
 
             val transaction =
                 Transaction(
-                    id = UUID.randomUUID().toString(),
+                    id = editingId ?: UUID.randomUUID().toString(),
                     walletId = walletId!!,
-                    userId = userId!!,
+                    userId = draft.preservedUserId ?: userId!!,
                     familyId = wallet!!.familyId,
                     type =
                         when (state.kind) {
@@ -215,27 +257,19 @@ class NewEntryViewModel @Inject constructor(
                     categoryId = categoryId!!,
                     note = state.note.takeIf { it.isNotBlank() },
                     date = state.selectedDate,
-                    addedByName = state.addedByName,
+                    addedByName = draft.preservedAddedByName ?: state.addedByName,
                     syncStatus = SyncStatus.PENDING,
+                    createdAt = draft.preservedCreatedAt ?: Instant.now(),
                 )
 
             try {
-                val result = addTransaction(transaction)
-                result.fold(
-                    onSuccess = {
-                        formState.update {
-                            it.copy(isSaving = false, navigateBack = true)
-                        }
-                    },
-                    onFailure = { error ->
-                        formState.update {
-                            it.copy(
-                                isSaving = false,
-                                errorMessage = error.message ?: ERR_SAVE_FAILED,
-                            )
-                        }
-                    },
-                )
+                val result =
+                    if (editingId != null) {
+                        updateTransaction(transaction)
+                    } else {
+                        addTransaction(transaction)
+                    }
+                applyWriteResult(result)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -246,6 +280,92 @@ class NewEntryViewModel @Inject constructor(
                     )
                 }
             }
+        }
+    }
+
+    private suspend fun loadExistingTransaction(id: String) {
+        try {
+            val existing = getTransactionById(id)
+            if (existing == null) {
+                formState.update {
+                    it.copy(
+                        isLoadingEdit = false,
+                        errorMessage = ERR_NOT_FOUND,
+                        navigateBack = true,
+                    )
+                }
+                return
+            }
+            formState.update {
+                it.copy(
+                    isLoadingEdit = false,
+                    editingTransactionId = existing.id,
+                    kind =
+                        when (existing.type) {
+                            TransactionType.EXPENSE -> EntryTransactionKind.Expense
+                            TransactionType.INCOME -> EntryTransactionKind.Income
+                        },
+                    amount = existing.amount,
+                    selectedCategoryId = existing.categoryId,
+                    selectedWalletId = existing.walletId,
+                    selectedDate = existing.date,
+                    note = existing.note.orEmpty(),
+                    preservedCreatedAt = existing.createdAt,
+                    preservedUserId = existing.userId,
+                    preservedAddedByName = existing.addedByName,
+                    preservedFamilyId = existing.familyId,
+                    errorMessage = null,
+                )
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            formState.update {
+                it.copy(
+                    isLoadingEdit = false,
+                    errorMessage = e.message ?: ERR_LOAD_FAILED,
+                    navigateBack = true,
+                )
+            }
+        }
+    }
+
+    private fun applyWriteResult(result: TransactionWriteResult) {
+        val fallback = ERR_SAVE_FAILED
+        when (result) {
+            TransactionWriteResult.Success ->
+                formState.update { it.copy(isSaving = false, navigateBack = true) }
+
+            TransactionWriteResult.Error.InvalidAmount ->
+                formState.update { it.copy(isSaving = false, errorMessage = ERR_AMOUNT) }
+
+            TransactionWriteResult.Error.MissingWallet ->
+                formState.update { it.copy(isSaving = false, errorMessage = ERR_NO_WALLET) }
+
+            TransactionWriteResult.Error.MissingCategory ->
+                formState.update { it.copy(isSaving = false, errorMessage = ERR_CATEGORY) }
+
+            TransactionWriteResult.Error.NotOwner ->
+                formState.update { it.copy(isSaving = false, errorMessage = ERR_NOT_OWNER) }
+
+            TransactionWriteResult.Error.MissingId,
+            TransactionWriteResult.Error.NotFound ->
+                formState.update {
+                    val pop = it.editingTransactionId != null
+                    it.copy(
+                        isSaving = false,
+                        errorMessage = if (pop) ERR_NOT_FOUND else fallback,
+                        navigateBack = pop,
+                    )
+                }
+
+            is TransactionWriteResult.Error.Unknown ->
+                formState.update {
+                    it.copy(
+                        isSaving = false,
+                        errorMessage = result.cause.message ?: fallback,
+                    )
+                }
         }
     }
 
@@ -262,18 +382,33 @@ class NewEntryViewModel @Inject constructor(
         val selectedWalletId: String? = null,
         val selectedDate: Instant = Instant.now(),
         val note: String = "",
+        val editingTransactionId: String? = null,
+        val preservedCreatedAt: Instant? = null,
+        val preservedUserId: String? = null,
+        val preservedAddedByName: String? = null,
+        val preservedFamilyId: String? = null,
+        val isLoadingEdit: Boolean = false,
         val isSaving: Boolean = false,
         val errorMessage: String? = null,
         val navigateBack: Boolean = false,
     )
 
     private companion object {
+        const val ARG_TRANSACTION_ID = "transactionId"
         const val NOTE_MAX_LENGTH = 120
         const val ERR_NO_WALLET = "Buat dompet dulu sebelum menambah transaksi"
         const val ERR_NO_USER = "Sesi tidak valid. Silakan login ulang"
         const val ERR_AMOUNT = "Amount must be greater than 0"
         const val ERR_CATEGORY = "Category must be selected"
         const val ERR_SAVE_FAILED = "Gagal menyimpan transaksi"
+        const val ERR_NOT_FOUND = "Transaksi tidak ditemukan"
+        const val ERR_NOT_OWNER = "Hanya penulis yang bisa mengubah transaksi ini"
         const val ERR_LOAD_FAILED = "Gagal memuat form transaksi"
+
+        fun readEditingTransactionId(handle: SavedStateHandle): String? =
+            when (val value = handle.get<Any>(ARG_TRANSACTION_ID)) {
+                is String -> value.takeIf { it.isNotBlank() }
+                else -> null
+            }
     }
 }

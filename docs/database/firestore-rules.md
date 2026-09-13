@@ -1,6 +1,6 @@
 # Firestore Security Rules (KeuTrack)
 
-**Last updated:** 22 August 2026 (Phase 11b — family budget pull + shared read)
+**Last updated:** 13 September 2026 (Phase 17e — tx update/delete author-only; budget `spent` member)
 
 This document explains the Firestore security rules used by KeuTrack and includes a copy you can paste into the Firebase Console.
 
@@ -30,8 +30,8 @@ KeuTrack is offline-first: the app writes to Room first, then WorkManager syncs 
 | `/users/{uid}` | Only that user | Path `uid` == `request.auth.uid` |
 | `/users/{uid}/category_summaries/{period}` | Only that user | Same as parent `uid` |
 | `/wallets/{walletId}` | Owner **or** family member (read); owner write; members may update `balance` only | `ownerId` / `familyId` |
-| `/transactions/{txId}` | Author **or** family member (read); author write | `userId` / `familyId` |
-| `/budgets/{budgetId}` | Creator **or** family member (read/list); creator write | `userId` / `familyId` |
+| `/transactions/{txId}` | Author **or** family member (read); author create / update / delete | `userId` / `familyId` |
+| `/budgets/{budgetId}` | Creator **or** family member (read/list); creator full write; members may update `spent` only | `userId` / `familyId` |
 | `/family_groups/{familyId}` | Signed-in members (create/join) | `ownerId` / `memberIds` |
 
 **Not covered yet:** `/categories`. Those writes will be denied until rules are added.
@@ -48,16 +48,23 @@ KeuTrack is offline-first: the app writes to Room first, then WorkManager syncs 
 - Family members may **get** wallet/transaction docs when `isFamilyMember(resource.data.familyId)`.
 - **List** on `/wallets` and `/transactions` is `allow list: if signedIn()` for MVP so clients can query `where familyId == F`. This is intentionally loose — harden with query-scoped constraints soon after green QA.
 - Shared family wallet sync: when member B adds a transaction, Firestore updates `wallets/{id}.balance` via `FieldValue.increment`. Members must be allowed to change **only** `balance` on family wallets — otherwise SyncWorker stays on `RETRY` with `PERMISSION_DENIED`.
-- Transaction create/update/delete remain author-only (`userId`); wallet delete remains owner-only.
+- Transaction **create / update / delete** stay author-only (`userId == request.auth.uid`). Family members may **read** shared txs. Phase 17e withdrew member write (16 P11). Wallet delete remains owner-only.
 - Pull sync: equality-only `familyId` query (no composite index required for MVP).
 
 ### Phase 10 notes (personal wallet restore)
 
 - Personal restore queries `wallets` with `where ownerId == uid` and `transactions` with `where userId == uid`. Both already pass `allow list: if signedIn()`.
 - Filter `type == personal` and `walletId == canonical` on the client (equality-only; no composite index required for MVP).
-- Phase 10 left `/budgets` `list: false`. Phase 11b loosens **list** (signed-in MVP) and **get** (creator or `isFamilyMember`) so Family tab can query `familyId` + `month`. `update`/`delete` stay creator-only.
+- Phase 10 left `/budgets` `list: false`. Phase 11b loosens **list** (signed-in MVP) and **get** (creator or `isFamilyMember`) so Family tab can query `familyId` + `month`. **Delete** stays creator-only. Phase 17 lets members **update `spent` only** (create/edit/delete expense reverse).
 - Orphan personal wallets from earlier reinstalls (extra `type=personal` docs for the same `ownerId`) are **not** auto-deleted remotely. Pick the oldest as canonical in the app; clean extras in Console if needed.
 - Harden follow-up (same caveat as 6c): `list` + `resource.data` on queries does **not** always constrain the queried field. Do not treat query-scoped `ownerId == request.auth.uid` as a trivial rules change.
+
+### Phase 17 notes (author-only tx write + budget `spent`)
+
+- **17e:** `update`/`delete` on `/transactions` is **author-only**. History family stays readable. App + UX refuse edit/hapus row penulis lain.
+- Budget `spent`: same pattern as wallet `balance`. Member create/edit/delete of **their own** family expense increments/reverses `spent`. Other budget fields stay creator-only.
+- Category summaries stay owner-only. Do not loosen so a member can write another user’s summary.
+- If Console still has 17d (`isFamilyMember` on tx `update`/`delete`), **revert and Publish**. Editing this markdown does not change live rules.
 
 ---
 
@@ -95,8 +102,10 @@ For top-level money collections (`wallets`, `transactions`, `budgets`):
    Client cannot create a document owned by someone else.
 2. **Get (including missing docs)** — allow when `resource == null` **or** the existing doc belongs to the signed-in user **or** the user is a family member on `familyId` (wallets, transactions, **budgets**).  
    Required because sync does `get()` before create (idempotency). A rule that only checks `resource.data.userId` **denies** reads of non-existent docs → `PERMISSION_DENIED`.
-3. **Update / delete** — `resource.data.<ownerField> == request.auth.uid`  
-   Only the current owner/creator can change or remove an existing document. Family members **cannot** overwrite another member’s budget.
+3. **Update / delete**
+   - **Wallets:** owner full update; family members may change **only** `balance` (SyncWorker increment). Delete stays owner-only.
+   - **Transactions:** author-only update/delete (`userId == auth`). Family members may **get** shared txs. Create still requires `request.resource.data.userId == request.auth.uid`.
+   - **Budgets:** creator full update/delete. Family members may update **only** `spent` (SyncWorker increment / reverse). They cannot change `limit` or delete the doc.
 4. **List** — wallets/transactions/budgets allow signed-in list for family pull MVP. Harden later: query-scoped `familyId` + membership (same caveat as Phase 6c — `list` + `resource.data` does not always constrain the queried field).
 
 ---
@@ -220,11 +229,13 @@ service cloud.firestore {
       // MVP: signed-in list for pull by familyId — harden later
       allow list: if signedIn();
 
+      // Phase 17e: only the author may update/delete (family or personal).
       allow update, delete: if signedIn()
         && resource.data.userId == request.auth.uid;
     }
 
     // Budgets: creator write; family members may read/list (Phase 11b)
+    // and update spent only (Phase 17 — create/edit/delete expense reverse).
     match /budgets/{budgetId} {
       allow create: if signedIn()
         && request.resource.data.userId == request.auth.uid
@@ -243,7 +254,15 @@ service cloud.firestore {
       // MVP: signed-in list for pull by familyId + month — harden later
       allow list: if signedIn();
 
-      allow update, delete: if signedIn()
+      allow update: if signedIn() && (
+        resource.data.userId == request.auth.uid
+        || (
+          isFamilyMember(resource.data.familyId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['spent'])
+        )
+      );
+
+      allow delete: if signedIn()
         && resource.data.userId == request.auth.uid;
     }
 
@@ -293,7 +312,8 @@ service cloud.firestore {
 5. On the dashboard, the **Local** / **Gagal sync** chip should clear after a successful sync (`SYNCED`).
 6. Phase 6: create a family from the Family tab, then confirm a doc appears under `family_groups`. Join with invite code from another account if available.
 7. Phase 6c: after A syncs a family transaction, B opens Family tab (pull) and sees History from A. Confirm indexes exist if query fails.
-8. Phase 11b: publish these rules, then create composite index `budgets` `familyId` ASC + `month` ASC and wait until **Enabled**. Owner sets a category limit online → doc has `familyId` / `month` / `limit`. Member B opens Family tab → same cap. B cannot update/delete the owner’s budget doc in Console.
+8. Phase 11b: publish these rules, then create composite index `budgets` `familyId` ASC + `month` ASC and wait until **Enabled**. Owner sets a category limit online → doc has `familyId` / `month` / `limit`. Member B opens Family tab → same cap. B cannot change `limit` or delete the owner’s budget; SyncWorker may update `spent` only.
+9. Phase 17e: **Publish** author-only tx write. A syncs a family expense → B sees it in History, tap does **not** open edit. B can edit/delete **B’s** family tx; A pull matches. B cannot update/delete A’s family or personal tx (`PERMISSION_DENIED` if forced).
 
 If sync or membership still fails with `PERMISSION_DENIED`:
 
@@ -306,6 +326,8 @@ If sync or membership still fails with `PERMISSION_DENIED`:
 - For budget list `PERMISSION_DENIED`: confirm `/budgets` `allow list: if signedIn()` is **Published** (markdown edit alone does nothing).
 - For `FAILED_PRECONDITION` on `budgets` `familyId` + `month`: create the composite index and wait until **Enabled**.
 - For member transaction sync stuck on RETRY: confirm wallet `allow update` includes the family-member `balance`-only clause (side-effect increment on shared wallet).
+- For member **edit/delete of their own** family tx stuck on RETRY: confirm they are the document `userId`, and wallet `balance` / budget `spent` member clauses are **Published**. Member write of someone else’s tx is **denied** (17e).
+- For member expense create/edit/delete stuck on RETRY when incrementing budget: confirm `/budgets` `allow update` includes the family-member `spent`-only clause (mirrors wallet `balance`).
 
 ---
 

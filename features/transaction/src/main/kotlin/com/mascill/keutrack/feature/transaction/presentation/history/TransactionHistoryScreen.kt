@@ -20,6 +20,7 @@ import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,8 +37,10 @@ import com.mascill.keutrack.core.designsystem.model.KeuTrackButtonStyle
 import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
 import com.mascill.keutrack.core.domain.model.SyncStatus
 import com.mascill.keutrack.feature.transaction.presentation.components.DateRangePickerDialogHost
+import com.mascill.keutrack.feature.transaction.presentation.components.DeleteTransactionDialog
 import com.mascill.keutrack.feature.transaction.presentation.components.HistoryPeriodBar
 import com.mascill.keutrack.feature.transaction.presentation.components.HistoryPeriodTotalsRow
+import com.mascill.keutrack.feature.transaction.presentation.components.SwipeRevealRow
 import com.mascill.keutrack.feature.transaction.presentation.components.TransactionHistoryRow
 import com.mascill.keutrack.feature.transaction.presentation.model.HistoryPeriodPreset
 import com.mascill.keutrack.feature.transaction.presentation.model.HistoryScope
@@ -76,6 +79,8 @@ fun TransactionHistoryScreen(
     uiState: HistoryUIState,
     onBack: () -> Unit,
     onAddTransaction: () -> Unit,
+    onTransactionClick: (String) -> Unit = {},
+    onDeleteConfirmed: (String) -> Unit = {},
     onDismissError: () -> Unit = {},
     onPeriodPresetSelected: (HistoryPeriodPreset) -> Unit = {},
     onCustomRangeConfirmed: (LocalDate, LocalDate) -> Unit = { _, _ -> },
@@ -87,6 +92,25 @@ fun TransactionHistoryScreen(
     val textColors = KeuTrackTheme.textColors
     val today = LocalDate.now()
     var showCustomRangePicker by remember { mutableStateOf(false) }
+    var revealedId by remember { mutableStateOf<String?>(null) }
+    var pendingDeleteId by remember { mutableStateOf<String?>(null) }
+    val visibleItemIds = remember(uiState.items) { uiState.items.map { it.id } }
+
+    LaunchedEffect(visibleItemIds) {
+        if (revealedId != null && revealedId !in visibleItemIds) {
+            revealedId = null
+        }
+        if (pendingDeleteId != null && pendingDeleteId !in visibleItemIds) {
+            pendingDeleteId = null
+        }
+    }
+
+    LaunchedEffect(uiState.isDeleting) {
+        if (!uiState.isDeleting && pendingDeleteId != null && uiState.errorMessage == null) {
+            pendingDeleteId = null
+            revealedId = null
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
@@ -196,7 +220,28 @@ fun TransactionHistoryScreen(
                             verticalArrangement = Arrangement.spacedBy(HISTORY_ROW_SPACING.dp),
                         ) {
                             items(uiState.items, key = { it.id }) { row ->
-                                TransactionHistoryRow(row = row)
+                                SwipeRevealRow(
+                                    revealed = revealedId == row.id,
+                                    enabled = row.canEdit,
+                                    onRevealedChange = { open ->
+                                        revealedId =
+                                            if (open) {
+                                                row.id
+                                            } else {
+                                                revealedId.takeUnless { it == row.id }
+                                            }
+                                    },
+                                    onEdit = {
+                                        revealedId = null
+                                        onTransactionClick(row.id)
+                                    },
+                                    onDelete = { pendingDeleteId = row.id },
+                                ) { contentShape ->
+                                    TransactionHistoryRow(
+                                        row = row,
+                                        shape = contentShape,
+                                    )
+                                }
                             }
                         }
                     }
@@ -224,6 +269,14 @@ fun TransactionHistoryScreen(
         onDismiss = { showCustomRangePicker = false },
         maxDate = today,
     )
+
+    pendingDeleteId?.let { deleteId ->
+        DeleteTransactionDialog(
+            isBusy = uiState.isDeleting,
+            onDismiss = { pendingDeleteId = null },
+            onConfirm = { onDeleteConfirmed(deleteId) },
+        )
+    }
 }
 
 @Composable
@@ -398,5 +451,17 @@ private fun previewHistoryItems(): List<TransactionRowUi> =
             isExpense = false,
             walletLabel = "Personal",
             categoryIcon = TransactionCategoryIcon.Payout,
+        ),
+        TransactionRowUi(
+            id = "3",
+            title = "Family groceries",
+            categoryLabel = "Shopping",
+            timeLabel = "Yesterday",
+            amountLabel = "IDR 80.000",
+            isExpense = true,
+            walletLabel = "Family",
+            categoryIcon = TransactionCategoryIcon.Shopping,
+            canEdit = false,
+            authorLabel = "Budi",
         ),
     )

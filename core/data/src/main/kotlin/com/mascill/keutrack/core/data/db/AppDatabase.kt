@@ -6,11 +6,13 @@ import androidx.room.TypeConverters
 import com.mascill.keutrack.core.data.db.dao.BudgetDao
 import com.mascill.keutrack.core.data.db.dao.CategoryDao
 import com.mascill.keutrack.core.data.db.dao.CategorySummaryDao
+import com.mascill.keutrack.core.data.db.dao.PendingTransactionDeleteDao
 import com.mascill.keutrack.core.data.db.dao.TransactionDao
 import com.mascill.keutrack.core.data.db.dao.WalletDao
 import com.mascill.keutrack.core.data.db.entity.BudgetEntity
 import com.mascill.keutrack.core.data.db.entity.CategoryEntity
 import com.mascill.keutrack.core.data.db.entity.CategorySummaryEntity
+import com.mascill.keutrack.core.data.db.entity.PendingTransactionDeleteEntity
 import com.mascill.keutrack.core.data.db.entity.TransactionEntity
 import com.mascill.keutrack.core.data.db.entity.WalletEntity
 
@@ -21,8 +23,9 @@ import com.mascill.keutrack.core.data.db.entity.WalletEntity
         CategoryEntity::class,
         BudgetEntity::class,
         CategorySummaryEntity::class,
+        PendingTransactionDeleteEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -32,4 +35,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun categoryDao(): CategoryDao
     abstract fun budgetDao(): BudgetDao
     abstract fun categorySummaryDao(): CategorySummaryDao
+    abstract fun pendingTransactionDeleteDao(): PendingTransactionDeleteDao
 }

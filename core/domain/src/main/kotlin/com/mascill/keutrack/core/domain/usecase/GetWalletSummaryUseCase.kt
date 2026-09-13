@@ -12,6 +12,7 @@ data class WalletSummary(
     val familyWallets: List<Wallet>,
     val totalPersonalBalance: Long,
     val totalFamilyBalance: Long,
+    val personalWallets: List<Wallet> = listOfNotNull(personalWallet),
 )
 
 class GetWalletSummaryUseCase @Inject constructor(
@@ -26,6 +27,7 @@ class GetWalletSummaryUseCase @Inject constructor(
                 familyWallets = family,
                 totalPersonalBalance = personal.sumOf { it.balance },
                 totalFamilyBalance = family.sumOf { it.balance },
+                personalWallets = personal,
             )
         }
 }

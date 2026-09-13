@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -45,6 +46,7 @@ private const val TXN_CHIP_BG_ALPHA = 0.7f
 private const val TXN_EXPENSE_PREFIX = "- "
 private const val TXN_INCOME_PREFIX = "+ "
 private const val TXN_SUBTITLE_SEPARATOR = " • "
+private const val TXN_AUTHOR_PREFIX = "oleh "
 private const val TXN_SYNC_BADGE = 16
 private const val TXN_SYNC_ICON = 11
 private const val TXN_LOCAL_CD = "Belum tersinkron ke cloud"
@@ -54,6 +56,7 @@ private const val TXN_SYNC_FAILED_CD = "Gagal sinkron ke cloud"
 fun TransactionHistoryRow(
     row: TransactionRowUi,
     modifier: Modifier = Modifier,
+    shape: Shape? = null,
 ) {
     val semantic = KeuTrackTheme.semanticColors
     val shapes = KeuTrackTheme.shapeTokens
@@ -73,6 +76,7 @@ fun TransactionHistoryRow(
 
     KeuTrackCard(
         modifier = modifier,
+        shape = shape,
         contentPadding =
             PaddingValues(
                 horizontal = TXN_ROW_PH.dp,
@@ -120,7 +124,17 @@ fun TransactionHistoryRow(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = row.categoryLabel + TXN_SUBTITLE_SEPARATOR + row.timeLabel,
+                    text =
+                        buildString {
+                            append(row.categoryLabel)
+                            append(TXN_SUBTITLE_SEPARATOR)
+                            append(row.timeLabel)
+                            row.authorLabel?.let { author ->
+                                append(TXN_SUBTITLE_SEPARATOR)
+                                append(TXN_AUTHOR_PREFIX)
+                                append(author)
+                            }
+                        },
                     style = typography.bodyRegular12,
                     color = textColors.body,
                     maxLines = 1,

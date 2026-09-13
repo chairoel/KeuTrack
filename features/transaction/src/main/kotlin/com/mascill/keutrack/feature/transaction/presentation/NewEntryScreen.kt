@@ -11,6 +11,7 @@ import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
 import androidx.compose.material.Scaffold
 import androidx.compose.material.Surface
+import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.Restaurant
@@ -41,6 +42,8 @@ import java.time.Instant
 import java.time.LocalDate
 
 private const val NEW_ENTRY_TITLE = "Transaksi Baru"
+private const val EDIT_ENTRY_TITLE = "Edit Transaksi"
+private const val READ_ONLY_ENTRY_TITLE = "Detail Transaksi"
 private const val NEW_ENTRY_TOP_BAR_ELEVATION = 4
 private const val NEW_ENTRY_TOP_BAR_PH = 8
 private const val NEW_ENTRY_TOP_BAR_PV = 4
@@ -86,7 +89,12 @@ fun NewEntryScreen(
                 elevation = NEW_ENTRY_TOP_BAR_ELEVATION.dp,
             ) {
                 KeuTrackTopBar(
-                    title = NEW_ENTRY_TITLE,
+                    title =
+                        when {
+                            uiState.isReadOnly -> READ_ONLY_ENTRY_TITLE
+                            uiState.isEditMode -> EDIT_ENTRY_TITLE
+                            else -> NEW_ENTRY_TITLE
+                        },
                     modifier =
                         Modifier
                             .fillMaxWidth()
@@ -125,12 +133,12 @@ fun NewEntryScreen(
                 NewEntryFormContent(
                     uiState = uiState,
                     onKindChanged = onKindChanged,
-                    onAmountClick = { showAmountKeypad = true },
-                    amountFocused = showAmountKeypad,
+                    onAmountClick = { if (!uiState.isReadOnly) showAmountKeypad = true },
+                    amountFocused = showAmountKeypad && !uiState.isReadOnly,
                     onCategorySelected = onCategorySelected,
-                    onWalletChipClick = { showWalletPicker = true },
-                    onDateChipClick = { showDatePicker = true },
-                    onSeeAllCategories = { showCategorySeeAll = true },
+                    onWalletChipClick = { if (!uiState.isReadOnly) showWalletPicker = true },
+                    onDateChipClick = { if (!uiState.isReadOnly) showDatePicker = true },
+                    onSeeAllCategories = { if (!uiState.isReadOnly) showCategorySeeAll = true },
                     onNoteChanged = onNoteChanged,
                     onSave = onSave,
                     onClearError = onClearError,
@@ -258,3 +266,49 @@ private fun previewNewEntryState(): NewEntryUIState =
         userId = "u1",
         addedByName = "Adhi",
     )
+
+@Preview(showBackground = true, name = "Edit Entry")
+@Composable
+private fun NewEntryScreenEditPreview() {
+    KeuTrackTheme(darkTheme = false) {
+        NewEntryScreen(
+            uiState = previewNewEntryState().copy(editingTransactionId = "tx-1"),
+            onBack = {},
+            onKindChanged = {},
+            onDigit = {},
+            onTripleZero = {},
+            onBackspace = {},
+            onCategorySelected = {},
+            onWalletSelected = {},
+            onDateSelected = {},
+            onNoteChanged = {},
+            onSave = {},
+            onClearError = {},
+        )
+    }
+}
+
+@Preview(
+    name = "Edit Entry — Dark",
+    showBackground = true,
+    uiMode = Configuration.UI_MODE_NIGHT_YES,
+)
+@Composable
+private fun NewEntryScreenEditDarkPreview() {
+    KeuTrackTheme(darkTheme = true) {
+        NewEntryScreen(
+            uiState = previewNewEntryState().copy(editingTransactionId = "tx-1"),
+            onBack = {},
+            onKindChanged = {},
+            onDigit = {},
+            onTripleZero = {},
+            onBackspace = {},
+            onCategorySelected = {},
+            onWalletSelected = {},
+            onDateSelected = {},
+            onNoteChanged = {},
+            onSave = {},
+            onClearError = {},
+        )
+    }
+}

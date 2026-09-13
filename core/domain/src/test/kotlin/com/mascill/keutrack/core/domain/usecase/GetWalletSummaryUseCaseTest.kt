@@ -58,6 +58,7 @@ class GetWalletSummaryUseCaseTest {
         useCase().test {
             val summary = awaitItem()
             assertThat(summary.personalWallet).isEqualTo(personalA)
+            assertThat(summary.personalWallets).containsExactly(personalA, personalB).inOrder()
             assertThat(summary.totalPersonalBalance).isEqualTo(15_000L)
             assertThat(summary.totalFamilyBalance).isEqualTo(10_000L)
             awaitComplete()

@@ -19,7 +19,10 @@ interface SyncRepository {
      */
     suspend fun syncPersonalData(userId: String)
 
-    /** True when any wallet, budget, or transaction is PENDING or FAILED. */
+    /**
+     * True when any wallet, budget, transaction, or pending-delete outbox
+     * row is PENDING or FAILED.
+     */
     suspend fun hasPendingSync(): Boolean
 
     /**

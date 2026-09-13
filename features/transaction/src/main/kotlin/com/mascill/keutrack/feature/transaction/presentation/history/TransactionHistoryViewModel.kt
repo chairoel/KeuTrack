@@ -6,7 +6,9 @@ import androidx.lifecycle.viewModelScope
 import com.mascill.keutrack.core.common.utils.CommonDispatcher
 import com.mascill.keutrack.core.common.utils.PeriodBounds
 import com.mascill.keutrack.core.domain.model.PeriodTotals
+import com.mascill.keutrack.core.domain.model.TransactionWriteResult
 import com.mascill.keutrack.core.domain.repository.UserRepository
+import com.mascill.keutrack.core.domain.usecase.DeleteTransactionUseCase
 import com.mascill.keutrack.core.domain.usecase.GetCategoriesUseCase
 import com.mascill.keutrack.core.domain.usecase.GetPeriodTotalsUseCase
 import com.mascill.keutrack.core.domain.usecase.GetTransactionsUseCase
@@ -40,12 +42,13 @@ import kotlin.coroutines.cancellation.CancellationException
 @HiltViewModel
 class TransactionHistoryViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
-    userRepository: UserRepository,
+    private val userRepository: UserRepository,
     private val getTransactions: GetTransactionsUseCase,
     private val getPeriodTotals: GetPeriodTotalsUseCase,
     private val getCategories: GetCategoriesUseCase,
     private val getWalletSummary: GetWalletSummaryUseCase,
     private val retryPendingSync: RetryPendingSyncUseCase,
+    private val deleteTransaction: DeleteTransactionUseCase,
     observePeriodPreferences: ObservePeriodPreferencesUseCase,
     private val dispatcher: CommonDispatcher,
 ) : ViewModel() {
@@ -53,6 +56,8 @@ class TransactionHistoryViewModel @Inject constructor(
     private val scope = readHistoryScope(savedStateHandle)
     private val period = MutableStateFlow(readPeriod(savedStateHandle))
     private val periodRangeError = MutableStateFlow<String?>(null)
+    private val noticeMessage = MutableStateFlow<String?>(null)
+    private val isDeleting = MutableStateFlow(false)
     private val cycleStartDay = observePeriodPreferences().map { it.cycleStartDay }
     private val periodContext =
         combine(period, cycleStartDay) { selection, startDay -> selection to startDay }
@@ -133,12 +138,22 @@ class TransactionHistoryViewModel @Inject constructor(
             combine(transactionsFlow, totalsFlow) { transactions, totals ->
                 transactions to totals
             },
+            combine(userRepository.getCurrentUser(), periodRangeError, noticeMessage) {
+                    user,
+                    rangeError,
+                    notice,
+                ->
+                Triple(user?.uid, rangeError, notice)
+            },
             getCategories(),
             getWalletSummary(),
-            periodContext,
-            periodRangeError,
-        ) { listAndTotals, categories, walletSummary, context, rangeError ->
+            combine(periodContext, isDeleting) { context, deleting ->
+                context to deleting
+            },
+        ) { listAndTotals, userContext, categories, walletSummary, periodAndDeleting ->
             val (transactions, totals) = listAndTotals
+            val (currentUserId, rangeError, notice) = userContext
+            val (context, deleting) = periodAndDeleting
             val (selection, startDay) = context
             val categoriesById = categories.associateBy { it.id }
             val walletsById = TransactionUiMapper.mapWallets(walletSummary)
@@ -149,8 +164,9 @@ class TransactionHistoryViewModel @Inject constructor(
                         transactions = transactions,
                         categoriesById = categoriesById,
                         walletsById = walletsById,
+                        currentUserId = currentUserId,
                     ),
-                errorMessage = null,
+                errorMessage = notice,
                 scope = scope,
                 periodPreset = selection.preset,
                 customFrom = selection.customFrom,
@@ -166,6 +182,7 @@ class TransactionHistoryViewModel @Inject constructor(
                 periodRangeError = rangeError,
                 incomeTotal = totals.incomeTotal,
                 expenseTotal = totals.expenseTotal,
+                isDeleting = deleting,
             )
         }.catch { e ->
             emit(
@@ -217,6 +234,46 @@ class TransactionHistoryViewModel @Inject constructor(
 
     fun onClearPeriodFilter() {
         applyPeriod(HistoryPeriod())
+    }
+
+    fun onReadOnlyTransactionTapped() {
+        noticeMessage.value = ERR_NOT_OWNER
+    }
+
+    fun onDeleteConfirmed(id: String) {
+        if (id.isBlank() || !isDeleting.compareAndSet(expect = false, update = true)) return
+        noticeMessage.value = null
+        viewModelScope.launch(dispatcher.io) {
+            try {
+                when (val result = deleteTransaction(id)) {
+                    TransactionWriteResult.Success -> Unit
+                    TransactionWriteResult.Error.NotOwner -> {
+                        noticeMessage.value = ERR_NOT_OWNER
+                    }
+                    TransactionWriteResult.Error.MissingId,
+                    TransactionWriteResult.Error.NotFound,
+                    TransactionWriteResult.Error.InvalidAmount,
+                    TransactionWriteResult.Error.MissingWallet,
+                    TransactionWriteResult.Error.MissingCategory,
+                    -> {
+                        noticeMessage.value = ERR_DELETE_FAILED
+                    }
+                    is TransactionWriteResult.Error.Unknown -> {
+                        noticeMessage.value = result.cause.message ?: ERR_DELETE_FAILED
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                noticeMessage.value = e.message ?: ERR_DELETE_FAILED
+            } finally {
+                isDeleting.value = false
+            }
+        }
+    }
+
+    fun dismissNotice() {
+        noticeMessage.value = null
     }
 
     private fun applyPeriod(next: HistoryPeriod) {
@@ -300,6 +357,8 @@ class TransactionHistoryViewModel @Inject constructor(
         const val LAST_7_INCLUSIVE_OFFSET = 6L
         const val ERR_LOAD_FAILED = "Gagal memuat riwayat transaksi"
         const val ERR_INVALID_RANGE = "Tanggal mulai tidak boleh setelah tanggal akhir."
+        const val ERR_NOT_OWNER = "Hanya penulis yang bisa mengubah transaksi ini"
+        const val ERR_DELETE_FAILED = "Gagal menghapus transaksi"
 
         fun readHistoryScope(savedStateHandle: SavedStateHandle): HistoryScope =
             when {

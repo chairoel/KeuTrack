@@ -74,7 +74,11 @@ internal object TransactionUiMapper {
 
     fun toWalletOptions(summary: WalletSummary): List<WalletOptionUi> {
         val options = mutableListOf<WalletOptionUi>()
-        summary.personalWallet?.let { wallet ->
+        val personal =
+            summary.personalWallets.ifEmpty {
+                listOfNotNull(summary.personalWallet)
+            }
+        personal.forEach { wallet ->
             options += wallet.toOption(typeLabel = LABEL_PERSONAL)
         }
         summary.familyWallets.forEach { wallet ->
@@ -86,16 +90,42 @@ internal object TransactionUiMapper {
     fun defaultWalletId(summary: WalletSummary): String? =
         summary.personalWallet?.id ?: summary.familyWallets.firstOrNull()?.id
 
+    /**
+     * Prefers [selectedWalletId] when it is still a live wallet. Stale IDs (sync
+     * remapped / deleted) resolve to the current wallet of the same scope so the
+     * picker never invents a duplicate row.
+     */
+    fun resolveSelectedWalletId(
+        summary: WalletSummary,
+        selectedWalletId: String?,
+        selectedFamilyId: String? = null,
+    ): String? {
+        val knownIds = toWalletOptions(summary).map { it.id }
+        if (selectedWalletId != null && selectedWalletId in knownIds) {
+            return selectedWalletId
+        }
+
+        val familyWallets = summary.familyWallets
+        if (!selectedFamilyId.isNullOrBlank() && familyWallets.isNotEmpty()) {
+            val matchingFamily = familyWallets.firstOrNull { it.familyId == selectedFamilyId }
+            return matchingFamily?.id ?: familyWallets.first().id
+        }
+
+        return defaultWalletId(summary)
+    }
+
     fun toTransactionRows(
         transactions: List<Transaction>,
         categoriesById: Map<String, Category>,
         walletsById: Map<String, Wallet>,
+        currentUserId: String? = null,
     ): List<TransactionRowUi> =
         transactions.map { tx ->
             val category = categoriesById[tx.categoryId]
             val categoryName = category?.name ?: LABEL_OTHER_CATEGORY
             val title = tx.note?.takeIf { it.isNotBlank() } ?: categoryName
             val wallet = walletsById[tx.walletId]
+            val canEdit = !currentUserId.isNullOrBlank() && tx.userId == currentUserId
             TransactionRowUi(
                 id = tx.id,
                 title = title,
@@ -110,6 +140,8 @@ internal object TransactionUiMapper {
                     },
                 categoryIcon = iconKeyToCategoryIcon(category?.icon),
                 syncStatus = tx.syncStatus,
+                canEdit = canEdit,
+                authorLabel = tx.addedByName.takeIf { it.isNotBlank() && !canEdit },
             )
         }
 

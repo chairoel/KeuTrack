@@ -120,6 +120,7 @@ fun KeuTrackNavHost(
         transactionGraph(
             onBack = { navController.popBackStack() },
             onAddTransaction = { navController.navigateToTransaction() },
+            onEditTransaction = { id -> navController.navigateToTransaction(id) },
         )
     }
 }
