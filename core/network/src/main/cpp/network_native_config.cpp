@@ -31,8 +31,7 @@ Java_com_mascill_keutrack_core_network_utils_NetworkNativeWrapper_getGoogleServe
     if (type == "dev") {
         clientId = "100547827166-uqtn9is2df1k931808lm6ff8i79ns988.apps.googleusercontent.com";
     } else {
-        // TODO: replace with prod client id once it's available/configured in Firebase
-        clientId = "100547827166-uqtn9is2df1k931808lm6ff8i79ns988.apps.googleusercontent.com";
+        clientId = "991588023344-1rljnpvhgu4srhavodv3upjrk2utfac6.apps.googleusercontent.com";
     }
 
     return env->NewStringUTF(clientId.c_str());
