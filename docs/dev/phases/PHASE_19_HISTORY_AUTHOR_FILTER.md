@@ -3,7 +3,7 @@
 > **Modul target:** `:core:domain` + `:core:data` (param `userId` di observe list + SUM) → `:features:transaction` (chip penulis + VM)  
 > **Estimasi:** ~0.8–1.2 hari · **19a** ~0.3 hari (query) · **19b** ~0.4–0.6 hari (VM + chip) · **19c** ~0.2 hari (tes + preview)  
 > **Prasyarat:** Phase 13b ✅ (chip periode + empty filter) · Phase 15 ✅ (totals `SUM` mirror filter list) · Phase 17e ✅ (`userId` = penulis; `addedByName` = label) · Phase 18 swipe **tidak** memblokir  
-> **Status:** **19a + 19b done** (2026-09-13) — query + chip penulis History. **19c** tes VM + `assembleDevDebug` belum.  
+> **Status:** **19a + 19b + 19c done** (2026-09-14) — query + chip penulis + tes VM + `assembleDevDebug`. QA perangkat §22 masih.  
 > **Hasil akhir:** Di Riwayat, user bisa memfilter transaksi menurut **penulis** (`Transaction.userId`). Chip **Semua** / **Saya** / nama anggota. List **dan** kartu PEMASUKAN / PENGELUARAN memakai filter yang sama di Room. Default tetap Semua penulis.  
 > **Asal-usul:** History keluarga menampilkan tx banyak anggota (`authorLabel` Phase 17e; breakdown Family sudah group by `userId`). Periode (13b) sudah ada; filter penulis belum. Phase 16 §1 menunda “filter tipe/kategori” — **bukan** filter penulis; 19 mengisi gap atribusi.  
 > **Tidak memblokir Phase 18c:** swipe / hapus list tetap. `assembleDevDebug` 18c boleh digabung QA 19.
@@ -16,11 +16,11 @@
 |-------|------|--------|
 | 19a | Task 1–2 — `userId` di DAO / repo / use case + tes forward param | **Done** (2026-09-13) |
 | 19b | Task 3–5 — VM + `HistoryAuthorBar` + empty copy | **Done** (2026-09-13) |
-| 19c | Task 6 — tes VM + preview + `assembleDevDebug` | **Not started** |
+| 19c | Task 6 — tes VM + preview + `assembleDevDebug` | **Done** (2026-09-14) |
 
-**Terakhir dikerjakan:** 19b — chip Semua / Saya / nama di History (P9), persist `authorUserId`, empty copy penulis/periode, list + totals memakai `userId` yang sama.
+**Terakhir dikerjakan:** 19c — tes VM filter penulis (list + totals, Semua, restore handle, Personal, Family tanpa `familyId`) + `assembleDevDebug`.
 
-**Berikutnya:** 19c — tes VM §14 Task 6 + `assembleDevDebug`. Preview bar / Family / empty author sudah ada.
+**Berikutnya:** QA perangkat §22, lalu satu PR 19a+19b+19c (P20). Jangan campur swipe 18.
 
 ---
 
@@ -611,24 +611,24 @@ Preview:
 
 ### 15.2 19b
 
-- [ ] Riwayat Keluarga (2+ anggota): bar Semua / Saya / nama
-- [ ] Riwayat All + family 2+ anggota: bar yang sama
-- [ ] Riwayat Personal: **tidak** ada bar penulis
-- [ ] Default Semua: list + totals = baseline 15 (semua penulis dalam scope/periode)
-- [ ] Tap Saya: hanya `userId == currentUid`; totals ikut
-- [ ] Tap anggota lain: hanya tx penulis itu; totals ikut; swipe tetap `canEdit == false`
-- [ ] Ganti chip periode **tetap** berlaku bersama penulis (AND)
-- [ ] Empty penulis saja / periode saja / keduanya — copy §11.2
-- [ ] Rotation: chip penulis tetap
-- [ ] Anggota terpilih keluar family → reset Semua
-- [ ] Swipe / hapus / totals / periode tidak regresi
+- [x] Riwayat Keluarga (2+ anggota): bar Semua / Saya / nama
+- [x] Riwayat All + family 2+ anggota: bar yang sama
+- [x] Riwayat Personal: **tidak** ada bar penulis
+- [x] Default Semua: list + totals = baseline 15 (semua penulis dalam scope/periode)
+- [x] Tap Saya: hanya `userId == currentUid`; totals ikut
+- [x] Tap anggota lain: hanya tx penulis itu; totals ikut; swipe tetap `canEdit == false`
+- [x] Ganti chip periode **tetap** berlaku bersama penulis (AND)
+- [x] Empty penulis saja / periode saja / keduanya — copy §11.2
+- [x] Rotation: chip penulis tetap
+- [x] Anggota terpilih keluar family → reset Semua
+- [x] Swipe / hapus / totals / periode tidak regresi
 
 ### 15.3 19c
 
-- [ ] Tes VM §14 Task 6 hijau
+- [x] Tes VM §14 Task 6 hijau
 - [x] Preview light/dark bar + empty author
-- [ ] `assembleDevDebug`
-- [ ] Auth / splash / Settings / Family invite tidak disentuh
+- [x] `assembleDevDebug`
+- [x] Auth / splash / Settings / Family invite tidak disentuh
 
 ### Sengaja belum
 
