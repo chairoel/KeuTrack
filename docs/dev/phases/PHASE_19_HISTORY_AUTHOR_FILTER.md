@@ -3,7 +3,7 @@
 > **Modul target:** `:core:domain` + `:core:data` (param `userId` di observe list + SUM) → `:features:transaction` (chip penulis + VM)  
 > **Estimasi:** ~0.8–1.2 hari · **19a** ~0.3 hari (query) · **19b** ~0.4–0.6 hari (VM + chip) · **19c** ~0.2 hari (tes + preview)  
 > **Prasyarat:** Phase 13b ✅ (chip periode + empty filter) · Phase 15 ✅ (totals `SUM` mirror filter list) · Phase 17e ✅ (`userId` = penulis; `addedByName` = label) · Phase 18 swipe **tidak** memblokir  
-> **Status:** **19a + 19b + 19c done** (2026-09-14) — query + chip penulis + tes VM + `assembleDevDebug`. QA perangkat §22 masih.  
+> **Status:** **19a + 19b + 19c done** (2026-09-14) — query + chip penulis + tes VM + `assembleDevDebug`. QA perangkat §22 sempat diblokir crash buka History (`NoSuchMethodError` `AnchoredDraggableState`); **unblocked** (2026-09-14) setelah Compose BOM `2025.08.00` + `SwipeRevealRow` Foundation 1.9 + icon Material di `:app`.  
 > **Hasil akhir:** Di Riwayat, user bisa memfilter transaksi menurut **penulis** (`Transaction.userId`). Chip **Semua** / **Saya** / nama anggota. List **dan** kartu PEMASUKAN / PENGELUARAN memakai filter yang sama di Room. Default tetap Semua penulis.  
 > **Asal-usul:** History keluarga menampilkan tx banyak anggota (`authorLabel` Phase 17e; breakdown Family sudah group by `userId`). Periode (13b) sudah ada; filter penulis belum. Phase 16 §1 menunda “filter tipe/kategori” — **bukan** filter penulis; 19 mengisi gap atribusi.  
 > **Tidak memblokir Phase 18c:** swipe / hapus list tetap. `assembleDevDebug` 18c boleh digabung QA 19.
@@ -18,9 +18,9 @@
 | 19b | Task 3–5 — VM + `HistoryAuthorBar` + empty copy | **Done** (2026-09-13) |
 | 19c | Task 6 — tes VM + preview + `assembleDevDebug` | **Done** (2026-09-14) |
 
-**Terakhir dikerjakan:** 19c — tes VM filter penulis (list + totals, Semua, restore handle, Personal, Family tanpa `familyId`) + `assembleDevDebug`.
+**Terakhir dikerjakan:** Unblock QA History — `SwipeRevealRow` ke API `AnchoredDraggable` 1.9; BOM `2025.08.00`; `material-icons` di `:app`. `assembleDevDebug` sukses.
 
-**Berikutnya:** QA perangkat §22, lalu satu PR 19a+19b+19c (P20). Jangan campur swipe 18.
+**Berikutnya:** QA perangkat §22, lalu satu PR 19a+19b+19c (P20) **plus** commit `[FIX]` swipe Compose (terpisah dari FEAT 19; wajib karena buka History crash).
 
 ---
 
@@ -691,6 +691,7 @@ Tidak ada method sync baru. Tidak ada route baru.
 | Family 1 orang | Semua ≡ Saya | P9 hide jika tidak ada anggota lain |
 | Signature Dashboard totals | Compile break | Default `userId = null`; jangan ubah Dashboard |
 | 19 dicampur swipe 18 | Review kabur | Commit terpisah; boleh satu branch |
+| Constructor `AnchoredDraggableState` 1.7 vs Foundation 1.9 runtime | Crash `NoSuchMethodError` saat buka History (blokir §22) | BOM `2025.08.00`; state + `flingBehavior` 1.9; icon Material eksplisit di `:app` |
 
 ---
 
@@ -715,7 +716,7 @@ Jangan satukan commit dengan swipe 18 / Publish rules 17e.
 | **15** | Totals **wajib** dapat `userId` yang sama dengan list |
 | **16** | “Filter tipe/kategori” **tetap** di luar; 19 = penulis saja |
 | **17e** | `userId` = penulis; 19 **membaca** field yang sama, tidak longgarkan ACL |
-| **18** | Swipe tidak berubah; ganti filter mereset reveal via `visibleItemIds` |
+| **18** | Swipe / ACL tidak berubah untuk filter; ganti filter mereset reveal via `visibleItemIds`. Buka History crash di BOM `2024.09` vs Foundation 1.9 — diperbaiki di branch ini (commit `[FIX]` terpisah) |
 | **6 / 11** | Family `memberNames` / breakdown — pola label; UI Family **tidak** diubah |
 | **5 / 12** | New Entry tidak berubah (`userId` tetap di-set saat create) |
 | **9** | Tes Compose penuh tidak wajib; 19 wajib tes VM + compile |
@@ -725,18 +726,19 @@ Jangan satukan commit dengan swipe 18 / Publish rules 17e.
 
 ## 21. Rencana Commit
 
-Ikuti tag repo. Branch kerja: `feat/history-author-filter`.
+Ikuti tag repo. Branch kerja: `feat/filter-by-user`.
 
 ```
 [DOCS] Add Phase 19 history author filter plan
 [FEAT] Add optional userId filter to transaction queries
 [FEAT] Filter transaction history by author chips
 [TEST] Cover history author filter in view model
+[FIX] Align history swipe with Compose Foundation 1.9
 ```
 
 Commit `[DOCS]` untuk file ini boleh **sekarang** (sebelum implementasi). Commit FEAT hanya saat kode menyusul.
 
-Satu PR boleh beberapa commit di atas. Jangan campur `[FEAT]` swipe 18.
+Satu PR boleh beberapa commit di atas. Jangan satukan `[FIX]` swipe Compose ke commit FEAT 19.
 
 ---
 
@@ -785,7 +787,7 @@ Pakai akun A di keluarga dengan anggota B yang punya ≥ 1 tx family. Idealnya 2
 | # | Langkah | Expected |
 |---|---------|----------|
 | 17 | Custom from > to | Error range; author tidak ikut rusak |
-| 18 | Swipe Ubah / Hapus milik sendiri | Sama Phase 18 |
+| 18 | Buka Riwayat (list ada baris `canEdit`) | Tidak crash; swipe Ubah / Hapus milik sendiri sama Phase 18 |
 | 19 | Dashboard / Family tab / Settings | Tidak berubah |
 | 20 | Auth / splash | Tidak berubah |
 
