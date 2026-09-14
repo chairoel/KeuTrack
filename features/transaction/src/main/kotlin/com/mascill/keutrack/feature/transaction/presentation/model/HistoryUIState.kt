@@ -22,4 +22,10 @@ data class HistoryUIState(
     val incomeTotal: Long = 0L,
     val expenseTotal: Long = 0L,
     val isDeleting: Boolean = false,
-)
+    val authorUserId: String? = null,
+    val authorOptions: List<HistoryAuthorOption> = emptyList(),
+    val hasActiveAuthorFilter: Boolean = false,
+) {
+    val selectedAuthorLabel: String
+        get() = authorOptions.firstOrNull { it.userId == authorUserId }?.label.orEmpty()
+}

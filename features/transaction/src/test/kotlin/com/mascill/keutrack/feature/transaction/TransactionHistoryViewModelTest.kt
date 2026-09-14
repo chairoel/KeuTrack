@@ -8,6 +8,7 @@ import com.mascill.keutrack.core.domain.model.TransactionType
 import com.mascill.keutrack.core.domain.model.User
 import com.mascill.keutrack.core.domain.model.Wallet
 import com.mascill.keutrack.core.domain.model.WalletType
+import com.mascill.keutrack.core.domain.repository.FamilyRepository
 import com.mascill.keutrack.core.domain.repository.UserRepository
 import com.mascill.keutrack.core.domain.usecase.GetCategoriesUseCase
 import com.mascill.keutrack.core.domain.usecase.GetTransactionsUseCase
@@ -48,6 +49,7 @@ class TransactionHistoryViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     private val userRepository = mockk<UserRepository>()
+    private val familyRepository = mockk<FamilyRepository>()
     private val getTransactions = mockk<GetTransactionsUseCase>()
     private val getPeriodTotals = mockk<GetPeriodTotalsUseCase>()
     private val getCategories = mockk<GetCategoriesUseCase>()
@@ -708,6 +710,7 @@ class TransactionHistoryViewModelTest {
             ),
         )
         every { observePeriodPreferences() } returns flowOf(PeriodPreferences())
+        every { familyRepository.observeCurrentFamily() } returns flowOf(null)
         coEvery { deleteTransaction(any()) } returns TransactionWriteResult.Success
     }
 
@@ -723,6 +726,7 @@ class TransactionHistoryViewModelTest {
             ) + extraState,
         ),
         userRepository = userRepository,
+        familyRepository = familyRepository,
         getTransactions = getTransactions,
         getPeriodTotals = getPeriodTotals,
         getCategories = getCategories,

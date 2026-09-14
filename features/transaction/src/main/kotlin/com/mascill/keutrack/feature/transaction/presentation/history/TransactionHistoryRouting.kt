@@ -29,5 +29,7 @@ fun TransactionHistoryRouting(
         onPeriodPresetSelected = viewModel::onPeriodPresetSelected,
         onCustomRangeConfirmed = viewModel::onCustomRangeConfirmed,
         onClearPeriodFilter = viewModel::onClearPeriodFilter,
+        onAuthorSelected = viewModel::onAuthorSelected,
+        onClearAuthorFilter = viewModel::onClearAuthorFilter,
     )
 }
