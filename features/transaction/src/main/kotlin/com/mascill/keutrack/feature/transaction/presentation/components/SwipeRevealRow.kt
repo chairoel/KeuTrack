@@ -1,11 +1,9 @@
 package com.mascill.keutrack.feature.transaction.presentation.components
 
 import android.content.res.Configuration
-import androidx.compose.animation.core.exponentialDecay
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.AnchoredDraggableDefaults
 import androidx.compose.foundation.gestures.AnchoredDraggableState
 import androidx.compose.foundation.gestures.DraggableAnchors
 import androidx.compose.foundation.gestures.Orientation
@@ -50,7 +48,6 @@ import kotlin.math.roundToInt
 
 private const val REVEAL_ACTION_WIDTH = 72
 private const val REVEAL_ACTION_COUNT = 2
-private const val REVEAL_VELOCITY_THRESHOLD_DP = 125
 private const val REVEAL_POSITION_THRESHOLD = 0.5f
 private const val REVEAL_CLOSED_OFFSET = 0f
 private const val REVEAL_OFFSET_NONE = 0
@@ -66,7 +63,6 @@ private enum class SwipeRevealValue {
     Open,
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun SwipeRevealRow(
     revealed: Boolean,
@@ -82,7 +78,6 @@ fun SwipeRevealRow(
     val danger = KeuTrackTheme.dangerColors
     val density = LocalDensity.current
     val revealPx = with(density) { (REVEAL_ACTION_WIDTH * REVEAL_ACTION_COUNT).dp.toPx() }
-    val velocityThresholdPx = with(density) { REVEAL_VELOCITY_THRESHOLD_DP.dp.toPx() }
     val closedTapSlopPx = with(density) { REVEAL_CLOSED_TAP_SLOP_DP.dp.toPx() }
     val cardInteraction = remember { MutableInteractionSource() }
 
@@ -91,12 +86,13 @@ fun SwipeRevealRow(
             AnchoredDraggableState(
                 initialValue =
                     if (revealed) SwipeRevealValue.Open else SwipeRevealValue.Closed,
-                positionalThreshold = { distance -> distance * REVEAL_POSITION_THRESHOLD },
-                velocityThreshold = { velocityThresholdPx },
-                snapAnimationSpec = tween(),
-                decayAnimationSpec = exponentialDecay(),
             )
         }
+    val flingBehavior =
+        AnchoredDraggableDefaults.flingBehavior(
+            state = state,
+            positionalThreshold = { distance -> distance * REVEAL_POSITION_THRESHOLD },
+        )
 
     val anchors =
         remember(revealPx) {
@@ -200,6 +196,7 @@ fun SwipeRevealRow(
                             Modifier.anchoredDraggable(
                                 state = state,
                                 orientation = Orientation.Horizontal,
+                                flingBehavior = flingBehavior,
                             )
                         } else {
                             Modifier

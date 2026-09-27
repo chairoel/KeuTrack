@@ -14,6 +14,7 @@ class GetPeriodTotalsUseCase @Inject constructor(
         val familyId: String? = null,
         val startDate: Instant? = null,
         val endDate: Instant? = null,
+        val userId: String? = null,
     )
 
     operator fun invoke(params: Params = Params()): Flow<PeriodTotals> =
@@ -22,5 +23,6 @@ class GetPeriodTotalsUseCase @Inject constructor(
             familyId = params.familyId,
             startDate = params.startDate,
             endDate = params.endDate,
+            userId = params.userId,
         )
 }

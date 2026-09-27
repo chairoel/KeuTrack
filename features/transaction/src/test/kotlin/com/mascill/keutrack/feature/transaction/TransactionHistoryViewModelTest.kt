@@ -3,20 +3,22 @@ package com.mascill.keutrack.feature.transaction
 import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
+import com.mascill.keutrack.core.domain.model.FamilyGroup
+import com.mascill.keutrack.core.domain.model.PeriodPreferences
+import com.mascill.keutrack.core.domain.model.PeriodTotals
 import com.mascill.keutrack.core.domain.model.Transaction
 import com.mascill.keutrack.core.domain.model.TransactionType
+import com.mascill.keutrack.core.domain.model.TransactionWriteResult
 import com.mascill.keutrack.core.domain.model.User
 import com.mascill.keutrack.core.domain.model.Wallet
 import com.mascill.keutrack.core.domain.model.WalletType
+import com.mascill.keutrack.core.domain.repository.FamilyRepository
 import com.mascill.keutrack.core.domain.repository.UserRepository
+import com.mascill.keutrack.core.domain.usecase.DeleteTransactionUseCase
 import com.mascill.keutrack.core.domain.usecase.GetCategoriesUseCase
+import com.mascill.keutrack.core.domain.usecase.GetPeriodTotalsUseCase
 import com.mascill.keutrack.core.domain.usecase.GetTransactionsUseCase
 import com.mascill.keutrack.core.domain.usecase.GetWalletSummaryUseCase
-import com.mascill.keutrack.core.domain.model.PeriodPreferences
-import com.mascill.keutrack.core.domain.model.PeriodTotals
-import com.mascill.keutrack.core.domain.model.TransactionWriteResult
-import com.mascill.keutrack.core.domain.usecase.DeleteTransactionUseCase
-import com.mascill.keutrack.core.domain.usecase.GetPeriodTotalsUseCase
 import com.mascill.keutrack.core.domain.usecase.ObservePeriodPreferencesUseCase
 import com.mascill.keutrack.core.domain.usecase.RetryPendingSyncUseCase
 import com.mascill.keutrack.core.domain.usecase.WalletSummary
@@ -48,6 +50,7 @@ class TransactionHistoryViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     private val userRepository = mockk<UserRepository>()
+    private val familyRepository = mockk<FamilyRepository>()
     private val getTransactions = mockk<GetTransactionsUseCase>()
     private val getPeriodTotals = mockk<GetPeriodTotalsUseCase>()
     private val getCategories = mockk<GetCategoriesUseCase>()
@@ -677,6 +680,182 @@ class TransactionHistoryViewModelTest {
             }
         }
 
+    @Test
+    fun `family author filter forwards userId to list and totals`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            stub(
+                emptyList(),
+                familyId = "fam-1",
+                familyOnly = true,
+                family = familyGroup(),
+            )
+            val vm = createViewModel(familyOnly = true)
+
+            vm.uiState.test {
+                skipItems(1)
+                advanceUntilIdle()
+                val loaded = awaitItem()
+                assertThat(loaded.authorOptions.map { it.userId })
+                    .containsExactly(null, "u", "user-2")
+                    .inOrder()
+                assertThat(loaded.authorUserId).isNull()
+                vm.onAuthorSelected("user-2")
+                advanceUntilIdle()
+                val filtered = expectMostRecentItem()
+                assertThat(filtered.authorUserId).isEqualTo("user-2")
+                assertThat(filtered.hasActiveAuthorFilter).isTrue()
+                assertThat(filtered.selectedAuthorLabel).isEqualTo("Budi")
+                cancelAndIgnoreRemainingEvents()
+            }
+
+            verify {
+                getTransactions(
+                    match { params ->
+                        params.familyId == "fam-1" &&
+                            params.walletId == null &&
+                            params.userId == "user-2"
+                    },
+                )
+            }
+            verify {
+                getPeriodTotals(
+                    match { params ->
+                        params.familyId == "fam-1" &&
+                            params.walletId == null &&
+                            params.userId == "user-2"
+                    },
+                )
+            }
+        }
+
+    @Test
+    fun `family author Semua after filter clears userId on both use cases`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            stub(
+                emptyList(),
+                familyId = "fam-1",
+                familyOnly = true,
+                family = familyGroup(),
+            )
+            val txParams = mutableListOf<GetTransactionsUseCase.Params>()
+            val totalParams = mutableListOf<GetPeriodTotalsUseCase.Params>()
+            every { getTransactions(any()) } answers {
+                txParams.add(firstArg())
+                flowOf(emptyList())
+            }
+            every { getPeriodTotals(any()) } answers {
+                totalParams.add(firstArg())
+                flowOf(PeriodTotals())
+            }
+            val vm = createViewModel(familyOnly = true)
+
+            vm.uiState.test {
+                skipItems(1)
+                advanceUntilIdle()
+                awaitItem()
+                vm.onAuthorSelected("user-2")
+                advanceUntilIdle()
+                vm.onClearAuthorFilter()
+                advanceUntilIdle()
+                val state = expectMostRecentItem()
+                assertThat(state.authorUserId).isNull()
+                assertThat(state.hasActiveAuthorFilter).isFalse()
+                cancelAndIgnoreRemainingEvents()
+            }
+
+            assertThat(txParams.any { it.userId == "user-2" }).isTrue()
+            assertThat(txParams.last().userId).isNull()
+            assertThat(txParams.last().familyId).isEqualTo("fam-1")
+            assertThat(totalParams.any { it.userId == "user-2" }).isTrue()
+            assertThat(totalParams.last().userId).isNull()
+            assertThat(totalParams.last().familyId).isEqualTo("fam-1")
+        }
+
+    @Test
+    fun `restores author filter from SavedStateHandle`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            stub(
+                emptyList(),
+                familyId = "fam-1",
+                familyOnly = true,
+                family = familyGroup(),
+            )
+            val vm =
+                createViewModel(
+                    familyOnly = true,
+                    extraState = mapOf("authorUserId" to "user-2"),
+                )
+
+            vm.uiState.test {
+                skipItems(1)
+                advanceUntilIdle()
+                val state = awaitItem()
+                assertThat(state.authorUserId).isEqualTo("user-2")
+                assertThat(state.hasActiveAuthorFilter).isTrue()
+                cancelAndIgnoreRemainingEvents()
+            }
+
+            verify {
+                getTransactions(
+                    match { params ->
+                        params.familyId == "fam-1" && params.userId == "user-2"
+                    },
+                )
+            }
+            verify {
+                getPeriodTotals(
+                    match { params ->
+                        params.familyId == "fam-1" && params.userId == "user-2"
+                    },
+                )
+            }
+        }
+
+    @Test
+    fun `personal only hides author chips and queries without userId`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            stub(emptyList(), personalOnly = true, personalWalletId = "w-p")
+            val vm = createViewModel(personalOnly = true)
+
+            vm.uiState.test {
+                skipItems(1)
+                advanceUntilIdle()
+                val state = awaitItem()
+                assertThat(state.scope).isEqualTo(HistoryScope.Personal)
+                assertThat(state.authorOptions).isEmpty()
+                assertThat(state.hasActiveAuthorFilter).isFalse()
+                cancelAndIgnoreRemainingEvents()
+            }
+
+            verify {
+                getTransactions(
+                    match { params ->
+                        params.walletId == "w-p" && params.userId == null
+                    },
+                )
+            }
+        }
+
+    @Test
+    fun `family without familyId does not query and hides author chips`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            stub(emptyList(), familyId = null, familyOnly = true)
+            val vm = createViewModel(familyOnly = true)
+
+            vm.uiState.test {
+                skipItems(1)
+                advanceUntilIdle()
+                val state = awaitItem()
+                assertThat(state.scope).isEqualTo(HistoryScope.Family)
+                assertThat(state.items).isEmpty()
+                assertThat(state.authorOptions).isEmpty()
+                cancelAndIgnoreRemainingEvents()
+            }
+
+            verify(exactly = 0) { getTransactions(any()) }
+            verify(exactly = 0) { getPeriodTotals(any()) }
+        }
+
     private fun stub(
         transactions: List<Transaction>,
         familyId: String? = null,
@@ -684,6 +863,7 @@ class TransactionHistoryViewModelTest {
         personalOnly: Boolean = false,
         personalWalletId: String? = null,
         periodTotals: PeriodTotals = PeriodTotals(),
+        family: FamilyGroup? = null,
     ) {
         every { userRepository.getCurrentUser() } returns flowOf(
             User("u", "Irul", "a@b.c", null, familyId = familyId),
@@ -708,6 +888,7 @@ class TransactionHistoryViewModelTest {
             ),
         )
         every { observePeriodPreferences() } returns flowOf(PeriodPreferences())
+        every { familyRepository.observeCurrentFamily() } returns flowOf(family)
         coEvery { deleteTransaction(any()) } returns TransactionWriteResult.Success
     }
 
@@ -723,6 +904,7 @@ class TransactionHistoryViewModelTest {
             ) + extraState,
         ),
         userRepository = userRepository,
+        familyRepository = familyRepository,
         getTransactions = getTransactions,
         getPeriodTotals = getPeriodTotals,
         getCategories = getCategories,
@@ -731,6 +913,20 @@ class TransactionHistoryViewModelTest {
         deleteTransaction = deleteTransaction,
         observePeriodPreferences = observePeriodPreferences,
         dispatcher = testCommonDispatcher(mainDispatcherRule.testDispatcher),
+    )
+
+    private fun familyGroup(
+        id: String = "fam-1",
+        memberIds: List<String> = listOf("u", "user-2"),
+        memberNames: Map<String, String> = mapOf("u" to "Irul", "user-2" to "Budi"),
+    ) = FamilyGroup(
+        id = id,
+        name = "Keluarga Irul",
+        inviteCode = "KEU-ABC-DEF",
+        ownerId = "u",
+        memberIds = memberIds,
+        memberNames = memberNames,
+        createdAt = Instant.parse("2026-08-01T00:00:00Z"),
     )
 
     private fun personalWallet(id: String) = Wallet(

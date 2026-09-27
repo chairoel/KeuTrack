@@ -47,6 +47,7 @@ class UpsertFamilyBudgetUseCaseTest {
                 startDate = null,
                 endDate = null,
                 limit = 1_000,
+                userId = null,
             )
         } returns flowOf(emptyList())
         coEvery { budgetRepo.findFamilyBudget(any(), any(), any()) } returns null
@@ -118,6 +119,7 @@ class UpsertFamilyBudgetUseCaseTest {
                 startDate = null,
                 endDate = null,
                 limit = 1_000,
+                userId = null,
             )
         } returns flowOf(listOf(familyExpense(amount = 400_000L)))
 

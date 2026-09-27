@@ -73,6 +73,8 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material)
+    implementation(libs.androidx.compose.material.icon)
+    implementation(libs.androidx.compose.material.icon.extended)
     implementation(libs.androidx.navigation)
 
     testImplementation(libs.junit)

@@ -28,6 +28,7 @@ class GetPeriodTotalsUseCaseTest {
                 familyId = null,
                 startDate = start,
                 endDate = end,
+                userId = null,
             )
         } returns flowOf(totals)
 
@@ -48,6 +49,7 @@ class GetPeriodTotalsUseCaseTest {
                 familyId = null,
                 startDate = start,
                 endDate = end,
+                userId = null,
             )
         }
     }
@@ -60,12 +62,23 @@ class GetPeriodTotalsUseCaseTest {
                 familyId = null,
                 startDate = null,
                 endDate = null,
+                userId = null,
             )
         } returns flowOf(PeriodTotals())
 
         useCase().test {
             assertThat(awaitItem()).isEqualTo(PeriodTotals())
             awaitComplete()
+        }
+
+        verify(exactly = 1) {
+            repo.observePeriodTotals(
+                walletId = null,
+                familyId = null,
+                startDate = null,
+                endDate = null,
+                userId = null,
+            )
         }
     }
 
@@ -77,12 +90,46 @@ class GetPeriodTotalsUseCaseTest {
                 familyId = "fam-1",
                 startDate = null,
                 endDate = null,
+                userId = null,
             )
         } returns flowOf(PeriodTotals(expenseTotal = 80_000L))
 
         useCase(GetPeriodTotalsUseCase.Params(familyId = "fam-1")).test {
             assertThat(awaitItem().expenseTotal).isEqualTo(80_000L)
             awaitComplete()
+        }
+    }
+
+    @Test
+    fun `forwards userId to repository`() = runTest {
+        every {
+            repo.observePeriodTotals(
+                walletId = null,
+                familyId = "fam-1",
+                startDate = null,
+                endDate = null,
+                userId = "u-2",
+            )
+        } returns flowOf(PeriodTotals(expenseTotal = 40_000L))
+
+        useCase(
+            GetPeriodTotalsUseCase.Params(
+                familyId = "fam-1",
+                userId = "u-2",
+            ),
+        ).test {
+            assertThat(awaitItem().expenseTotal).isEqualTo(40_000L)
+            awaitComplete()
+        }
+
+        verify(exactly = 1) {
+            repo.observePeriodTotals(
+                walletId = null,
+                familyId = "fam-1",
+                startDate = null,
+                endDate = null,
+                userId = "u-2",
+            )
         }
     }
 }

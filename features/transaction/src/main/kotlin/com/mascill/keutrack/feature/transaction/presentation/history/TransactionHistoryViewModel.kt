@@ -5,8 +5,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mascill.keutrack.core.common.utils.CommonDispatcher
 import com.mascill.keutrack.core.common.utils.PeriodBounds
+import com.mascill.keutrack.core.domain.model.FamilyGroup
 import com.mascill.keutrack.core.domain.model.PeriodTotals
 import com.mascill.keutrack.core.domain.model.TransactionWriteResult
+import com.mascill.keutrack.core.domain.repository.FamilyRepository
 import com.mascill.keutrack.core.domain.repository.UserRepository
 import com.mascill.keutrack.core.domain.usecase.DeleteTransactionUseCase
 import com.mascill.keutrack.core.domain.usecase.GetCategoriesUseCase
@@ -15,6 +17,7 @@ import com.mascill.keutrack.core.domain.usecase.GetTransactionsUseCase
 import com.mascill.keutrack.core.domain.usecase.GetWalletSummaryUseCase
 import com.mascill.keutrack.core.domain.usecase.ObservePeriodPreferencesUseCase
 import com.mascill.keutrack.core.domain.usecase.RetryPendingSyncUseCase
+import com.mascill.keutrack.feature.transaction.presentation.model.HistoryAuthorOption
 import com.mascill.keutrack.feature.transaction.presentation.model.HistoryPeriod
 import com.mascill.keutrack.feature.transaction.presentation.model.HistoryPeriodLabels
 import com.mascill.keutrack.feature.transaction.presentation.model.HistoryPeriodPreset
@@ -35,6 +38,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
+import java.util.Locale
 import javax.inject.Inject
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -43,6 +47,7 @@ import kotlin.coroutines.cancellation.CancellationException
 class TransactionHistoryViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
     private val userRepository: UserRepository,
+    private val familyRepository: FamilyRepository,
     private val getTransactions: GetTransactionsUseCase,
     private val getPeriodTotals: GetPeriodTotalsUseCase,
     private val getCategories: GetCategoriesUseCase,
@@ -55,21 +60,40 @@ class TransactionHistoryViewModel @Inject constructor(
 
     private val scope = readHistoryScope(savedStateHandle)
     private val period = MutableStateFlow(readPeriod(savedStateHandle))
+    private val selectedUserId = MutableStateFlow(readAuthor(savedStateHandle))
     private val periodRangeError = MutableStateFlow<String?>(null)
     private val noticeMessage = MutableStateFlow<String?>(null)
     private val isDeleting = MutableStateFlow(false)
     private val cycleStartDay = observePeriodPreferences().map { it.cycleStartDay }
     private val periodContext =
         combine(period, cycleStartDay) { selection, startDay -> selection to startDay }
+    private val authorContext =
+        combine(
+            userRepository.getCurrentUser(),
+            familyRepository.observeCurrentFamily(),
+            selectedUserId,
+        ) { user, family, selected ->
+            val options = buildAuthorOptions(scope, family, user?.uid)
+            val effective = effectiveAuthorId(selected, options)
+            if (selected != effective) {
+                persistAuthor(effective)
+            }
+            AuthorContext(options = options, userId = effective)
+        }
 
     private val queryContext =
         when (scope) {
             HistoryScope.Family -> {
-                combine(userRepository.getCurrentUser(), periodContext) { user, context ->
+                combine(
+                    userRepository.getCurrentUser(),
+                    periodContext,
+                    authorContext,
+                ) { user, context, author ->
                     val familyId = user?.familyId
                     val (selection, startDay) = context
                     HistoryQuery(
                         familyId = familyId,
+                        userId = author.userId,
                         period = selection,
                         cycleStartDay = startDay,
                         canQuery = !familyId.isNullOrBlank(),
@@ -91,8 +115,10 @@ class TransactionHistoryViewModel @Inject constructor(
             }
 
             HistoryScope.All -> {
-                periodContext.map { (selection, startDay) ->
+                combine(periodContext, authorContext) { context, author ->
+                    val (selection, startDay) = context
                     HistoryQuery(
+                        userId = author.userId,
                         period = selection,
                         cycleStartDay = startDay,
                         canQuery = true,
@@ -112,6 +138,7 @@ class TransactionHistoryViewModel @Inject constructor(
                         cycleStartDay = query.cycleStartDay,
                         walletId = query.walletId,
                         familyId = query.familyId,
+                        userId = query.userId,
                     ),
                 )
             }
@@ -128,6 +155,7 @@ class TransactionHistoryViewModel @Inject constructor(
                         cycleStartDay = query.cycleStartDay,
                         walletId = query.walletId,
                         familyId = query.familyId,
+                        userId = query.userId,
                     ),
                 )
             }
@@ -147,13 +175,13 @@ class TransactionHistoryViewModel @Inject constructor(
             },
             getCategories(),
             getWalletSummary(),
-            combine(periodContext, isDeleting) { context, deleting ->
-                context to deleting
+            combine(periodContext, isDeleting, authorContext) { context, deleting, author ->
+                Triple(context, deleting, author)
             },
-        ) { listAndTotals, userContext, categories, walletSummary, periodAndDeleting ->
+        ) { listAndTotals, userContext, categories, walletSummary, periodDeletingAuthor ->
             val (transactions, totals) = listAndTotals
             val (currentUserId, rangeError, notice) = userContext
-            val (context, deleting) = periodAndDeleting
+            val (context, deleting, author) = periodDeletingAuthor
             val (selection, startDay) = context
             val categoriesById = categories.associateBy { it.id }
             val walletsById = TransactionUiMapper.mapWallets(walletSummary)
@@ -183,6 +211,9 @@ class TransactionHistoryViewModel @Inject constructor(
                 incomeTotal = totals.incomeTotal,
                 expenseTotal = totals.expenseTotal,
                 isDeleting = deleting,
+                authorUserId = author.userId,
+                authorOptions = author.options,
+                hasActiveAuthorFilter = author.userId != null,
             )
         }.catch { e ->
             emit(
@@ -234,6 +265,16 @@ class TransactionHistoryViewModel @Inject constructor(
 
     fun onClearPeriodFilter() {
         applyPeriod(HistoryPeriod())
+    }
+
+    fun onAuthorSelected(userId: String?) {
+        val normalized = userId?.trim()?.takeIf { it.isNotBlank() }
+        selectedUserId.value = normalized
+        persistAuthor(normalized)
+    }
+
+    fun onClearAuthorFilter() {
+        onAuthorSelected(null)
     }
 
     fun onReadOnlyTransactionTapped() {
@@ -288,11 +329,20 @@ class TransactionHistoryViewModel @Inject constructor(
         savedStateHandle[KEY_CUSTOM_TO] = next.customTo?.toEpochDay()
     }
 
+    private fun persistAuthor(userId: String?) {
+        if (userId == null) {
+            savedStateHandle.remove<String>(KEY_AUTHOR_USER_ID)
+        } else {
+            savedStateHandle[KEY_AUTHOR_USER_ID] = userId
+        }
+    }
+
     private fun transactionParams(
         period: HistoryPeriod,
         cycleStartDay: Int,
         walletId: String? = null,
         familyId: String? = null,
+        userId: String? = null,
     ): GetTransactionsUseCase.Params {
         val range = instantRange(period, cycleStartDay)
         return GetTransactionsUseCase.Params(
@@ -301,6 +351,7 @@ class TransactionHistoryViewModel @Inject constructor(
             startDate = range?.start,
             endDate = range?.endInclusive,
             limit = if (scope == HistoryScope.Family) FAMILY_HISTORY_LIMIT else HISTORY_LIMIT,
+            userId = userId,
         )
     }
 
@@ -309,6 +360,7 @@ class TransactionHistoryViewModel @Inject constructor(
         cycleStartDay: Int,
         walletId: String? = null,
         familyId: String? = null,
+        userId: String? = null,
     ): GetPeriodTotalsUseCase.Params {
         val range = instantRange(period, cycleStartDay)
         return GetPeriodTotalsUseCase.Params(
@@ -316,6 +368,7 @@ class TransactionHistoryViewModel @Inject constructor(
             familyId = familyId,
             startDate = range?.start,
             endDate = range?.endInclusive,
+            userId = userId,
         )
     }
 
@@ -341,9 +394,15 @@ class TransactionHistoryViewModel @Inject constructor(
     private data class HistoryQuery(
         val walletId: String? = null,
         val familyId: String? = null,
+        val userId: String? = null,
         val period: HistoryPeriod,
         val cycleStartDay: Int,
         val canQuery: Boolean,
+    )
+
+    private data class AuthorContext(
+        val options: List<HistoryAuthorOption>,
+        val userId: String?,
     )
 
     private companion object {
@@ -352,6 +411,11 @@ class TransactionHistoryViewModel @Inject constructor(
         const val KEY_PERIOD_PRESET = "periodPreset"
         const val KEY_CUSTOM_FROM = "customFromEpochDay"
         const val KEY_CUSTOM_TO = "customToEpochDay"
+        const val KEY_AUTHOR_USER_ID = "authorUserId"
+        const val AUTHOR_LABEL_ALL = "Semua"
+        const val AUTHOR_LABEL_ME = "Saya"
+        const val AUTHOR_LABEL_FALLBACK = "Anggota"
+        val AUTHOR_LABEL_LOCALE: Locale = Locale.forLanguageTag("id-ID")
         const val HISTORY_LIMIT = 50
         const val FAMILY_HISTORY_LIMIT = 200
         const val LAST_7_INCLUSIVE_OFFSET = 6L
@@ -405,5 +469,46 @@ class TransactionHistoryViewModel @Inject constructor(
                 is String -> value.toLongOrNull()
                 else -> null
             }
+
+        fun readAuthor(handle: SavedStateHandle): String? =
+            handle.get<String>(KEY_AUTHOR_USER_ID)?.trim()?.takeIf { it.isNotBlank() }
+
+        fun buildAuthorOptions(
+            scope: HistoryScope,
+            family: FamilyGroup?,
+            currentUid: String?,
+        ): List<HistoryAuthorOption> {
+            if (scope == HistoryScope.Personal || family == null) return emptyList()
+            val otherIds =
+                family.memberIds
+                    .distinct()
+                    .filter { it.isNotBlank() && it != currentUid }
+            if (otherIds.isEmpty()) return emptyList()
+            val others =
+                otherIds
+                    .map { id ->
+                        HistoryAuthorOption(
+                            userId = id,
+                            label = family.memberNames[id]?.takeIf { it.isNotBlank() }
+                                ?: AUTHOR_LABEL_FALLBACK,
+                        )
+                    }
+                    .sortedBy { it.label.lowercase(AUTHOR_LABEL_LOCALE) }
+            return buildList {
+                add(HistoryAuthorOption(userId = null, label = AUTHOR_LABEL_ALL))
+                currentUid?.takeIf { it.isNotBlank() }?.let { uid ->
+                    add(HistoryAuthorOption(userId = uid, label = AUTHOR_LABEL_ME))
+                }
+                addAll(others)
+            }
+        }
+
+        fun effectiveAuthorId(
+            selected: String?,
+            options: List<HistoryAuthorOption>,
+        ): String? {
+            if (options.isEmpty() || selected.isNullOrBlank()) return null
+            return selected.takeIf { id -> options.any { it.userId == id } }
+        }
     }
 }

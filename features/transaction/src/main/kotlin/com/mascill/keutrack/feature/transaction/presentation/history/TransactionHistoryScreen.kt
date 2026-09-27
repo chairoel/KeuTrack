@@ -38,10 +38,12 @@ import com.mascill.keutrack.core.designsystem.theme.KeuTrackTheme
 import com.mascill.keutrack.core.domain.model.SyncStatus
 import com.mascill.keutrack.feature.transaction.presentation.components.DateRangePickerDialogHost
 import com.mascill.keutrack.feature.transaction.presentation.components.DeleteTransactionDialog
+import com.mascill.keutrack.feature.transaction.presentation.components.HistoryAuthorBar
 import com.mascill.keutrack.feature.transaction.presentation.components.HistoryPeriodBar
 import com.mascill.keutrack.feature.transaction.presentation.components.HistoryPeriodTotalsRow
 import com.mascill.keutrack.feature.transaction.presentation.components.SwipeRevealRow
 import com.mascill.keutrack.feature.transaction.presentation.components.TransactionHistoryRow
+import com.mascill.keutrack.feature.transaction.presentation.model.HistoryAuthorOption
 import com.mascill.keutrack.feature.transaction.presentation.model.HistoryPeriodPreset
 import com.mascill.keutrack.feature.transaction.presentation.model.HistoryScope
 import com.mascill.keutrack.feature.transaction.presentation.model.HistoryUIState
@@ -63,6 +65,11 @@ private const val HISTORY_FAMILY_EMPTY_BODY =
 private const val HISTORY_FILTERED_EMPTY_TITLE = "Tidak ada transaksi di periode ini"
 private const val HISTORY_FILTERED_EMPTY_BODY = "Coba ubah filter tanggal."
 private const val HISTORY_FILTERED_EMPTY_CTA = "Ubah ke Semua"
+private const val HISTORY_AUTHOR_EMPTY_TITLE = "Tidak ada transaksi dari %s"
+private const val HISTORY_AUTHOR_PERIOD_EMPTY_TITLE = "Tidak ada transaksi dari %s di periode ini"
+private const val HISTORY_AUTHOR_EMPTY_BODY = "Coba ubah filter penulis."
+private const val HISTORY_AUTHOR_PERIOD_EMPTY_BODY = "Coba ubah filter penulis atau tanggal."
+private const val HISTORY_CLEAR_AUTHOR_CTA = "Semua penulis"
 private const val HISTORY_EMPTY_CTA = "Tambah transaksi"
 private const val HISTORY_ERROR_DISMISS = "Dismiss"
 private const val HISTORY_TOP_BAR_ELEVATION = 4
@@ -85,6 +92,8 @@ fun TransactionHistoryScreen(
     onPeriodPresetSelected: (HistoryPeriodPreset) -> Unit = {},
     onCustomRangeConfirmed: (LocalDate, LocalDate) -> Unit = { _, _ -> },
     onClearPeriodFilter: () -> Unit = {},
+    onAuthorSelected: (String?) -> Unit = {},
+    onClearAuthorFilter: () -> Unit = {},
 ) {
     val pageBg = KeuTrackTheme.contentColors.pageColor
     val semantic = KeuTrackTheme.semanticColors
@@ -172,6 +181,19 @@ fun TransactionHistoryScreen(
                             top = HISTORY_CONTENT_PT.dp,
                         ),
                 )
+                if (uiState.authorOptions.isNotEmpty()) {
+                    HistoryAuthorBar(
+                        options = uiState.authorOptions,
+                        selectedUserId = uiState.authorUserId,
+                        onAuthorSelected = onAuthorSelected,
+                        modifier =
+                            Modifier.padding(
+                                start = HISTORY_CONTENT_PH.dp,
+                                end = HISTORY_CONTENT_PH.dp,
+                                top = HISTORY_CONTENT_PT.dp,
+                            ),
+                    )
+                }
                 if (!uiState.isLoading) {
                     HistoryPeriodTotalsRow(
                         incomeTotal = uiState.incomeTotal,
@@ -203,6 +225,7 @@ fun TransactionHistoryScreen(
                             uiState = uiState,
                             onAddTransaction = onAddTransaction,
                             onClearPeriodFilter = onClearPeriodFilter,
+                            onClearAuthorFilter = onClearAuthorFilter,
                             modifier = Modifier.weight(1f).fillMaxWidth(),
                         )
                     }
@@ -284,30 +307,32 @@ private fun HistoryEmptyContent(
     uiState: HistoryUIState,
     onAddTransaction: () -> Unit,
     onClearPeriodFilter: () -> Unit,
+    onClearAuthorFilter: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val typography = KeuTrackTheme.typography
     val textColors = KeuTrackTheme.textColors
-    val filtered = uiState.hasActivePeriodFilter
+    val copy = historyEmptyCopy(uiState)
+    val hasFilterCta = copy.showClearPeriod || copy.showClearAuthor
     Column(
         modifier = modifier.padding(horizontal = HISTORY_CONTENT_PH.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = if (filtered) HISTORY_FILTERED_EMPTY_TITLE else historyEmptyTitle(uiState.scope),
+            text = copy.title,
             style = typography.headingBold20,
             color = textColors.title,
             textAlign = TextAlign.Center,
         )
         Text(
-            text = if (filtered) HISTORY_FILTERED_EMPTY_BODY else historyEmptyBody(uiState.scope),
+            text = copy.body,
             style = typography.bodyRegular14,
             color = textColors.body,
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(top = HISTORY_EMPTY_SPACING.dp),
         )
-        if (filtered) {
+        if (copy.showClearPeriod) {
             KeuTrackButton(
                 text = HISTORY_FILTERED_EMPTY_CTA,
                 onClick = onClearPeriodFilter,
@@ -316,25 +341,81 @@ private fun HistoryEmptyContent(
                         .fillMaxWidth()
                         .padding(top = (HISTORY_EMPTY_SPACING * 2).dp),
             )
+        }
+        if (copy.showClearAuthor) {
             KeuTrackButton(
-                text = HISTORY_EMPTY_CTA,
-                onClick = onAddTransaction,
-                style = KeuTrackButtonStyle.Tertiary,
+                text = HISTORY_CLEAR_AUTHOR_CTA,
+                onClick = onClearAuthorFilter,
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .padding(top = HISTORY_EMPTY_SPACING.dp),
-            )
-        } else {
-            KeuTrackButton(
-                text = HISTORY_EMPTY_CTA,
-                onClick = onAddTransaction,
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(top = (HISTORY_EMPTY_SPACING * 2).dp),
+                        .padding(
+                            top = if (copy.showClearPeriod) {
+                                HISTORY_EMPTY_SPACING.dp
+                            } else {
+                                (HISTORY_EMPTY_SPACING * 2).dp
+                            },
+                        ),
             )
         }
+        KeuTrackButton(
+            text = HISTORY_EMPTY_CTA,
+            onClick = onAddTransaction,
+            style = if (hasFilterCta) KeuTrackButtonStyle.Tertiary else KeuTrackButtonStyle.Primary,
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        top = if (hasFilterCta) {
+                            HISTORY_EMPTY_SPACING.dp
+                        } else {
+                            (HISTORY_EMPTY_SPACING * 2).dp
+                        },
+                    ),
+        )
+    }
+}
+
+private data class HistoryEmptyCopy(
+    val title: String,
+    val body: String,
+    val showClearPeriod: Boolean,
+    val showClearAuthor: Boolean,
+)
+
+private fun historyEmptyCopy(uiState: HistoryUIState): HistoryEmptyCopy {
+    val period = uiState.hasActivePeriodFilter
+    val author = uiState.hasActiveAuthorFilter
+    val label = uiState.selectedAuthorLabel
+    return when {
+        period && author ->
+            HistoryEmptyCopy(
+                title = HISTORY_AUTHOR_PERIOD_EMPTY_TITLE.format(label),
+                body = HISTORY_AUTHOR_PERIOD_EMPTY_BODY,
+                showClearPeriod = true,
+                showClearAuthor = true,
+            )
+        period ->
+            HistoryEmptyCopy(
+                title = HISTORY_FILTERED_EMPTY_TITLE,
+                body = HISTORY_FILTERED_EMPTY_BODY,
+                showClearPeriod = true,
+                showClearAuthor = false,
+            )
+        author ->
+            HistoryEmptyCopy(
+                title = HISTORY_AUTHOR_EMPTY_TITLE.format(label),
+                body = HISTORY_AUTHOR_EMPTY_BODY,
+                showClearPeriod = false,
+                showClearAuthor = true,
+            )
+        else ->
+            HistoryEmptyCopy(
+                title = historyEmptyTitle(uiState.scope),
+                body = historyEmptyBody(uiState.scope),
+                showClearPeriod = false,
+                showClearAuthor = false,
+            )
     }
 }
 
@@ -408,6 +489,47 @@ private fun TransactionHistoryEmptyFilteredPreview() {
     }
 }
 
+@Preview(showBackground = true, name = "History — Family authors")
+@Composable
+private fun TransactionHistoryFamilyAuthorPreview() {
+    KeuTrackTheme {
+        TransactionHistoryScreen(
+            uiState =
+                HistoryUIState(
+                    isLoading = false,
+                    items = previewHistoryItems(),
+                    scope = HistoryScope.Family,
+                    incomeTotal = 5_500_000L,
+                    expenseTotal = 205_000L,
+                    authorUserId = "user-2",
+                    authorOptions = previewAuthorOptions(),
+                    hasActiveAuthorFilter = true,
+                ),
+            onBack = {},
+            onAddTransaction = {},
+        )
+    }
+}
+
+@Preview(showBackground = true, name = "History — Empty author filter")
+@Composable
+private fun TransactionHistoryEmptyAuthorPreview() {
+    KeuTrackTheme {
+        TransactionHistoryScreen(
+            uiState =
+                HistoryUIState(
+                    isLoading = false,
+                    scope = HistoryScope.Family,
+                    authorUserId = "user-2",
+                    authorOptions = previewAuthorOptions(),
+                    hasActiveAuthorFilter = true,
+                ),
+            onBack = {},
+            onAddTransaction = {},
+        )
+    }
+}
+
 private fun historyTitle(scope: HistoryScope): String =
     when (scope) {
         HistoryScope.All -> HISTORY_TITLE
@@ -428,6 +550,14 @@ private fun historyEmptyBody(scope: HistoryScope): String =
         HistoryScope.Personal -> HISTORY_PERSONAL_EMPTY_BODY
         HistoryScope.Family -> HISTORY_FAMILY_EMPTY_BODY
     }
+
+private fun previewAuthorOptions(): List<HistoryAuthorOption> =
+    listOf(
+        HistoryAuthorOption(userId = null, label = "Semua"),
+        HistoryAuthorOption(userId = "user-1", label = "Saya"),
+        HistoryAuthorOption(userId = "user-2", label = "Budi"),
+        HistoryAuthorOption(userId = "user-3", label = "Siti"),
+    )
 
 private fun previewHistoryItems(): List<TransactionRowUi> =
     listOf(

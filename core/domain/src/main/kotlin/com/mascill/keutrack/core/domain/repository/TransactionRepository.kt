@@ -16,6 +16,7 @@ interface TransactionRepository {
         startDate: Instant? = null,
         endDate: Instant? = null,
         limit: Int = 50,
+        userId: String? = null,
     ): Flow<List<Transaction>>
 
     fun observeRecentTransactions(limit: Int = 5): Flow<List<Transaction>>
@@ -25,6 +26,7 @@ interface TransactionRepository {
         familyId: String? = null,
         startDate: Instant? = null,
         endDate: Instant? = null,
+        userId: String? = null,
     ): Flow<PeriodTotals>
 
     suspend fun getTransactionById(id: String): Transaction?

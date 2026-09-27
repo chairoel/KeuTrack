@@ -67,6 +67,7 @@ Bug laten yang phase ini perbaiki di Family: transaksi di-query `limit = 200` **
 - Range tanggal bebas di Family (tetap 1 bulan penuh)
 - Authoring budget untuk bulan lampau
 - Infinite scroll / pagination history
+- Filter History by penulis (`userId`) — **Phase 19** (`PHASE_19_HISTORY_AUTHOR_FILTER.md`)
 - Composite index Firestore + pull by date (hydrate remote untuk bulan sangat lama)
 - `:features:family` import composable dari `:features:transaction` (larangan antar-feature)
 
